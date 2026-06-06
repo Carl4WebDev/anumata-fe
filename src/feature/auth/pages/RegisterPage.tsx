@@ -93,10 +93,6 @@ export default function RegisterPage() {
             <p className="text-sm text-red-600 text-center">{localError || error}</p>
           )}
 
-          <p className="text-center text-xs leading-5 text-slate-400">
-            Simulated registration — no real account is created.
-          </p>
-
           <button
             type="submit"
             disabled={loading}

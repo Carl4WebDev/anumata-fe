@@ -57,10 +57,6 @@ export default function LoginPage() {
 
           {error && <p className="text-sm text-red-600 text-center">{error}</p>}
 
-          <p className="text-center text-xs leading-5 text-slate-400">
-            Simulated login — any email and password will work.
-          </p>
-
           <button
             type="submit"
             disabled={loading}

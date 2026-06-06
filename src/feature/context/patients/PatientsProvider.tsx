@@ -1,42 +1,75 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { PatientsContext } from "./PatientsContext";
+import { patientsApi } from "../../../shared/api/patientsApi";
+import { ApiError } from "../../../shared/api/httpClient";
 
-let nextId = 5;
-
-const INITIAL_PATIENTS = [
-  { id: 1, name: "John Doe", age: 24, gender: "Male", concern: "Family Concerns", status: "Active", risk: "Moderate", sessions: 6, lastInterview: "Apr 26, 2026" },
-  { id: 2, name: "Jane Smith", age: 21, gender: "Female", concern: "Academic Stress", status: "Active", risk: "Low", sessions: 3, lastInterview: "Apr 24, 2026" },
-  { id: 3, name: "Michael Cruz", age: 27, gender: "Male", concern: "Self Worth", status: "Review", risk: "High", sessions: 8, lastInterview: "Apr 22, 2026" },
-  { id: 4, name: "Sarah Reyes", age: 19, gender: "Female", concern: "Romantic Relationship", status: "Active", risk: "Low", sessions: 2, lastInterview: "Apr 20, 2026" },
-];
+function mapPatient(p: any) {
+  return {
+    id: p.patient_id,
+    name: p.full_name,
+    age: p.age,
+    gender: p.gender.charAt(0).toUpperCase() + p.gender.slice(1),
+    concern: p.primary_concern,
+    status: "Active",
+    risk: p.risk_level ? p.risk_level.charAt(0).toUpperCase() + p.risk_level.slice(1) : "N/A",
+    sessions: p.session_count ?? 0,
+    lastInterview: p.last_interview
+      ? new Date(p.last_interview).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+      : "N/A",
+  };
+}
 
 export const PatientsProvider = ({ children }: { children: React.ReactNode }) => {
-  const [patients, setPatients] = useState(INITIAL_PATIENTS);
-  const [loading] = useState(false);
-  const [error] = useState<string | null>(null);
+  const [patients, setPatients] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const clearError = useCallback(() => {}, []);
-
-  const addPatient = useCallback((data: { name: string; age: number; gender: string; concern: string }) => {
-    const now = new Date();
-    const dateStr = now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    const newPatient = {
-      id: nextId++,
-      name: data.name,
-      age: data.age,
-      gender: data.gender,
-      concern: data.concern,
-      status: "Active",
-      risk: "N/A",
-      sessions: 0,
-      lastInterview: dateStr,
-    };
-    setPatients((prev) => [newPatient, ...prev]);
-    return { ok: true, data: newPatient };
+  const fetchPatients = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await patientsApi.getAll();
+      setPatients(res.data.map(mapPatient));
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Failed to load patients";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const removePatient = useCallback((id: number) => {
-    setPatients((prev) => prev.filter((p) => p.id !== id));
+  useEffect(() => {
+    fetchPatients();
+  }, [fetchPatients]);
+
+  const clearError = useCallback(() => setError(null), []);
+
+  const addPatient = useCallback(async (data: { name: string; age: number; gender: string; concern: string }) => {
+    try {
+      const res = await patientsApi.create({
+        full_name: data.name,
+        age: data.age,
+        gender: data.gender.toLowerCase(),
+        primary_concern: data.concern,
+      });
+      const mapped = mapPatient(res.data);
+      setPatients((prev) => [mapped, ...prev]);
+      return { ok: true, data: mapped };
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Failed to add patient";
+      setError(message);
+      return { ok: false };
+    }
+  }, []);
+
+  const removePatient = useCallback(async (id: number) => {
+    try {
+      await patientsApi.remove(id);
+      setPatients((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Failed to remove patient";
+      setError(message);
+    }
   }, []);
 
   const value = useMemo(

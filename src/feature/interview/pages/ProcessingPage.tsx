@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Check, Loader2 } from "lucide-react";
+import { emotionApi } from "../../../shared/api/emotionApi";
 
 const STEPS = [
   "Analyzing facial expressions",
@@ -14,27 +15,63 @@ export default function ProcessingPage() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [completed, setCompleted] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const delays = [1500, 2000, 1500, 2000];
-    let timeout: ReturnType<typeof setTimeout>;
+    if (!token) return;
 
-    const advance = (step: number) => {
-      if (step >= STEPS.length) {
-        setCompleted(true);
-        return;
+    // Load files from sessionStorage (stored by InterviewRoomPage)
+    const filesJson = sessionStorage.getItem(`amumata_files_${token}`);
+    if (!filesJson) {
+      setError("No interview data found. Please retake the interview.");
+      return;
+    }
+
+    const fileDataUrls: { name: string; type: string; dataUrl: string }[] = JSON.parse(filesJson);
+
+    // Convert data URLs back to File objects
+    const files: File[] = fileDataUrls.map((fd) => {
+      const byteString = atob(fd.dataUrl.split(",")[1]);
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
       }
-      timeout = setTimeout(() => {
+      return new File([ab], fd.name, { type: fd.type });
+    });
+
+    // Animate steps while API runs
+    let stepTimeout: ReturnType<typeof setTimeout>;
+    const advance = (step: number) => {
+      if (step >= STEPS.length) return;
+      stepTimeout = setTimeout(() => {
         setCurrentStep(step);
         advance(step + 1);
-      }, delays[step] ?? 1500);
+      }, 1500);
     };
+    advance(0);
 
-    // Start after initial delay
-    timeout = setTimeout(() => advance(0), 800);
+    // Run analysis
+    emotionApi
+      .analyze(token, files)
+      .then((result) => {
+        clearTimeout(stepTimeout);
+        setCurrentStep(STEPS.length);
+        setCompleted(true);
 
-    return () => clearTimeout(timeout);
-  }, []);
+        // Store result for ResultsPage
+        sessionStorage.setItem(`amumata_analysis_${token}`, JSON.stringify(result));
+
+        // Clean up files from sessionStorage
+        sessionStorage.removeItem(`amumata_files_${token}`);
+      })
+      .catch((err) => {
+        clearTimeout(stepTimeout);
+        setError(err.message || "Analysis failed. Please try again.");
+      });
+
+    return () => clearTimeout(stepTimeout);
+  }, [token]);
 
   const handleViewResults = () => {
     navigate(`/interview/${token}/results`);
@@ -45,74 +82,73 @@ export default function ProcessingPage() {
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-md border border-slate-200">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
-            {completed ? (
+            {error ? (
+              <span className="text-2xl text-red-500">!</span>
+            ) : completed ? (
               <Check size={32} className="text-green-600" />
             ) : (
               <Loader2 size={32} className="animate-spin text-blue-600" />
             )}
           </div>
           <h1 className="text-2xl font-bold text-slate-900">
-            {completed ? "Analysis Complete" : "Analyzing Interview"}
+            {error ? "Analysis Error" : completed ? "Analysis Complete" : "Analyzing Interview"}
           </h1>
-          <p className="mt-2 text-sm text-slate-500">
-            {completed
-              ? "Your pre-evaluation report is ready."
-              : "Please wait while we process your responses..."}
+          <p className="mt-1 text-sm text-slate-500">
+            {error
+              ? error
+              : completed
+                ? "The emotional pre-evaluation is ready."
+                : "Please wait while we process the interview data..."}
           </p>
         </div>
 
-        <div className="space-y-4 mb-8">
-          {STEPS.map((step, i) => {
-            const isDone = i < currentStep || completed;
-            const isCurrent = i === currentStep && !completed;
-
-            return (
-              <div key={step} className="flex items-center gap-3">
-                <div
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                    isDone
-                      ? "bg-green-100"
-                      : isCurrent
-                        ? "bg-blue-100"
-                        : "bg-slate-100"
-                  }`}
-                >
-                  {isDone ? (
-                    <Check size={16} className="text-green-600" />
-                  ) : isCurrent ? (
-                    <Loader2 size={16} className="animate-spin text-blue-600" />
+        {!error && (
+          <div className="space-y-4">
+            {STEPS.map((step, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full flex-shrink-0">
+                  {i < currentStep ? (
+                    <Check size={18} className="text-green-600" />
+                  ) : i === currentStep && !completed ? (
+                    <Loader2 size={18} className="animate-spin text-blue-600" />
                   ) : (
                     <div className="h-2 w-2 rounded-full bg-slate-300" />
                   )}
                 </div>
                 <span
                   className={`text-sm ${
-                    isDone
-                      ? "text-green-700 font-medium"
-                      : isCurrent
-                        ? "text-blue-700 font-medium"
+                    i < currentStep
+                      ? "text-slate-500 line-through"
+                      : i === currentStep
+                        ? "font-medium text-slate-900"
                         : "text-slate-400"
                   }`}
                 >
                   {step}
                 </span>
               </div>
-            );
-          })}
-        </div>
-
-        {completed && (
-          <button
-            onClick={handleViewResults}
-            className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-          >
-            View Results
-          </button>
+            ))}
+          </div>
         )}
 
-        <p className="mt-4 text-center text-xs text-slate-400">
-          This system does not provide a clinical diagnosis.
-        </p>
+        <div className="mt-8">
+          {completed && (
+            <button
+              onClick={handleViewResults}
+              className="w-full rounded-xl bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700 transition"
+            >
+              View Results
+            </button>
+          )}
+          {error && (
+            <button
+              onClick={() => navigate(`/interview/${token}`)}
+              className="w-full rounded-xl bg-slate-600 px-6 py-3 text-sm font-medium text-white hover:bg-slate-700 transition"
+            >
+              Retry Interview
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

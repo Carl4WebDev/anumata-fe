@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Video, VideoOff, Mic, MicOff, SkipForward, StopCircle, Clock } from "lucide-react";
-import { getLinkByToken } from "../../../shared/utils/interviewStore";
+import { interviewLinksApi } from "../../../shared/api/interviewLinksApi";
 import WaveVisualizer from "../components/WaveVisualizer";
 
 // Hardcoded fallback questions if token not found
@@ -21,8 +21,13 @@ export default function InterviewRoom() {
   const navigate = useNavigate();
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const capturedFramesRef = useRef<Map<number, Blob>>(new Map());
+  const capturedAudioRef = useRef<Map<number, Blob>>(new Map());
 
   const [questions, setQuestions] = useState<string[]>([]);
   const [patientName, setPatientName] = useState("");
@@ -36,21 +41,35 @@ export default function InterviewRoom() {
   const [linkValid, setLinkValid] = useState(true);
   const [responses, setResponses] = useState<{ question: string; answer: string }[]>([]);
 
-  // Load interview data from localStorage
+  // Load interview data from API by token
   useEffect(() => {
     if (!token) return;
-    const link = getLinkByToken(token);
-    if (link && link.questions.length > 0) {
-      setQuestions(link.questions);
-      setPatientName(link.patientName);
-      setTemplateName(link.templateName);
-    } else {
-      // Use fallback questions for demo
+    let cancelled = false;
+
+    interviewLinksApi.getByToken(token).then((res) => {
+      if (cancelled) return;
+      const link = res.data;
+      const qs = link.questions || [];
+      const questionTexts = qs.map((q: any) => (typeof q === "string" ? q : q.text));
+      if (questionTexts.length > 0) {
+        setQuestions(questionTexts);
+        setPatientName(link.patient_name || "Client");
+        setTemplateName(link.question_set_name || "Interview");
+      } else {
+        setQuestions(FALLBACK_QUESTIONS);
+        setPatientName("Client");
+        setTemplateName("Demo Template");
+        setLinkValid(false);
+      }
+    }).catch(() => {
+      if (cancelled) return;
       setQuestions(FALLBACK_QUESTIONS);
       setPatientName("Client");
       setTemplateName("Demo Template");
       setLinkValid(false);
-    }
+    });
+
+    return () => { cancelled = true; };
   }, [token]);
 
   // Start camera/mic
@@ -73,6 +92,72 @@ export default function InterviewRoom() {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+  }, []);
+
+  // Capture a single frame from the video as a JPEG blob
+  const captureFrame = useCallback((): Blob | null => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return null;
+
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    // Convert to JPEG blob synchronously via toDataURL
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    const byteString = atob(dataUrl.split(",")[1]);
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], { type: "image/jpeg" });
+  }, []);
+
+  // Start audio recording for the current question
+  const startAudioRecording = useCallback(() => {
+    if (!streamRef.current || !micOn) return;
+
+    const audioTracks = streamRef.current.getAudioTracks();
+    if (audioTracks.length === 0) return;
+
+    const audioStream = new MediaStream(audioTracks);
+    const recorder = new MediaRecorder(audioStream, { mimeType: "audio/webm" });
+    audioChunksRef.current = [];
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunksRef.current.push(e.data);
+    };
+
+    recorder.start();
+    mediaRecorderRef.current = recorder;
+  }, [micOn]);
+
+  // Stop audio recording and return blob via callback
+  const stopAudioRecording = useCallback((): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      const recorder = mediaRecorderRef.current;
+      if (!recorder || recorder.state === "inactive") {
+        resolve(null);
+        return;
+      }
+
+      recorder.onstop = () => {
+        if (audioChunksRef.current.length === 0) {
+          resolve(null);
+          return;
+        }
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        audioChunksRef.current = [];
+        resolve(blob);
+      };
+
+      recorder.stop();
+      mediaRecorderRef.current = null;
+    });
   }, []);
 
   // Initialize camera on mount
@@ -125,27 +210,59 @@ export default function InterviewRoom() {
     setState("recording");
     setElapsed(0);
     setResponses([]);
+    capturedFramesRef.current.clear();
+    capturedAudioRef.current.clear();
+    // Start audio recording for the first question
+    setTimeout(() => startAudioRecording(), 200);
   };
 
-  // Next question
-  const handleNext = () => {
-    // Save a simulated response
+  // Next question — capture frame + audio for this question
+  const handleNext = async () => {
+    // Capture video frame
+    const frame = captureFrame();
+    if (frame) {
+      capturedFramesRef.current.set(currentIndex, frame);
+    }
+
+    // Stop audio recording for this question
+    const audio = await stopAudioRecording();
+    if (audio) {
+      capturedAudioRef.current.set(currentIndex, audio);
+    }
+
+    // Save response entry
     setResponses((prev) => [
       ...prev,
       { question: questions[currentIndex], answer: "[Audio response recorded]" },
     ]);
 
     if (currentIndex < questions.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
+      // Start audio recording for next question (after a tick so state updates)
+      setTimeout(() => startAudioRecording(), 100);
     } else {
       // Last question answered — finish
       handleFinish();
     }
   };
 
-  // Finish interview
-  const handleFinish = () => {
+  // Finish interview — stop last audio, collect all media, navigate to processing
+  const handleFinish = async () => {
     setState("finished");
+
+    // Stop and capture last question's audio
+    const lastAudio = await stopAudioRecording();
+    if (lastAudio) {
+      capturedAudioRef.current.set(currentIndex, lastAudio);
+    }
+
+    // Capture final frame
+    const lastFrame = captureFrame();
+    if (lastFrame) {
+      capturedFramesRef.current.set(currentIndex, lastFrame);
+    }
+
     stopMedia();
 
     // Save the last response
@@ -154,7 +271,16 @@ export default function InterviewRoom() {
       { question: questions[currentIndex], answer: "[Audio response recorded]" },
     ];
 
-    // Store results in localStorage for the processing/results pages
+    // Build File arrays for upload
+    const files: File[] = [];
+    capturedFramesRef.current.forEach((blob, idx) => {
+      files.push(new File([blob], `frame_${idx}.jpg`, { type: "image/jpeg" }));
+    });
+    capturedAudioRef.current.forEach((blob, idx) => {
+      files.push(new File([blob], `audio_${idx}.webm`, { type: "audio/webm" }));
+    });
+
+    // Store interview metadata + files in sessionStorage for ProcessingPage
     const resultData = {
       token,
       patientName,
@@ -164,7 +290,21 @@ export default function InterviewRoom() {
       duration: elapsed,
       completedAt: new Date().toISOString(),
     };
-    localStorage.setItem(`amumata_result_${token}`, JSON.stringify(resultData));
+    sessionStorage.setItem(`amumata_result_${token}`, JSON.stringify(resultData));
+
+    // Store files as data URLs (small enough for 6 questions)
+    const fileDataUrls: { name: string; type: string; dataUrl: string }[] = [];
+    for (const file of files) {
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+      fileDataUrls.push({ name: file.name, type: file.type, dataUrl });
+    }
+    sessionStorage.setItem(`amumata_files_${token}`, JSON.stringify(fileDataUrls));
+
+    navigate(`/interview/${token}/processing`);
   };
 
   // Format timer
@@ -316,6 +456,7 @@ export default function InterviewRoom() {
               </div>
             )}
           </div>
+          <canvas ref={canvasRef} className="hidden" />
           <div className="mt-4 w-full max-w-md">
             <WaveVisualizer isActive={state === "recording" && micOn} />
           </div>
