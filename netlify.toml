@@ -1,0 +1,6 @@
+# SPA fallback — serve real files first, then index.html for client-side routes
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = false
