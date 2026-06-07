@@ -183,6 +183,13 @@ export default function InterviewRoom() {
     };
   }, [state]);
 
+  // Re-assign stream to video element when screen changes (idle→recording swaps the element)
+  useEffect(() => {
+    if (streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [state]);
+
   // Toggle camera
   const toggleCamera = () => {
     if (streamRef.current) {
@@ -348,7 +355,7 @@ export default function InterviewRoom() {
           </div>
 
           {/* Controls */}
-          <div className="mb-6 flex items-center justify-center gap-4">
+          <div className="mb-4 flex items-center justify-center gap-4">
             <button
               onClick={toggleCamera}
               className={`rounded-full p-3 transition ${cameraOn ? "bg-slate-100 text-slate-700" : "bg-red-100 text-red-600"}`}
@@ -363,6 +370,29 @@ export default function InterviewRoom() {
             >
               {micOn ? <Mic size={20} /> : <MicOff size={20} />}
             </button>
+          </div>
+
+          {/* Preparation guide */}
+          <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <h3 className="mb-2 text-sm font-semibold text-blue-900">Before You Begin</h3>
+            <ul className="space-y-1.5 text-sm text-blue-800">
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 text-blue-500">•</span>
+                Sit in a well-lit area — face the light source so your expressions are clearly visible
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 text-blue-500">•</span>
+                Position your full face in the camera frame — keep a steady distance from the screen
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 text-blue-500">•</span>
+                Speak clearly and at a normal volume — let your voice reflect how you truly feel
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 text-blue-500">•</span>
+                Express yourself freely — this is a safe space. Your video is only reviewed by your therapist for better consultation
+              </li>
+            </ul>
           </div>
 
           {!linkValid && (

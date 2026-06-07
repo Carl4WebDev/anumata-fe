@@ -1,15 +1,32 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Clock, AlertTriangle, Save, User } from "lucide-react";
 import { useSessions } from "../../context/sessions/useSessions";
 
 export default function SessionReviewPage() {
   const { id } = useParams();
-  const { getSessionById, updateNotes } = useSessions();
-  const session = getSessionById(Number(id));
+  const { getSessionById, fetchSessionById, updateNotes } = useSessions();
+  const cachedSession = getSessionById(Number(id));
+  const [session, setSession] = useState(cachedSession);
 
   const [notes, setNotes] = useState(session?.notes ?? "");
   const [saved, setSaved] = useState(false);
+
+  // Sync notes when session data arrives
+  useEffect(() => {
+    if (session) setNotes(session.notes ?? "");
+  }, [session]);
+
+  // Fetch full session data (with transcript) if the cached version is incomplete
+  useEffect(() => {
+    if (cachedSession && cachedSession.responses.length > 0) {
+      setSession(cachedSession);
+      return;
+    }
+    fetchSessionById(Number(id)).then((full) => {
+      if (full) setSession(full);
+    });
+  }, [id, cachedSession, fetchSessionById]);
 
   if (!session) {
     return (

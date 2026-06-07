@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Check, Loader2 } from "lucide-react";
 import { emotionApi } from "../../../shared/api/emotionApi";
@@ -16,9 +16,13 @@ export default function ProcessingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [error, setError] = useState("");
+  const analyzingRef = useRef(false);
 
   useEffect(() => {
     if (!token) return;
+    // Prevent duplicate analysis (React strict mode, re-navigation)
+    if (analyzingRef.current) return;
+    analyzingRef.current = true;
 
     // Load files from sessionStorage (stored by InterviewRoomPage)
     const filesJson = sessionStorage.getItem(`amumata_files_${token}`);
