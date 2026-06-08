@@ -28,10 +28,12 @@ function mapSession(s: any) {
     })),
     responses: (s.transcript || []).map((t: any) => ({
       question: typeof t.question === "object" ? t.question?.text ?? JSON.stringify(t.question) : t.question ?? "",
-      answer: "",
+      answer: t.answer || "[Audio response recorded]",
       emotion: (t.combined_emotion ?? "neutral").toLowerCase(),
       emotionPct: Math.round(Math.max(t.fer_confidence ?? 0, t.ser_confidence ?? 0) * 100),
     })),
+    emotionalEvents: s.emotional_events || [],
+    sessionHighlights: s.session_highlights || null,
     notes: s.notes || "",
   };
 }

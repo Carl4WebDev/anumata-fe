@@ -1,5 +1,26 @@
 import { httpClient } from "./httpClient";
 
+export interface EmotionalEvent {
+  event_number: number;
+  timestamp: string;
+  question: string;
+  transcript: string;
+  dominant_emotion: string;
+  emotion_confidence: number;
+  speech_indicators: string;
+  facial_indicators: string;
+  intensity_level: string;
+  summary: string;
+}
+
+export interface SessionHighlights {
+  total_events: number;
+  most_frequent_emotion: string;
+  highest_intensity_event: number | null;
+  questions_with_responses: string[];
+  overall_summary: string;
+}
+
 export interface SessionData {
   session_id: number;
   interview_link_id: number;
@@ -11,6 +32,8 @@ export interface SessionData {
   emotion_summary: { happy: number; sad: number; angry: number; neutral: number };
   risk_level: string;
   emotional_spikes: { questionIndex: number; label: string; emotion: string; intensity: number }[];
+  emotional_events?: EmotionalEvent[];
+  session_highlights?: SessionHighlights;
   notes: string | null;
   created_at: string;
 }
