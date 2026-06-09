@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Clock, AlertTriangle, Save, User, Brain, Activity, Eye, Mic } from "lucide-react";
 import { useSessions } from "../../context/sessions/useSessions";
+import SpikeContextPanel from "../components/SpikeContextPanel";
+import EmotionTimelineHeatmap from "../components/EmotionTimelineHeatmap";
+import EvidencePanel from "../components/EvidencePanel";
 
 export default function SessionReviewPage() {
   const { id } = useParams();
@@ -11,6 +14,7 @@ export default function SessionReviewPage() {
 
   const [notes, setNotes] = useState(session?.notes ?? "");
   const [saved, setSaved] = useState(false);
+  const [selectedSpike, setSelectedSpike] = useState<any>(null);
 
   // Sync notes when session data arrives
   useEffect(() => {
@@ -113,35 +117,63 @@ export default function SessionReviewPage() {
 
       {/* Two-column layout */}
       <section className="grid gap-6 xl:grid-cols-3">
-        {/* Left: Transcript + Spikes */}
+        {/* Left: Timeline + Spikes + Transcript */}
         <div className="space-y-6 xl:col-span-2">
+          {/* Emotion Timeline Heatmap */}
+          <EmotionTimelineHeatmap
+            points={session.responses.map((r: any, i: number) => ({
+              questionIndex: i,
+              emotion: r.emotion.charAt(0).toUpperCase() + r.emotion.slice(1),
+              confidence: r.emotionPct / 100,
+              isSpike: session.spikes.some((s: any) => s.questionIndex === i),
+            }))}
+            onSpikeClick={(index) => {
+              const spike = session.spikes.find((s: any) => s.questionIndex === index);
+              if (spike) setSelectedSpike(spike);
+            }}
+          />
+
           {/* Emotional Spikes */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
             <h2 className="mb-4 text-lg font-semibold md:text-xl">Emotional Spikes</h2>
-            <div className="space-y-3">
-              {session.spikes.map((spike) => (
-                <div
-                  key={spike.questionIndex}
-                  className="flex items-start gap-3 rounded-xl border-l-4 border-yellow-400 bg-yellow-50 p-4"
-                >
-                  <AlertTriangle size={18} className="mt-0.5 shrink-0 text-yellow-600" />
-                  <div>
-                    <p className="text-sm font-medium text-yellow-800">{spike.label}</p>
-                    <p className="text-xs text-yellow-600">
-                      Q{spike.questionIndex + 1} — Emotion: {spike.emotion} — Intensity: {spike.intensity}%
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {selectedSpike ? (
+              <SpikeContextPanel
+                spike={selectedSpike}
+                transcript={session.responses}
+                onClose={() => setSelectedSpike(null)}
+              />
+            ) : (
+              <div className="space-y-3">
+                {session.spikes.length === 0 ? (
+                  <p className="text-sm text-slate-400 italic">No emotional spikes detected.</p>
+                ) : (
+                  session.spikes.map((spike: any) => (
+                    <button
+                      key={spike.questionIndex}
+                      onClick={() => setSelectedSpike(spike)}
+                      className="w-full flex items-start gap-3 rounded-xl border-l-4 border-yellow-400 bg-yellow-50 p-4 text-left transition hover:bg-yellow-100"
+                    >
+                      <AlertTriangle size={18} className="mt-0.5 shrink-0 text-yellow-600" />
+                      <div>
+                        <p className="text-sm font-medium text-yellow-800">{spike.label}</p>
+                        <p className="text-xs text-yellow-600">
+                          Q{spike.questionIndex + 1} — Emotion: {spike.emotion} — Intensity: {spike.intensity}%
+                        </p>
+                        <p className="mt-1 text-[10px] text-yellow-500">Click to view surrounding context</p>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           {/* Transcript */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
             <h2 className="mb-4 text-lg font-semibold md:text-xl">Interview Transcript</h2>
             <div className="space-y-4">
-              {session.responses.map((r, i) => {
-                const isSpike = session.spikes.some((s) => s.questionIndex === i);
+              {session.responses.map((r: any, i: number) => {
+                const isSpike = session.spikes.some((s: any) => s.questionIndex === i);
                 return (
                   <div
                     key={i}
@@ -169,6 +201,21 @@ export default function SessionReviewPage() {
                         />
                       </div>
                     </div>
+
+                    {/* Evidence Panel — show for spike questions or when enriched data exists */}
+                    {(isSpike || r.facial_details || r.audio_details || r.text_analysis) && (
+                      <div className="mt-3">
+                        <EvidencePanel
+                          questionIndex={i}
+                          frame_image={r.frame_image}
+                          facial_details={r.facial_details}
+                          audio_details={r.audio_details}
+                          text_analysis={r.text_analysis}
+                          fer_confidence={r.fer_confidence}
+                          ser_confidence={r.ser_confidence}
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -183,12 +230,12 @@ export default function SessionReviewPage() {
             <h2 className="mb-4 text-lg font-semibold md:text-xl">Emotion Distribution</h2>
             <div className="space-y-3">
               {Object.entries(session.emotions)
-                .sort(([, a], [, b]) => b - a)
+                .sort(([, a], [, b]) => (b as number) - (a as number))
                 .map(([label, pct]) => (
                   <div key={label}>
                     <div className="mb-1 flex justify-between text-sm">
                       <span className="capitalize text-slate-700">{label}</span>
-                      <span className="text-slate-500">{pct}%</span>
+                      <span className="text-slate-500">{pct as number}%</span>
                     </div>
                     <div className="h-2.5 w-full rounded-full bg-slate-100">
                       <div
@@ -205,7 +252,7 @@ export default function SessionReviewPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
             <h2 className="mb-3 text-lg font-semibold md:text-xl">Detected Indicators</h2>
             <div className="flex flex-wrap gap-2">
-              {session.indicators.map((ind) => (
+              {session.indicators.map((ind: string) => (
                 <span key={ind} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
                   {ind}
                 </span>

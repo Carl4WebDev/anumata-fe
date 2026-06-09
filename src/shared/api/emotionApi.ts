@@ -1,5 +1,34 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
+export interface FacialDetails {
+  brows: string;
+  eyes: string;
+  mouth: string;
+  jaw: string;
+  description: string;
+}
+
+export interface AudioDetails {
+  pitch_mean_hz: number;
+  pitch_std_hz: number;
+  pitch_label: string;
+  energy_rms: number;
+  energy_label: string;
+  speech_rate: string;
+  pitch_variability: string;
+  description: string;
+}
+
+export interface TextAnalysis {
+  keywords: string[];
+  positive_keywords: string[];
+  intensifiers_used: string[];
+  negative_count: number;
+  positive_count: number;
+  intensifier_count: number;
+  description: string;
+}
+
 export interface EmotionalEvent {
   event_number: number;
   timestamp: string;
@@ -21,6 +50,15 @@ export interface SessionHighlights {
   overall_summary: string;
 }
 
+export interface PerQuestionResult {
+  question_index: number;
+  fer: { emotion: string; confidence: number; probabilities: Record<string, number>; facial_details?: FacialDetails | null } | null;
+  ser: { emotion: string; confidence: number; probabilities: Record<string, number>; audio_details?: AudioDetails | null } | null;
+  combined_emotion: string;
+  transcript_text?: string;
+  text_analysis?: TextAnalysis | null;
+}
+
 export interface EmotionResult {
   session_id: number;
   risk_level: string;
@@ -32,13 +70,7 @@ export interface EmotionResult {
     emotion: string;
     intensity: number;
   }[];
-  per_question: {
-    question_index: number;
-    fer: { emotion: string; confidence: number; probabilities: Record<string, number> } | null;
-    ser: { emotion: string; confidence: number; probabilities: Record<string, number> } | null;
-    combined_emotion: string;
-    transcript_text?: string;
-  }[];
+  per_question: PerQuestionResult[];
   total_questions: number;
   emotional_events?: EmotionalEvent[];
   session_highlights?: SessionHighlights;
@@ -61,6 +93,12 @@ export interface EmotionResultsResponse {
     fer_emotion: string | null;
     ser_emotion: string | null;
     combined_emotion: string;
+    fer_probabilities?: Record<string, number>;
+    ser_probabilities?: Record<string, number>;
+    facial_details?: FacialDetails | null;
+    audio_details?: AudioDetails | null;
+    text_analysis?: TextAnalysis | null;
+    frame_image?: string | null;
   }[];
   emotional_events?: EmotionalEvent[];
   session_highlights?: SessionHighlights;

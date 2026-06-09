@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Check, Loader2 } from "lucide-react";
 import { emotionApi } from "../../../shared/api/emotionApi";
+import { getFiles, deleteFiles } from "../../../shared/utils/fileStorage";
 
 const STEPS = [
   "Analyzing facial expressions",
@@ -24,57 +25,52 @@ export default function ProcessingPage() {
     if (analyzingRef.current) return;
     analyzingRef.current = true;
 
-    // Load files from sessionStorage (stored by InterviewRoomPage)
-    const filesJson = sessionStorage.getItem(`amumata_files_${token}`);
-    if (!filesJson) {
-      setError("No interview data found. Please retake the interview.");
-      return;
-    }
+    // Load files from IndexedDB (stored by InterviewRoomPage)
+    getFiles(token)
+      .then((fileEntries) => {
+        if (!fileEntries || fileEntries.length === 0) {
+          setError("No interview data found. Please retake the interview.");
+          return;
+        }
 
-    const fileDataUrls: { name: string; type: string; dataUrl: string }[] = JSON.parse(filesJson);
+        // Convert blobs back to File objects
+        const files: File[] = fileEntries.map(
+          (entry) => new File([entry.blob], entry.name, { type: entry.type })
+        );
 
-    // Convert data URLs back to File objects
-    const files: File[] = fileDataUrls.map((fd) => {
-      const byteString = atob(fd.dataUrl.split(",")[1]);
-      const ab = new ArrayBuffer(byteString.length);
-      const ia = new Uint8Array(ab);
-      for (let i = 0; i < byteString.length; i++) {
-        ia[i] = byteString.charCodeAt(i);
-      }
-      return new File([ab], fd.name, { type: fd.type });
-    });
+        // Animate steps while API runs
+        let stepTimeout: ReturnType<typeof setTimeout>;
+        const advance = (step: number) => {
+          if (step >= STEPS.length) return;
+          stepTimeout = setTimeout(() => {
+            setCurrentStep(step);
+            advance(step + 1);
+          }, 1500);
+        };
+        advance(0);
 
-    // Animate steps while API runs
-    let stepTimeout: ReturnType<typeof setTimeout>;
-    const advance = (step: number) => {
-      if (step >= STEPS.length) return;
-      stepTimeout = setTimeout(() => {
-        setCurrentStep(step);
-        advance(step + 1);
-      }, 1500);
-    };
-    advance(0);
+        // Run analysis
+        emotionApi
+          .analyze(token, files)
+          .then((result) => {
+            clearTimeout(stepTimeout);
+            setCurrentStep(STEPS.length);
+            setCompleted(true);
 
-    // Run analysis
-    emotionApi
-      .analyze(token, files)
-      .then((result) => {
-        clearTimeout(stepTimeout);
-        setCurrentStep(STEPS.length);
-        setCompleted(true);
+            // Store result for ResultsPage
+            sessionStorage.setItem(`amumata_analysis_${token}`, JSON.stringify(result));
 
-        // Store result for ResultsPage
-        sessionStorage.setItem(`amumata_analysis_${token}`, JSON.stringify(result));
-
-        // Clean up files from sessionStorage
-        sessionStorage.removeItem(`amumata_files_${token}`);
+            // Clean up files from IndexedDB
+            deleteFiles(token).catch(() => {});
+          })
+          .catch((err) => {
+            clearTimeout(stepTimeout);
+            setError(err.message || "Analysis failed. Please try again.");
+          });
       })
-      .catch((err) => {
-        clearTimeout(stepTimeout);
-        setError(err.message || "Analysis failed. Please try again.");
+      .catch(() => {
+        setError("Failed to load interview data. Please retake the interview.");
       });
-
-    return () => clearTimeout(stepTimeout);
   }, [token]);
 
   const handleViewResults = () => {

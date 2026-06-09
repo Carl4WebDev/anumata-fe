@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AlertTriangle, Download, Brain, Mic, Eye } from "lucide-react";
 import { emotionApi, type EmotionResult } from "../../../shared/api/emotionApi";
+import EmotionTimelineHeatmap from "../../sessionReview/components/EmotionTimelineHeatmap";
+import SpikeContextPanel from "../../sessionReview/components/SpikeContextPanel";
+import EvidencePanel from "../../sessionReview/components/EvidencePanel";
 
 export default function ResultsPage() {
   const { token } = useParams();
@@ -9,6 +12,7 @@ export default function ResultsPage() {
   const [analysis, setAnalysis] = useState<EmotionResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedSpike, setSelectedSpike] = useState<any>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -38,10 +42,11 @@ export default function ResultsPage() {
           spikes: result.spikes,
           per_question: result.transcript.map((t, i) => ({
             question_index: i,
-            fer: t.fer_emotion ? { emotion: t.fer_emotion, confidence: 0, probabilities: {} } : null,
-            ser: t.ser_emotion ? { emotion: t.ser_emotion, confidence: 0, probabilities: {} } : null,
+            fer: t.fer_emotion ? { emotion: t.fer_emotion, confidence: 0, probabilities: t.fer_probabilities || {}, facial_details: t.facial_details } : null,
+            ser: t.ser_emotion ? { emotion: t.ser_emotion, confidence: 0, probabilities: t.ser_probabilities || {}, audio_details: t.audio_details } : null,
             combined_emotion: t.combined_emotion,
             transcript_text: t.answer,
+            text_analysis: t.text_analysis,
           })),
           total_questions: result.transcript.length,
           emotional_events: result.emotional_events,
@@ -116,6 +121,18 @@ export default function ResultsPage() {
   const metaJson = sessionStorage.getItem(`amumata_result_${token}`);
   const meta = metaJson ? JSON.parse(metaJson) : null;
 
+  // Build transcript for SpikeContextPanel (from per_question data)
+  const transcriptForContext = analysis.per_question.map((q) => ({
+    question: `Question ${q.question_index + 1}`,
+    answer: q.transcript_text || "[Audio response recorded]",
+    combined_emotion: q.combined_emotion,
+    fer_emotion: q.fer?.emotion || null,
+    ser_emotion: q.ser?.emotion || null,
+    fer_confidence: q.fer?.confidence || 0,
+    ser_confidence: q.ser?.confidence || 0,
+    frame_image: null,
+  }));
+
   return (
     <div className="min-h-screen bg-[#F1F5F9] px-4 py-8">
       <div className="mx-auto max-w-3xl">
@@ -180,26 +197,52 @@ export default function ResultsPage() {
           </div>
         </div>
 
+        {/* Emotion Timeline Heatmap */}
+        <div className="mb-6">
+          <EmotionTimelineHeatmap
+            points={analysis.per_question.map((q) => ({
+              questionIndex: q.question_index,
+              emotion: q.combined_emotion,
+              confidence: Math.max(q.fer?.confidence || 0, q.ser?.confidence || 0),
+              isSpike: spikes.some((s) => s.question_index === q.question_index),
+            }))}
+            onSpikeClick={(index) => {
+              const spike = spikes.find((s) => s.question_index === index);
+              if (spike) setSelectedSpike(spike);
+            }}
+          />
+        </div>
+
         {/* Emotional Spikes */}
         {spikes.length > 0 && (
           <div className="mb-6 rounded-2xl bg-white p-6 shadow-md border border-slate-200">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">Emotional Spikes</h2>
-            <div className="space-y-3">
-              {spikes.map((spike, i) => (
-                <div
-                  key={i}
-                  className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4"
-                >
-                  <AlertTriangle size={18} className="text-amber-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">{spike.label}</p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Question {spike.question_index + 1} — Emotion: {spike.emotion} — Intensity: {spike.intensity}%
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {selectedSpike ? (
+              <SpikeContextPanel
+                spike={selectedSpike}
+                transcript={transcriptForContext}
+                onClose={() => setSelectedSpike(null)}
+              />
+            ) : (
+              <div className="space-y-3">
+                {spikes.map((spike, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedSpike(spike)}
+                    className="w-full flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-left transition hover:bg-amber-100"
+                  >
+                    <AlertTriangle size={18} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{spike.label}</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Question {spike.question_index + 1} — Emotion: {spike.emotion} — Intensity: {spike.intensity}%
+                      </p>
+                      <p className="mt-1 text-[10px] text-amber-500">Click to view surrounding context</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -207,36 +250,56 @@ export default function ResultsPage() {
         {analysis.per_question.length > 0 && (
           <div className="mb-6 rounded-2xl bg-white p-6 shadow-md border border-slate-200">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">Question-by-Question Analysis</h2>
-            <div className="space-y-3">
-              {analysis.per_question.map((q, i) => (
-                <div key={i} className="flex items-center gap-4 rounded-lg border border-slate-100 p-3">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600 flex-shrink-0">
-                    {q.question_index + 1}
-                  </span>
-                  <div className="flex-1">
-                    {q.fer && (
-                      <span className="text-xs text-slate-500 mr-3">
-                        FER: <strong className="text-slate-700">{q.fer.emotion}</strong> ({Math.round(q.fer.confidence * 100)}%)
+            <div className="space-y-4">
+              {analysis.per_question.map((q, i) => {
+                const isSpike = spikes.some((s) => s.question_index === q.question_index);
+                return (
+                  <div key={i} className={`rounded-lg border p-4 ${isSpike ? "border-amber-200 bg-amber-50/50" : "border-slate-100"}`}>
+                    <div className="flex items-center gap-4">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600 flex-shrink-0">
+                        {q.question_index + 1}
                       </span>
-                    )}
-                    {q.ser && (
-                      <span className="text-xs text-slate-500 mr-3">
-                        SER: <strong className="text-slate-700">{q.ser.emotion}</strong> ({Math.round(q.ser.confidence * 100)}%)
+                      <div className="flex-1">
+                        {q.fer && (
+                          <span className="text-xs text-slate-500 mr-3">
+                            FER: <strong className="text-slate-700">{q.fer.emotion}</strong> ({Math.round(q.fer.confidence * 100)}%)
+                          </span>
+                        )}
+                        {q.ser && (
+                          <span className="text-xs text-slate-500 mr-3">
+                            SER: <strong className="text-slate-700">{q.ser.emotion}</strong> ({Math.round(q.ser.confidence * 100)}%)
+                          </span>
+                        )}
+                        {q.transcript_text && (
+                          <p className="mt-1 text-xs italic text-slate-400">"{q.transcript_text}"</p>
+                        )}
+                      </div>
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getRiskColor(
+                          q.combined_emotion === "Sad" || q.combined_emotion === "Angry" ? "High" : "Low"
+                        )}`}
+                      >
+                        {q.combined_emotion}
                       </span>
-                    )}
-                    {q.transcript_text && (
-                      <p className="mt-1 text-xs italic text-slate-400">"{q.transcript_text}"</p>
+                    </div>
+
+                    {/* Evidence Panel for spike questions */}
+                    {(isSpike || q.fer?.facial_details || q.ser?.audio_details || q.text_analysis) && (
+                      <div className="mt-3">
+                        <EvidencePanel
+                          questionIndex={q.question_index}
+                          frame_image={null}
+                          facial_details={q.fer?.facial_details}
+                          audio_details={q.ser?.audio_details}
+                          text_analysis={q.text_analysis}
+                          fer_confidence={q.fer?.confidence}
+                          ser_confidence={q.ser?.confidence}
+                        />
+                      </div>
                     )}
                   </div>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${getRiskColor(
-                      q.combined_emotion === "Sad" || q.combined_emotion === "Angry" ? "High" : q.combined_emotion === "Neutral" ? "Low" : "Low"
-                    )}`}
-                  >
-                    {q.combined_emotion}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Video, VideoOff, Mic, MicOff, SkipForward, StopCircle, Clock } from "lucide-react";
 import { interviewLinksApi } from "../../../shared/api/interviewLinksApi";
+import { storeFiles } from "../../../shared/utils/fileStorage";
 import WaveVisualizer from "../components/WaveVisualizer";
 
 // Hardcoded fallback questions if token not found
@@ -299,17 +300,9 @@ export default function InterviewRoom() {
     };
     sessionStorage.setItem(`amumata_result_${token}`, JSON.stringify(resultData));
 
-    // Store files as data URLs (small enough for 6 questions)
-    const fileDataUrls: { name: string; type: string; dataUrl: string }[] = [];
-    for (const file of files) {
-      const dataUrl = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(file);
-      });
-      fileDataUrls.push({ name: file.name, type: file.type, dataUrl });
-    }
-    sessionStorage.setItem(`amumata_files_${token}`, JSON.stringify(fileDataUrls));
+    // Store files in IndexedDB (sessionStorage has a ~5MB limit)
+    const fileEntries = files.map((file) => ({ name: file.name, type: file.type, blob: file }));
+    await storeFiles(token, fileEntries);
 
     navigate(`/interview/${token}/processing`);
   };
