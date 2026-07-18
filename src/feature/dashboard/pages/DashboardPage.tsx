@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
-import { Users, AlertTriangle, ClipboardCheck, Activity } from "lucide-react";
+import { Users, AlertTriangle, ClipboardCheck, Activity, UserPlus } from "lucide-react";
 import { usePatients } from "../../context/patients/usePatients";
+import LoadingSpinner from "../../../shared/components/LoadingSpinner";
+import EmptyState from "../../../shared/components/EmptyState";
 
 export default function DashboardPage() {
-  const { patients } = usePatients();
+  const { patients, loading, error } = usePatients();
 
   const totalPatients = patients.length;
   const highRisk = patients.filter((p) => p.risk === "High").length;
@@ -15,6 +17,21 @@ export default function DashboardPage() {
     { title: "High Risk Cases", value: highRisk, icon: AlertTriangle },
     { title: "Completed This Week", value: 0, icon: Activity },
   ];
+
+  if (loading) {
+    return <LoadingSpinner message="Loading dashboard..." />;
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Therapist Dashboard</h1>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -81,36 +98,53 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <p className="py-8 text-center text-sm text-slate-400">No patients yet. Add one to get started.</p>
+            <EmptyState
+              icon={Users}
+              title="No patients yet"
+              description="Add your first patient to begin tracking emotional progress."
+              action={
+                <Link
+                  to="/patients"
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                >
+                  <UserPlus size={16} />
+                  Add Patient
+                </Link>
+              }
+            />
           )}
         </div>
 
         {/* Risk Overview */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
           <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Risk Overview</h2>
-          <div className="space-y-4">
-            {[
-              { label: "High Risk", count: patients.filter((p) => p.risk === "High").length, color: "bg-red-500" },
-              { label: "Moderate Risk", count: patients.filter((p) => p.risk === "Moderate").length, color: "bg-yellow-500" },
-              { label: "Low Risk", count: patients.filter((p) => p.risk === "Low").length, color: "bg-green-500" },
-            ].map((item) => {
-              const max = totalPatients || 1;
-              return (
-                <div key={item.label}>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-slate-500">{item.label}</p>
-                    <span className="text-xs text-slate-400">{item.count}</span>
+          {totalPatients > 0 ? (
+            <div className="space-y-4">
+              {[
+                { label: "High Risk", count: patients.filter((p) => p.risk === "High").length, color: "bg-red-500" },
+                { label: "Moderate Risk", count: patients.filter((p) => p.risk === "Moderate").length, color: "bg-yellow-500" },
+                { label: "Low Risk", count: patients.filter((p) => p.risk === "Low").length, color: "bg-green-500" },
+              ].map((item) => {
+                const max = totalPatients || 1;
+                return (
+                  <div key={item.label}>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-slate-500">{item.label}</p>
+                      <span className="text-xs text-slate-400">{item.count}</span>
+                    </div>
+                    <div className="mt-2 h-3 w-full rounded-full bg-slate-100">
+                      <div
+                        className={`h-full rounded-full ${item.color} transition-all`}
+                        style={{ width: `${(item.count / max) * 100}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="mt-2 h-3 w-full rounded-full bg-slate-100">
-                    <div
-                      className={`h-full rounded-full ${item.color} transition-all`}
-                      style={{ width: `${(item.count / max) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="py-8 text-center text-sm text-slate-400">No patient data yet.</p>
+          )}
         </div>
       </section>
     </div>

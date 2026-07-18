@@ -1,11 +1,15 @@
 import { useState } from "react";
-import { Plus, Eye, Trash2, Search } from "lucide-react";
+import { Plus, Eye, Trash2, Search, FileText } from "lucide-react";
 import { useQuestionSets } from "../../context/questionSets/useQuestionSets";
 import AddQuestionSetModal from "../modals/AddQuestionSetModal";
 import ViewQuestionSetModal from "../modals/ViewQuestionSetModal";
+import LoadingSpinner from "../../../shared/components/LoadingSpinner";
+import EmptyState from "../../../shared/components/EmptyState";
+import { useToast } from "../../../shared/context/ToastContext";
 
 export default function QuestionSetsPage() {
-  const { questionSets, addQuestionSet, removeQuestionSet } = useQuestionSets();
+  const { questionSets, addQuestionSet, removeQuestionSet, loading, error } = useQuestionSets();
+  const { success } = useToast();
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [viewSet, setViewSet] = useState<{ id: number; name: string; description: string; questions: string[] } | null>(null);
@@ -13,6 +17,21 @@ export default function QuestionSetsPage() {
   const filtered = questionSets.filter((qs) =>
     qs.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleDelete = async (id: number, name: string) => {
+    await removeQuestionSet(id);
+    success(`"${name}" deleted.`);
+  };
+
+  const handleSave = async (data: Parameters<typeof addQuestionSet>[0]) => {
+    await addQuestionSet(data);
+    success("Template created.");
+    setShowAddModal(false);
+  };
+
+  if (loading) {
+    return <LoadingSpinner message="Loading templates..." />;
+  }
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -31,6 +50,13 @@ export default function QuestionSetsPage() {
         </button>
       </div>
 
+      {/* Error */}
+      {error && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {/* Search */}
       <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <Search size={18} className="shrink-0 text-slate-400" />
@@ -39,6 +65,7 @@ export default function QuestionSetsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search templates..."
+          aria-label="Search templates"
           className="w-full text-sm outline-none"
         />
       </div>
@@ -53,9 +80,9 @@ export default function QuestionSetsPage() {
             <div className="mb-3 flex items-start justify-between">
               <h2 className="text-base font-semibold text-slate-900">{qs.name}</h2>
               <button
-                onClick={() => removeQuestionSet(qs.id)}
+                onClick={() => handleDelete(qs.id, qs.name)}
                 className="rounded-lg p-1.5 text-slate-300 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                title="Delete template"
+                aria-label={`Delete ${qs.name}`}
               >
                 <Trash2 size={16} />
               </button>
@@ -75,8 +102,23 @@ export default function QuestionSetsPage() {
         ))}
 
         {filtered.length === 0 && (
-          <div className="col-span-full py-12 text-center">
-            <p className="text-sm text-slate-400">No templates found.</p>
+          <div className="col-span-full">
+            <EmptyState
+              icon={FileText}
+              title={search ? "No templates match your search" : "No templates yet"}
+              description={search ? "Try a different search term." : "Create your first interview template to get started."}
+              action={
+                !search ? (
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                  >
+                    <Plus size={16} />
+                    New Template
+                  </button>
+                ) : undefined
+              }
+            />
           </div>
         )}
       </div>
@@ -85,7 +127,7 @@ export default function QuestionSetsPage() {
       <AddQuestionSetModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
-        onSave={addQuestionSet}
+        onSave={handleSave}
       />
       <ViewQuestionSetModal
         isOpen={!!viewSet}

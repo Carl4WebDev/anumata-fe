@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import { lazy, Suspense } from "react";
 
+import { ToastProvider } from "../shared/context/ToastContext";
 import { UserProvider } from "../feature/context/users/UserProvider";
 import { DashboardProvider } from "../feature/context/dashboard/DashboardProvider";
 import { PatientsProvider } from "../feature/context/patients/PatientsProvider";
@@ -44,6 +45,7 @@ function SuspenseWrap({ children }: { children: React.ReactNode }) {
 
 export default function AppRoutes() {
   return (
+    <ToastProvider>
     <UserProvider>
       <PatientsProvider>
         <SessionsProvider>
@@ -87,5 +89,6 @@ export default function AppRoutes() {
         </SessionsProvider>
       </PatientsProvider>
     </UserProvider>
+    </ToastProvider>
   );
 }

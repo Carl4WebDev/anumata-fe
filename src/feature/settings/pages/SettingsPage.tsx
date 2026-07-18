@@ -2,9 +2,11 @@ import { useState } from "react";
 import { useUser } from "../../context/users/useUser";
 import { useNavigate } from "react-router-dom";
 import { Save, LogOut, Lock, User, Bell, Shield } from "lucide-react";
+import { useToast } from "../../../shared/context/ToastContext";
 
 export default function SettingsPage() {
   const { clearUser } = useUser();
+  const { success } = useToast();
   const navigate = useNavigate();
 
   // Profile form
@@ -21,6 +23,7 @@ export default function SettingsPage() {
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     setSaved(true);
+    success("Settings saved successfully.");
     setTimeout(() => setSaved(false), 2000);
   };
 

@@ -11,12 +11,16 @@ import QuestionMiniNav from "../components/QuestionMiniNav";
 import SpikeContextPanel from "../components/SpikeContextPanel";
 import QuestionCard from "../components/QuestionCard";
 import QwenReportSection from "../components/QwenReportSection";
+import LoadingSpinner from "../../../shared/components/LoadingSpinner";
+import { useToast } from "../../../shared/context/ToastContext";
 
 export default function SessionReviewPage() {
   const { id } = useParams();
-  const { getSessionById, fetchSessionById, updateNotes } = useSessions();
+  const { getSessionById, fetchSessionById, updateNotes, loading } = useSessions();
+  const { success: showSuccess } = useToast();
   const cachedSession = getSessionById(Number(id));
   const [session, setSession] = useState<MappedSession | null>(cachedSession);
+  const [fetching, setFetching] = useState(false);
 
   const [notes, setNotes] = useState(session?.notes ?? "");
   const [saved, setSaved] = useState(false);
@@ -37,10 +41,15 @@ export default function SessionReviewPage() {
       setSession(cachedSession);
       return;
     }
+    setFetching(true);
     fetchSessionById(Number(id)).then((full) => {
       if (full) setSession(full);
-    });
+    }).finally(() => setFetching(false));
   }, [id, cachedSession, fetchSessionById]);
+
+  if (loading || fetching) {
+    return <LoadingSpinner message="Loading session data..." />;
+  }
 
   if (!session || !computed) {
     return (
@@ -57,6 +66,7 @@ export default function SessionReviewPage() {
   const handleSaveNotes = () => {
     updateNotes(session.id, notes);
     setSaved(true);
+    showSuccess("Therapist notes saved successfully.");
     setTimeout(() => setSaved(false), 2000);
   };
 

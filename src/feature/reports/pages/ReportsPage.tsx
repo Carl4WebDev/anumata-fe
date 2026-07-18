@@ -1,11 +1,17 @@
 import { useSessions } from "../../context/sessions/useSessions";
 import { usePatients } from "../../context/patients/usePatients";
 import { Link } from "react-router-dom";
-import { TrendingDown, TrendingUp, AlertTriangle, Users, Activity } from "lucide-react";
+import { TrendingDown, TrendingUp, AlertTriangle, Users, Activity, BarChart3 } from "lucide-react";
+import LoadingSpinner from "../../../shared/components/LoadingSpinner";
+import EmptyState from "../../../shared/components/EmptyState";
 
 export default function ReportsPage() {
-  const { sessions } = useSessions();
-  const { patients } = usePatients();
+  const { sessions, loading: sessionsLoading } = useSessions();
+  const { patients, loading: patientsLoading } = usePatients();
+
+  if (sessionsLoading || patientsLoading) {
+    return <LoadingSpinner message="Loading reports..." />;
+  }
 
   // Compute stats
   const totalSessions = sessions.length;
@@ -163,7 +169,11 @@ export default function ReportsPage() {
                 ))}
               </div>
             ) : (
-              <p className="py-8 text-center text-sm text-slate-400">No session data available.</p>
+              <EmptyState
+                icon={BarChart3}
+                title="No session data yet"
+                description="Complete your first interview to see emotion trends."
+              />
             )}
           </div>
 
@@ -188,7 +198,11 @@ export default function ReportsPage() {
                 ))}
               </div>
             ) : (
-              <p className="py-8 text-center text-sm text-slate-400">No emotional spikes recorded.</p>
+              <EmptyState
+                icon={AlertTriangle}
+                title="No emotional spikes recorded"
+                description="Spikes appear when significant emotional changes are detected."
+              />
             )}
           </div>
         </div>
@@ -210,7 +224,11 @@ export default function ReportsPage() {
                 ))}
               </div>
             ) : (
-              <p className="py-8 text-center text-sm text-slate-400">No indicators recorded.</p>
+              <EmptyState
+                icon={Activity}
+                title="No indicators recorded"
+                description="Indicators are detected from completed interview sessions."
+              />
             )}
           </div>
 

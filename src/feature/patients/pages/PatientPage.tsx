@@ -1,17 +1,33 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Users } from "lucide-react";
 import { usePatients } from "../../context/patients/usePatients";
 import AddPatientModal from "../modals/AddPatientModal";
+import LoadingSpinner from "../../../shared/components/LoadingSpinner";
+import EmptyState from "../../../shared/components/EmptyState";
+import { useToast } from "../../../shared/context/ToastContext";
 
 export default function PatientsPage() {
-  const { patients, addPatient } = usePatients();
+  const { patients, addPatient, loading, error } = usePatients();
+  const { success } = useToast();
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
 
   const filtered = patients.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleSave = async (patient: Parameters<typeof addPatient>[0]) => {
+    const result = await addPatient(patient);
+    if (result?.ok) {
+      success("Patient added successfully.");
+      setShowModal(false);
+    }
+  };
+
+  if (loading) {
+    return <LoadingSpinner message="Loading patients..." />;
+  }
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -30,6 +46,13 @@ export default function PatientsPage() {
         </button>
       </div>
 
+      {/* Error */}
+      {error && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {/* Search */}
       <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <Search size={18} className="shrink-0 text-slate-400" />
@@ -38,6 +61,7 @@ export default function PatientsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search patients..."
+          aria-label="Search patients"
           className="w-full text-sm outline-none"
         />
       </div>
@@ -47,12 +71,12 @@ export default function PatientsPage() {
         <table className="w-full">
           <thead className="bg-slate-50">
             <tr>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Name</th>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Concern</th>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Sessions</th>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Risk</th>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Last Interview</th>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Action</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Name</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Concern</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Sessions</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Risk</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Last Interview</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -91,8 +115,23 @@ export default function PatientsPage() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-sm text-slate-400">
-                  No patients found.
+                <td colSpan={6} className="p-8">
+                  <EmptyState
+                    icon={Users}
+                    title={search ? "No patients match your search" : "No patients yet"}
+                    description={search ? "Try a different search term." : "Add your first patient to get started."}
+                    action={
+                      !search ? (
+                        <button
+                          onClick={() => setShowModal(true)}
+                          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                        >
+                          <Plus size={16} />
+                          Add Patient
+                        </button>
+                      ) : undefined
+                    }
+                  />
                 </td>
               </tr>
             )}
@@ -132,7 +171,11 @@ export default function PatientsPage() {
           </div>
         ))}
         {filtered.length === 0 && (
-          <p className="py-8 text-center text-sm text-slate-400">No patients found.</p>
+          <EmptyState
+            icon={Users}
+            title={search ? "No patients match your search" : "No patients yet"}
+            description={search ? "Try a different search term." : "Add your first patient to get started."}
+          />
         )}
       </div>
 
@@ -140,7 +183,7 @@ export default function PatientsPage() {
       <AddPatientModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        onSave={addPatient}
+        onSave={handleSave}
       />
     </div>
   );

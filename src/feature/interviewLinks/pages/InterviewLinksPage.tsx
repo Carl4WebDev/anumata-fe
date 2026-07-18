@@ -2,9 +2,13 @@ import { useState } from "react";
 import { Link2, Copy, Check, Trash2, ExternalLink } from "lucide-react";
 import { useInterviewLinks } from "../../context/interviewLinks/useInterviewLinks";
 import GenerateLinkModal from "../modals/GenerateLinkModal";
+import LoadingSpinner from "../../../shared/components/LoadingSpinner";
+import EmptyState from "../../../shared/components/EmptyState";
+import { useToast } from "../../../shared/context/ToastContext";
 
 export default function InterviewLinksPage() {
-  const { links, generateLink, removeLink } = useInterviewLinks();
+  const { links, generateLink, removeLink, loading, error } = useInterviewLinks();
+  const { success } = useToast();
   const [showModal, setShowModal] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
@@ -21,8 +25,26 @@ export default function InterviewLinksPage() {
       document.body.removeChild(textArea);
     }
     setCopiedId(id);
+    success("Interview link copied to clipboard.");
     setTimeout(() => setCopiedId(null), 2000);
   };
+
+  const handleGenerate = async (data: Parameters<typeof generateLink>[0]) => {
+    const result = await generateLink(data);
+    if (result?.ok) {
+      success("Interview link created successfully.");
+      setShowModal(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    await removeLink(id);
+    success("Interview link deleted.");
+  };
+
+  if (loading) {
+    return <LoadingSpinner message="Loading interview links..." />;
+  }
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -41,16 +63,23 @@ export default function InterviewLinksPage() {
         </button>
       </div>
 
+      {/* Error */}
+      {error && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {/* Table — desktop */}
       <div className="hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
         <table className="w-full">
           <thead className="bg-slate-50">
             <tr>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Patient</th>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Template</th>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Status</th>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Created</th>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Actions</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Patient</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Template</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Status</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Created</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -79,21 +108,21 @@ export default function InterviewLinksPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
-                      title="Open link"
+                      aria-label={`Open interview link for ${link.patientName}`}
                     >
                       <ExternalLink size={16} />
                     </a>
                     <button
                       onClick={() => handleCopy(link.token, link.id)}
                       className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
-                      title="Copy link"
+                      aria-label="Copy link"
                     >
                       {copiedId === link.id ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
                     </button>
                     <button
-                      onClick={() => removeLink(link.id)}
+                      onClick={() => handleDelete(link.id)}
                       className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
-                      title="Delete link"
+                      aria-label={`Delete interview link for ${link.patientName}`}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -103,8 +132,21 @@ export default function InterviewLinksPage() {
             ))}
             {links.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-sm text-slate-400">
-                  No interview links generated yet.
+                <td colSpan={5} className="p-8">
+                  <EmptyState
+                    icon={Link2}
+                    title="No interview links yet"
+                    description="Generate an interview link to send to a client for AI-assisted emotional pre-evaluation."
+                    action={
+                      <button
+                        onClick={() => setShowModal(true)}
+                        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                      >
+                        <Link2 size={16} />
+                        Generate Link
+                      </button>
+                    }
+                  />
                 </td>
               </tr>
             )}
@@ -152,8 +194,9 @@ export default function InterviewLinksPage() {
                 {copiedId === link.id ? "Copied!" : "Copy"}
               </button>
               <button
-                onClick={() => removeLink(link.id)}
+                onClick={() => handleDelete(link.id)}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                aria-label={`Delete interview link for ${link.patientName}`}
               >
                 <Trash2 size={14} />
               </button>
@@ -161,7 +204,11 @@ export default function InterviewLinksPage() {
           </div>
         ))}
         {links.length === 0 && (
-          <p className="py-8 text-center text-sm text-slate-400">No interview links generated yet.</p>
+          <EmptyState
+            icon={Link2}
+            title="No interview links yet"
+            description="Generate an interview link to send to a client."
+          />
         )}
       </div>
 
@@ -169,7 +216,7 @@ export default function InterviewLinksPage() {
       <GenerateLinkModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        onGenerate={generateLink}
+        onGenerate={handleGenerate}
       />
     </div>
   );
