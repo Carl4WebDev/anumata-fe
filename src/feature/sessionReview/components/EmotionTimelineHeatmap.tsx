@@ -2,7 +2,7 @@ import { AlertTriangle } from "lucide-react";
 
 interface TimelinePoint {
   questionIndex: number;
-  emotion: string;
+  emotion: string; // Capitalized version of Emotion
   confidence: number;
   isSpike: boolean;
 }
@@ -10,6 +10,7 @@ interface TimelinePoint {
 interface EmotionTimelineHeatmapProps {
   points: TimelinePoint[];
   onSpikeClick?: (index: number) => void;
+  showModelBars?: boolean;
 }
 
 const emotionColors: Record<string, { bg: string; bar: string; label: string }> = {
@@ -20,7 +21,7 @@ const emotionColors: Record<string, { bg: string; bar: string; label: string }> 
   Unknown: { bg: "bg-slate-50", bar: "bg-slate-300", label: "text-slate-400" },
 };
 
-export default function EmotionTimelineHeatmap({ points, onSpikeClick }: EmotionTimelineHeatmapProps) {
+export default function EmotionTimelineHeatmap({ points, onSpikeClick, showModelBars = false }: EmotionTimelineHeatmapProps) {
   if (points.length === 0) return null;
 
   // Compute baseline: average confidence across all non-spike points

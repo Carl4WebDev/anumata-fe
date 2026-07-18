@@ -2,8 +2,9 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import { SessionsContext } from "./SessionsContext";
 import { sessionsApi } from "../../../shared/api/sessionsApi";
 import { ApiError } from "../../../shared/api/httpClient";
+import type { Session, MappedSession } from "../../../shared/types/session";
 
-function mapSession(s: any) {
+function mapSession(s: Session): MappedSession {
   const dist = s.emotion_summary?.distribution ?? {};
   return {
     id: s.session_id,
@@ -20,19 +21,23 @@ function mapSession(s: any) {
       angry: dist.Angry ?? dist.angry ?? 0,
       neutral: dist.Neutral ?? dist.neutral ?? 0,
     },
-    spikes: (s.emotional_spikes || []).map((sp: any) => ({
-      questionIndex: sp.question_index ?? sp.questionIndex ?? 0,
+    spikes: (s.emotional_spikes || []).map((sp) => ({
+      questionIndex: sp.question_index ?? 0,
       label: sp.label ?? "Emotional spike",
       emotion: sp.emotion ?? "sad",
       intensity: sp.intensity ?? 0,
     })),
-    responses: (s.transcript || []).map((t: any) => ({
+    responses: (s.transcript || []).map((t) => ({
       question: typeof t.question === "object" ? t.question?.text ?? JSON.stringify(t.question) : t.question ?? "",
       answer: t.answer || "[Audio response recorded]",
       emotion: (t.combined_emotion ?? "neutral").toLowerCase(),
-      emotionPct: Math.round(Math.max(t.fer_confidence ?? 0, t.ser_confidence ?? 0) * 100),
+      emotionPct: Math.round(Math.max(t.fer_confidence ?? 0, t.ser_confidence ?? 0, t.ler_confidence ?? 0) * 100),
       fer_confidence: t.fer_confidence ?? 0,
       ser_confidence: t.ser_confidence ?? 0,
+      ler_confidence: t.ler_confidence ?? 0,
+      ler_emotion: t.ler_emotion ?? null,
+      ler_probabilities: t.ler_probabilities ?? null,
+      language_detected: t.language_detected ?? null,
       facial_details: t.facial_details ?? null,
       audio_details: t.audio_details ?? null,
       text_analysis: t.text_analysis ?? null,
@@ -45,7 +50,7 @@ function mapSession(s: any) {
 }
 
 export const SessionsProvider = ({ children }: { children: React.ReactNode }) => {
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<MappedSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

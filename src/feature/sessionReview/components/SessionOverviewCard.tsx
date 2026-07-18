@@ -1,0 +1,130 @@
+import { Activity, Shield, BarChart3, AlertTriangle, FileText, CheckCircle, XCircle } from "lucide-react";
+import EmotionTag from "../../../shared/components/EmotionTag";
+import ConfidenceBadge from "../../../shared/components/ConfidenceBadge";
+import type { SessionOverviewData } from "../hooks/useSessionComputed";
+
+const RISK_STYLES: Record<string, string> = {
+  high: "bg-red-100 text-red-700 border-red-200",
+  moderate: "bg-amber-100 text-amber-700 border-amber-200",
+  low: "bg-green-100 text-green-700 border-green-200",
+};
+
+interface SessionOverviewCardProps {
+  data: SessionOverviewData;
+}
+
+export default function SessionOverviewCard({ data }: SessionOverviewCardProps) {
+  const riskStyle = RISK_STYLES[data.riskLevel.toLowerCase()] ?? RISK_STYLES.low;
+
+  return (
+    <section
+      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6"
+      aria-label="Session Overview"
+    >
+      <h2 className="mb-4 text-lg font-semibold text-slate-800">Session Overview</h2>
+
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {/* Overall Emotion */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <Activity size={12} />
+            <span>Overall Emotion</span>
+          </div>
+          <EmotionTag emotion={data.overallEmotion} size="md" />
+        </div>
+
+        {/* Overall Confidence */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <BarChart3 size={12} />
+            <span>Overall Confidence</span>
+          </div>
+          <ConfidenceBadge value={data.overallConfidence} size="md" />
+        </div>
+
+        {/* Overall Agreement */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <BarChart3 size={12} />
+            <span>Overall Agreement</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-slate-800">{data.overallAgreement}%</span>
+          </div>
+        </div>
+
+        {/* Risk Level with reasons */}
+        <div className="space-y-1 md:col-span-2">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <Shield size={12} />
+            <span>Risk Level</span>
+          </div>
+          <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${riskStyle}`}>
+            {data.riskLevel}
+          </span>
+          {data.riskReasons && data.riskReasons.length > 0 && (
+            <ul className="mt-1.5 space-y-0.5">
+              {data.riskReasons.map((reason, i) => (
+                <li key={i} className="flex items-start gap-1.5 text-[11px] text-slate-500">
+                  <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-slate-400" />
+                  {reason}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Highest Spike */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <AlertTriangle size={12} />
+            <span>Highest Spike</span>
+          </div>
+          <span className="text-sm font-medium text-slate-800">
+            {data.highestSpikeIndex !== null ? `Question ${data.highestSpikeIndex + 1}` : "None"}
+          </span>
+        </div>
+
+        {/* Models Used */}
+        <div className="space-y-1">
+          <span className="text-xs text-slate-500">Models Used</span>
+          <div className="flex flex-col gap-0.5">
+            {(["fer", "ser", "ler"] as const).map((m) => (
+              <div key={m} className="flex items-center gap-1.5">
+                {data.modelsUsed[m] ? (
+                  <CheckCircle size={12} className="text-green-600" />
+                ) : (
+                  <XCircle size={12} className="text-slate-300" />
+                )}
+                <span className="text-[11px] text-slate-600">{m.toUpperCase()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Report Status */}
+        <div className="space-y-1">
+          <span className="text-xs text-slate-500">Report Status</span>
+          <div className="flex items-center gap-1.5">
+            <FileText size={12} className="text-slate-400" />
+            <span className="text-xs font-medium text-slate-700 capitalize">{data.reportStatus}</span>
+          </div>
+        </div>
+
+        {/* Question Count */}
+        <div className="space-y-1">
+          <span className="text-xs text-slate-500">Questions</span>
+          <span className="text-sm font-semibold text-slate-800">{data.questionCount}</span>
+        </div>
+
+        {/* Completed Analyses */}
+        <div className="space-y-1">
+          <span className="text-xs text-slate-500">AI Analyses</span>
+          <span className="text-sm font-semibold text-slate-800">
+            {data.completedAnalyses} / {data.questionCount}
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}

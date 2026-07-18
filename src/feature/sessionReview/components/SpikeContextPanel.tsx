@@ -1,23 +1,9 @@
-import { ArrowLeft, AlertTriangle } from "lucide-react";
+import { ArrowLeft, AlertTriangle, ExternalLink } from "lucide-react";
+import type { EmotionalSpike, InterviewResponse } from "../../../shared/types/session";
 
 interface SpikeContextPanelProps {
-  spike: {
-    questionIndex?: number;
-    question_index?: number;
-    label: string;
-    emotion: string;
-    intensity: number;
-  };
-  transcript: {
-    question: string;
-    answer: string;
-    combined_emotion?: string;
-    fer_emotion?: string | null;
-    ser_emotion?: string | null;
-    fer_confidence?: number;
-    ser_confidence?: number;
-    frame_image?: string | null;
-  }[];
+  spike: EmotionalSpike;
+  transcript: InterviewResponse[];
   onClose: () => void;
 }
 
@@ -29,7 +15,7 @@ const emotionColor: Record<string, string> = {
 };
 
 export default function SpikeContextPanel({ spike, transcript, onClose }: SpikeContextPanelProps) {
-  const spikeIdx = spike.question_index ?? spike.questionIndex ?? 0;
+  const spikeIdx = spike.question_index;
   const startIdx = Math.max(0, spikeIdx - 2);
   const endIdx = Math.min(transcript.length - 1, spikeIdx + 1);
 
@@ -38,8 +24,8 @@ export default function SpikeContextPanel({ spike, transcript, onClose }: SpikeC
     const entry = transcript[i];
     if (!entry) continue;
 
-    const emotion = entry.combined_emotion || entry.fer_emotion || entry.ser_emotion || "Neutral";
-    const confidence = entry.fer_confidence || entry.ser_confidence || 0;
+    const emotion = entry.combined_emotion || entry.fer_emotion || entry.ser_emotion || entry.ler_emotion || "Neutral";
+    const confidence = entry.fer_confidence || entry.ser_confidence || entry.ler_confidence || 0;
     const pct = Math.round(confidence * 100);
 
     windowEntries.push({
@@ -63,10 +49,22 @@ export default function SpikeContextPanel({ spike, transcript, onClose }: SpikeC
             {spike.emotion}
           </span>
         </div>
-        <button onClick={onClose} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 transition-colors">
-          <ArrowLeft size={14} />
-          Back to spikes
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const el = document.getElementById(`question-${spikeIdx}`);
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+          >
+            <ExternalLink size={14} />
+            Jump to Q{spikeIdx + 1}
+          </button>
+          <button onClick={onClose} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 transition-colors">
+            <ArrowLeft size={14} />
+            Back to spikes
+          </button>
+        </div>
       </div>
 
       <div className="space-y-3">

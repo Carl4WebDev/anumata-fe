@@ -54,6 +54,7 @@ export interface PerQuestionResult {
   question_index: number;
   fer: { emotion: string; confidence: number; probabilities: Record<string, number>; facial_details?: FacialDetails | null } | null;
   ser: { emotion: string; confidence: number; probabilities: Record<string, number>; audio_details?: AudioDetails | null } | null;
+  ler: { emotion: string; confidence: number; probabilities: Record<string, number>; language_detected?: string | null } | null;
   combined_emotion: string;
   transcript_text?: string;
   text_analysis?: TextAnalysis | null;
@@ -92,6 +93,10 @@ export interface EmotionResultsResponse {
     answer?: string;
     fer_emotion: string | null;
     ser_emotion: string | null;
+    ler_emotion: string | null;
+    ler_confidence?: number;
+    ler_probabilities?: Record<string, number>;
+    language_detected?: string | null;
     combined_emotion: string;
     fer_probabilities?: Record<string, number>;
     ser_probabilities?: Record<string, number>;

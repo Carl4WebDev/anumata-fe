@@ -44,6 +44,7 @@ export default function ResultsPage() {
             question_index: i,
             fer: t.fer_emotion ? { emotion: t.fer_emotion, confidence: 0, probabilities: t.fer_probabilities || {}, facial_details: t.facial_details } : null,
             ser: t.ser_emotion ? { emotion: t.ser_emotion, confidence: 0, probabilities: t.ser_probabilities || {}, audio_details: t.audio_details } : null,
+            ler: t.ler_emotion ? { emotion: t.ler_emotion, confidence: t.ler_confidence ?? 0, probabilities: t.ler_probabilities || {}, language_detected: t.language_detected } : null,
             combined_emotion: t.combined_emotion,
             transcript_text: t.answer,
             text_analysis: t.text_analysis,
@@ -294,6 +295,10 @@ export default function ResultsPage() {
                           text_analysis={q.text_analysis}
                           fer_confidence={q.fer?.confidence}
                           ser_confidence={q.ser?.confidence}
+                          ler_confidence={q.ler?.confidence}
+                          ler_emotion={q.ler?.emotion}
+                          ler_probabilities={q.ler?.probabilities}
+                          language_detected={q.ler?.language_detected}
                         />
                       </div>
                     )}

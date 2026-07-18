@@ -1,14 +1,18 @@
-import { Eye, Mic, MessageSquare } from "lucide-react";
-import type { FacialDetails, AudioDetails, TextAnalysis } from "../../../shared/api/emotionApi";
+import { Eye, Mic, MessageSquare, Languages } from "lucide-react";
+import type { FacialDetails, AudioDetails } from "../../../shared/types/session";
 
 interface EvidencePanelProps {
   questionIndex: number;
   frame_image?: string | null;
   facial_details?: FacialDetails | null;
   audio_details?: AudioDetails | null;
-  text_analysis?: TextAnalysis | null;
+  text_analysis?: any | null;
   fer_confidence?: number;
   ser_confidence?: number;
+  ler_confidence?: number;
+  ler_emotion?: string | null;
+  ler_probabilities?: Record<string, number> | null;
+  language_detected?: string | null;
 }
 
 export default function EvidencePanel({
@@ -19,8 +23,12 @@ export default function EvidencePanel({
   text_analysis,
   fer_confidence,
   ser_confidence,
+  ler_confidence,
+  ler_emotion,
+  ler_probabilities,
+  language_detected,
 }: EvidencePanelProps) {
-  const hasEvidence = facial_details || audio_details || text_analysis;
+  const hasEvidence = facial_details || audio_details || text_analysis || ler_emotion;
   if (!hasEvidence && !frame_image) return null;
 
   return (
@@ -39,7 +47,7 @@ export default function EvidencePanel({
               <div className="flex-shrink-0">
                 <img
                   src={frame_image}
-                  alt={`Face capture at Q${questionIndex + 1}`}
+                  alt={`Face capture at Q{questionIndex + 1}`}
                   className="w-[140px] h-[105px] object-cover rounded-lg border border-slate-200"
                 />
                 <p className="mt-1 text-[10px] text-slate-400 text-center">Captured at response time</p>
@@ -149,6 +157,43 @@ export default function EvidencePanel({
             ) : (
               <p className="text-xs text-slate-400 italic">No significant language patterns detected</p>
             )}
+          </div>
+        )}
+
+        {/* LER Emotion Evidence */}
+        {ler_emotion && (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Languages size={14} className="text-orange-500" />
+              <span className="text-xs font-semibold text-slate-700">Language Emotion Recognition</span>
+              {ler_confidence != null && ler_confidence > 0 && (
+                <span className="text-[10px] text-slate-400 ml-auto">
+                  Confidence: {Math.round(ler_confidence * 100)}%
+                </span>
+              )}
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-slate-600">
+                <span className="font-medium text-slate-700">Detected Emotion:</span> {ler_emotion}
+              </p>
+              {language_detected && (
+                <p className="text-xs text-slate-600">
+                  <span className="font-medium text-slate-700">Language:</span> {language_detected}
+                </p>
+              )}
+              {ler_probabilities && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {Object.entries(ler_probabilities).map(([emotion, prob]) => (
+                    <span
+                      key={emotion}
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-100"
+                    >
+                      {emotion}: {Math.round(prob * 100)}%
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
