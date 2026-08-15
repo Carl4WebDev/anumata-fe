@@ -1,8 +1,9 @@
 import { memo } from "react";
-import { MessageSquare, AlertTriangle } from "lucide-react";
+import { MessageSquare, AlertTriangle, AlertCircle } from "lucide-react";
 import ModelSubCard from "./ModelSubCard";
 import FusionResultCard from "./FusionResultCard";
 import PerQuestionNotes from "./PerQuestionNotes";
+import EvidenceSnapshot from "./EvidenceSnapshot";
 import EmotionTag from "../../../shared/components/EmotionTag";
 import CollapsibleSection from "../../../shared/components/CollapsibleSection";
 import type { QuestionData } from "../hooks/useSessionComputed";
@@ -50,9 +51,19 @@ function QuestionCardInner({ data, note, onNoteChange }: QuestionCardProps) {
             </span>
           )}
         </div>
-        <blockquote className="rounded-lg bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-700">
-          {data.answer || <span className="italic text-slate-400">No transcript available</span>}
-        </blockquote>
+        {data.answer === "[Transcription failed]" ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-2">
+            <AlertCircle size={14} className="text-red-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-red-700">Transcript unavailable</p>
+              <p className="text-xs text-red-500 mt-0.5">Speech transcription failed for this response. Language analysis (LER) is also unavailable.</p>
+            </div>
+          </div>
+        ) : (
+          <blockquote className="rounded-lg bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-700">
+            {data.answer || <span className="italic text-slate-400">No transcript available</span>}
+          </blockquote>
+        )}
       </div>
 
       {/* Pipeline flow: Transcript → AI Evidence */}
@@ -75,6 +86,26 @@ function QuestionCardInner({ data, note, onNoteChange }: QuestionCardProps) {
           <ModelSubCard evidence={data.ler} />
         </div>
       </CollapsibleSection>
+
+      {/* Evidence Snapshot — for spike questions */}
+      {data.isSpike && (
+        <div className="mb-4">
+          <EvidenceSnapshot
+            frameImage={data.frameImage}
+            evidenceFrames={data.evidenceFrames}
+            questionNumber={data.index + 1}
+            ferEmotion={data.fer.emotion}
+            ferConfidence={data.fer.confidence}
+            serEmotion={data.ser.emotion}
+            serConfidence={data.ser.confidence}
+            lerEmotion={data.ler.emotion}
+            lerConfidence={data.ler.confidence}
+            fusionEmotion={data.fusionEmotion}
+            fusionConfidence={data.fusionConfidence}
+            explanation={data.explanation}
+          />
+        </div>
+      )}
 
       {/* Pipeline flow: AI Evidence → Fusion */}
       <div className="flex items-center gap-2 my-3">

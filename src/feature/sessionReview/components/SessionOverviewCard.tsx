@@ -49,15 +49,17 @@ export default function SessionOverviewCard({ data }: SessionOverviewCardProps) 
             <span>Overall Agreement</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-800">{data.overallAgreement}%</span>
+            <span className={`text-sm font-semibold ${data.overallAgreement >= 66 ? "text-green-700" : data.overallAgreement >= 33 ? "text-amber-700" : "text-red-700"}`}>
+              {data.overallAgreement}%
+            </span>
           </div>
         </div>
 
-        {/* Risk Level with reasons */}
+        {/* Detected Risk Indicator with reasons */}
         <div className="space-y-1 md:col-span-2">
           <div className="flex items-center gap-1.5 text-xs text-slate-500">
             <Shield size={12} />
-            <span>Risk Level</span>
+            <span>Detected Risk Indicator</span>
           </div>
           <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${riskStyle}`}>
             {data.riskLevel}
@@ -106,8 +108,10 @@ export default function SessionOverviewCard({ data }: SessionOverviewCardProps) 
         <div className="space-y-1">
           <span className="text-xs text-slate-500">Report Status</span>
           <div className="flex items-center gap-1.5">
-            <FileText size={12} className="text-slate-400" />
-            <span className="text-xs font-medium text-slate-700 capitalize">{data.reportStatus}</span>
+            <FileText size={12} className={data.reportStatus === "available" ? "text-green-500" : data.reportStatus === "failed" ? "text-red-400" : "text-slate-400"} />
+            <span className={`text-xs font-medium capitalize ${data.reportStatus === "available" ? "text-green-700" : data.reportStatus === "failed" ? "text-red-600" : "text-slate-700"}`}>
+              {data.reportStatus === "available" ? "Generated" : data.reportStatus === "failed" ? "Failed" : data.reportStatus}
+            </span>
           </div>
         </div>
 

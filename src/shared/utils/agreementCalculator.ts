@@ -1,11 +1,26 @@
 /**
  * Agreement scoring for multimodal fusion results.
  *
- * Agreement = how many modalities agree with the final fusion emotion.
- *   3/3 agree = 100%
- *   2/3 agree = 66.67%
- *   1/3 agree = 33.33%
- *   0/3 (all different) = 33.33% (same as 1/3 — all disagree)
+ * Agreement = how many AVAILABLE modalities agree with the final fusion emotion.
+ * Coverage = how many of the 3 total modalities contributed evidence.
+ *
+ * These are separate concepts:
+ *   - Agreement: do the available models agree?
+ *   - Coverage: how much of the system participated?
+ *
+ * ============================================================
+ * KNOWN ISSUE: This module works correctly, but the fusion confidence
+ * displayed alongside agreement is WRONG due to a bug in
+ * SessionsProvider.tsx (emotionPct uses max of individual confidences
+ * instead of actual fusion confidence).
+ *
+ * Fix SessionsProvider.tsx first, then this module's output will
+ * be displayed with the correct confidence value.
+ *
+ * Also: when a modality is unavailable (e.g., LER when STT fails),
+ * the agreement calculation correctly handles it. But the UI should
+ * prominently show "X/3 modalities available" — check AgreementBar.tsx.
+ * ============================================================
  */
 
 export interface AgreementResult {
@@ -16,6 +31,8 @@ export interface AgreementResult {
   label: string;        // human-readable label
   color: string;        // Tailwind color class
   barColor: string;     // Tailwind bg color for progress bar
+  availableCount: number; // how many modalities had data (0-3)
+  totalCount: number;     // always 3
 }
 
 export function calculateAgreement(
@@ -45,21 +62,26 @@ export function calculateAgreement(
     label = "No Data";
     color = "text-slate-500";
     barColor = "bg-slate-300";
+  } else if (available.length === 1) {
+    score = 100;
+    label = "Limited Evidence";
+    color = "text-amber-700";
+    barColor = "bg-amber-400";
   } else if (agreeing.length === available.length) {
     score = 100;
-    label = "Full Agreement";
-    color = "text-green-700";
-    barColor = "bg-green-500";
-  } else if (agreeing.length >= 2 || (available.length === 2 && agreeing.length === 1)) {
+    label = available.length < 3 ? "Agreement" : "Full Agreement";
+    color = available.length < 3 ? "text-emerald-700" : "text-emerald-700";
+    barColor = "bg-emerald-500";
+  } else if (agreeing.length > disagreeing.length) {
     score = 66;
-    label = "Majority Agreement";
-    color = "text-amber-700";
-    barColor = "bg-amber-500";
+    label = "Strong Agreement";
+    color = "text-emerald-600";
+    barColor = "bg-emerald-400";
   } else {
     score = 33;
-    label = "Low Agreement";
-    color = "text-red-700";
-    barColor = "bg-red-500";
+    label = "Mixed Evidence";
+    color = "text-amber-600";
+    barColor = "bg-amber-400";
   }
 
   return {
@@ -70,5 +92,7 @@ export function calculateAgreement(
     label,
     color,
     barColor,
+    availableCount: available.length,
+    totalCount: 3,
   };
 }

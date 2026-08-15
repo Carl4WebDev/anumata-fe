@@ -59,11 +59,20 @@ export interface TranscriptEntry {
   ser_emotion?: string | null;
   ser_confidence?: number;
   ser_probabilities?: Record<string, number>;
+  ler_emotion?: string | null;
+  ler_confidence?: number;
+  ler_probabilities?: Record<string, number>;
+  language_detected?: string | null;
   combined_emotion?: string;
   facial_details?: FacialDetails | null;
   audio_details?: AudioDetails | null;
   text_analysis?: TextAnalysis | null;
   frame_image?: string | null;
+  evidence_frames?: {
+    frame_image: string;
+    fer_emotion: string | null;
+    fer_confidence: number;
+  }[] | null;
 }
 
 export interface SessionData {
@@ -79,6 +88,20 @@ export interface SessionData {
   emotional_spikes: { questionIndex?: number; question_index?: number; label: string; emotion: string; intensity: number }[];
   emotional_events?: EmotionalEvent[];
   session_highlights?: SessionHighlights;
+  report?: {
+    session_summary?: string;
+    topics_discussed?: string[];
+    keywords?: string[];
+    therapist_explanation?: string;
+    therapist_evaluation?: string;
+    suggested_follow_ups?: string[];
+    suggested_therapist_focus?: string[];
+    key_emotional_findings?: string[];
+    areas_for_attention?: string[];
+    evidence_quality?: { fer?: string; ser?: string; ler?: string; overall?: string };
+    limitations?: string[];
+    report_source?: "llm" | "fallback";
+  } | null;
   notes: string | null;
   created_at: string;
 }
@@ -115,6 +138,23 @@ export const sessionsApi = {
 
   updateNotes(id: number, notes: string) {
     return httpClient.patch<{ session_id: number; notes: string }>(`/api/sessions/${id}/notes`, { notes });
+  },
+
+  regenerateReport(id: number) {
+    return httpClient.post<{
+      session_summary: string;
+      topics_discussed: string[];
+      keywords: string[];
+      therapist_explanation?: string;
+      therapist_evaluation: string;
+      suggested_follow_ups: string[];
+      suggested_therapist_focus: string[];
+      key_emotional_findings: string[];
+      areas_for_attention: string[];
+      evidence_quality: { fer: string; ser: string; ler: string; overall: string };
+      limitations: string[];
+      report_source?: string;
+    }>(`/api/sessions/${id}/regenerate-report`);
   },
 
   remove(id: number) {

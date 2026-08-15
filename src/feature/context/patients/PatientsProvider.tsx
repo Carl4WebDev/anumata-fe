@@ -58,7 +58,7 @@ export const PatientsProvider = ({ children }: { children: React.ReactNode }) =>
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Failed to add patient";
       setError(message);
-      return { ok: false };
+      return { ok: false, error: message };
     }
   }, []);
 

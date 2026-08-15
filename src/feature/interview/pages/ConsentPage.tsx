@@ -27,7 +27,7 @@ export default function ConsentPage() {
             A
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Amumata</h1>
+            <h1 className="text-xl font-bold text-slate-900">Anumata</h1>
             <p className="text-sm text-slate-500">AI-Assisted Emotional Pre-Evaluation</p>
           </div>
         </div>

@@ -28,6 +28,11 @@ export interface QuestionData {
   isSpike: boolean;
   languageDetected: string | null;
   frameImage: string | null;
+  evidenceFrames: {
+    frame_image: string;
+    fer_emotion: string | null;
+    fer_confidence: number;
+  }[] | null;
 }
 
 export interface SessionOverviewData {
@@ -38,7 +43,7 @@ export interface SessionOverviewData {
   riskReasons: string[];
   highestSpikeIndex: number | null;
   modelsUsed: { fer: boolean; ser: boolean; ler: boolean };
-  reportStatus: "available" | "unavailable";
+  reportStatus: "available" | "generating" | "unavailable" | "failed";
   questionCount: number;
   completedAnalyses: number;
   patientName: string;
@@ -80,15 +85,15 @@ export function useSessionComputed(session: MappedSession | null | undefined) {
 
     // Per-question data
     const perQuestion: QuestionData[] = responses.map((r, i) => {
-      const spike = spikes.find((s) => s.question_index === i);
+      const spike = spikes.find((s) => s.questionIndex === i);
       const isSpike = !!spike;
 
-      const ferEmotion = r.fer_confidence > 0 ? (r.emotion ?? null) : null;
-      const serEmotion = r.ser_confidence > 0 ? (r.emotion ?? null) : null;
+      const ferEmotion = r.fer_confidence > 0 ? (r.fer_emotion ?? r.emotion ?? null) : null;
+      const serEmotion = r.ser_confidence > 0 ? (r.ser_emotion ?? r.emotion ?? null) : null;
       const lerEmotion = r.ler_emotion ?? null;
 
-      const fer = buildModelEvidence("FER", r.fer_confidence, ferEmotion, null, r.facial_details);
-      const ser = buildModelEvidence("SER", r.ser_confidence, serEmotion, null, r.audio_details);
+      const fer = buildModelEvidence("FER", r.fer_confidence, ferEmotion, r.fer_probabilities, r.facial_details);
+      const ser = buildModelEvidence("SER", r.ser_confidence, serEmotion, r.ser_probabilities, r.audio_details);
       const ler = buildModelEvidence("LER", r.ler_confidence, lerEmotion, r.ler_probabilities, null, r.language_detected);
 
       const fusionEmotion = (r.emotion || "neutral").charAt(0).toUpperCase() + (r.emotion || "neutral").slice(1);
@@ -117,6 +122,7 @@ export function useSessionComputed(session: MappedSession | null | undefined) {
         isSpike,
         languageDetected: r.language_detected ?? null,
         frameImage: r.frame_image ?? null,
+        evidenceFrames: r.evidence_frames ?? null,
       };
     });
 
@@ -150,7 +156,7 @@ export function useSessionComputed(session: MappedSession | null | undefined) {
     ).length;
 
     // Report status
-    const hasReport = !!(session as any).report;
+    const hasReport = !!session.report;
 
     // Risk reasons
     const riskReasons: string[] = [];
@@ -178,7 +184,7 @@ export function useSessionComputed(session: MappedSession | null | undefined) {
       overallAgreement: avgAgreement,
       riskLevel: session.riskLevel || "Low",
       riskReasons,
-      highestSpikeIndex: highestSpike?.question_index ?? null,
+      highestSpikeIndex: highestSpike?.questionIndex ?? null,
       modelsUsed: { fer: hasFer, ser: hasSer, ler: hasLer },
       reportStatus: hasReport ? "available" : "unavailable",
       questionCount: responses.length,

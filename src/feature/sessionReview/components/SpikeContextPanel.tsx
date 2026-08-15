@@ -1,5 +1,6 @@
 import { ArrowLeft, AlertTriangle, ExternalLink } from "lucide-react";
 import type { EmotionalSpike, InterviewResponse } from "../../../shared/types/session";
+import EvidenceSnapshot from "./EvidenceSnapshot";
 
 interface SpikeContextPanelProps {
   spike: EmotionalSpike;
@@ -18,6 +19,8 @@ export default function SpikeContextPanel({ spike, transcript, onClose }: SpikeC
   const spikeIdx = spike.question_index;
   const startIdx = Math.max(0, spikeIdx - 2);
   const endIdx = Math.min(transcript.length - 1, spikeIdx + 1);
+
+  const spikeEntry = transcript[spikeIdx];
 
   const windowEntries = [];
   for (let i = startIdx; i <= endIdx; i++) {
@@ -66,6 +69,26 @@ export default function SpikeContextPanel({ spike, transcript, onClose }: SpikeC
           </button>
         </div>
       </div>
+
+      {/* Evidence Snapshot for the spike question */}
+      {spikeEntry && (
+        <div className="mb-4">
+          <EvidenceSnapshot
+            frameImage={spikeEntry.frame_image}
+            evidenceFrames={spikeEntry.evidence_frames}
+            questionNumber={spikeIdx + 1}
+            ferEmotion={spikeEntry.fer_emotion}
+            ferConfidence={spikeEntry.fer_confidence}
+            serEmotion={spikeEntry.ser_emotion}
+            serConfidence={spikeEntry.ser_confidence}
+            lerEmotion={spikeEntry.ler_emotion}
+            lerConfidence={spikeEntry.ler_confidence}
+            fusionEmotion={spike.emotion}
+            fusionConfidence={spikeEntry.fer_confidence || spikeEntry.ser_confidence || spikeEntry.ler_confidence || 0}
+            explanation=""
+          />
+        </div>
+      )}
 
       <div className="space-y-3">
         {windowEntries.map((entry) => (

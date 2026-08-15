@@ -21,8 +21,8 @@ export default function PatientsPage() {
     const result = await addPatient(patient);
     if (result?.ok) {
       success("Patient added successfully.");
-      setShowModal(false);
     }
+    return result;
   };
 
   if (loading) {
@@ -35,7 +35,7 @@ export default function PatientsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Patients</h1>
-          <p className="mt-1 text-sm text-slate-500">Manage therapist clients and interview history.</p>
+          <p className="mt-1 text-sm text-slate-500">Manage patients and interview history.</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
@@ -72,7 +72,6 @@ export default function PatientsPage() {
           <thead className="bg-slate-50">
             <tr>
               <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Name</th>
-              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Concern</th>
               <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Sessions</th>
               <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Risk</th>
               <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Last Interview</th>
@@ -88,7 +87,6 @@ export default function PatientsPage() {
                     <p className="text-xs text-slate-400">{patient.age} &middot; {patient.gender}</p>
                   </div>
                 </td>
-                <td className="p-4 text-sm text-slate-500">{patient.concern}</td>
                 <td className="p-4 text-sm text-slate-500">{patient.sessions}</td>
                 <td className="p-4">
                   <span
@@ -115,7 +113,7 @@ export default function PatientsPage() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-8">
+                <td colSpan={5} className="p-8">
                   <EmptyState
                     icon={Users}
                     title={search ? "No patients match your search" : "No patients yet"}
@@ -146,7 +144,7 @@ export default function PatientsPage() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="font-medium">{patient.name}</p>
-                <p className="text-xs text-slate-400">{patient.age} &middot; {patient.gender} &middot; {patient.concern}</p>
+                <p className="text-xs text-slate-400">{patient.age} &middot; {patient.gender}</p>
               </div>
               <span
                 className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -184,6 +182,7 @@ export default function PatientsPage() {
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         onSave={handleSave}
+        existingNames={patients.map((p) => p.name)}
       />
     </div>
   );

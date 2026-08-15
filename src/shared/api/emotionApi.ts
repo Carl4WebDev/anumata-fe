@@ -58,6 +58,7 @@ export interface PerQuestionResult {
   combined_emotion: string;
   transcript_text?: string;
   text_analysis?: TextAnalysis | null;
+  frame_image?: string | null;
 }
 
 export interface EmotionResult {

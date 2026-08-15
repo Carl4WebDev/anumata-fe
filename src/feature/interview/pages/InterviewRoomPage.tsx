@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Video, VideoOff, Mic, MicOff, SkipForward, StopCircle, Clock } from "lucide-react";
+import { Video, VideoOff, Mic, MicOff, SkipForward, StopCircle, Clock, Loader2 } from "lucide-react";
 import { interviewLinksApi } from "../../../shared/api/interviewLinksApi";
 import { storeFiles } from "../../../shared/utils/fileStorage";
 import WaveVisualizer from "../components/WaveVisualizer";
@@ -27,8 +27,9 @@ export default function InterviewRoom() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const capturedFramesRef = useRef<Map<number, Blob>>(new Map());
+  const capturedFramesRef = useRef<Map<number, Blob[]>>(new Map());
   const capturedAudioRef = useRef<Map<number, Blob>>(new Map());
+  const frameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [questions, setQuestions] = useState<string[]>([]);
   const [patientName, setPatientName] = useState("");
@@ -41,6 +42,7 @@ export default function InterviewRoom() {
   const [cameraError, setCameraError] = useState("");
   const [linkValid, setLinkValid] = useState(true);
   const [responses, setResponses] = useState<{ question: string; answer: string }[]>([]);
+  const [analyzing, setAnalyzing] = useState(false);
 
   // Load interview data from API by token
   useEffect(() => {
@@ -138,6 +140,19 @@ export default function InterviewRoom() {
   }, [micOn]);
 
   // Stop audio recording and return blob via callback
+  // ============================================================
+  // RACE CONDITION RISK: If this returns null (recorder inactive
+  // or no chunks), the question's audio is lost → STT fails →
+  // LER unavailable for that question.
+  //
+  // This can happen if:
+  // 1. MediaRecorder was never started for this question
+  // 2. ondataavailable never fired (short recording)
+  // 3. Recorder was already stopped by a previous call
+  //
+  // In handleNext, if `audio` is null, consider logging a warning
+  // and/or showing a UI indicator that audio was not captured.
+  // ============================================================
   const stopAudioRecording = useCallback((): Promise<Blob | null> => {
     return new Promise((resolve) => {
       const recorder = mediaRecorderRef.current;
@@ -213,6 +228,30 @@ export default function InterviewRoom() {
     }
   };
 
+  // Start frame capture interval — captures a frame every 3 seconds
+  const startFrameCapture = useCallback(() => {
+    if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
+    // Capture immediately, then every 3s
+    const doCapture = () => {
+      const frame = captureFrame();
+      if (frame) {
+        const existing = capturedFramesRef.current.get(currentIndex) || [];
+        existing.push(frame);
+        capturedFramesRef.current.set(currentIndex, existing);
+      }
+    };
+    doCapture();
+    frameIntervalRef.current = setInterval(doCapture, 3000);
+  }, [currentIndex, captureFrame]);
+
+  // Stop frame capture interval
+  const stopFrameCapture = useCallback(() => {
+    if (frameIntervalRef.current) {
+      clearInterval(frameIntervalRef.current);
+      frameIntervalRef.current = null;
+    }
+  }, []);
+
   // Start recording
   const handleStart = () => {
     setState("recording");
@@ -221,37 +260,75 @@ export default function InterviewRoom() {
     capturedFramesRef.current.clear();
     capturedAudioRef.current.clear();
     // Start audio recording for the first question
-    setTimeout(() => startAudioRecording(), 200);
+    setTimeout(() => {
+      startAudioRecording();
+      startFrameCapture();
+    }, 200);
   };
 
   // Next question — capture frame + audio for this question
+  // ============================================================
+  // QUESTION TRANSITION ATOMICITY: This function must complete
+  // all of the following before the next question starts:
+  //   1. Stop frame capture interval
+  //   2. Capture final frame
+  //   3. Stop audio recording (await MediaRecorder.onstop)
+  //   4. Store audio blob in capturedAudioRef
+  //
+  // The current implementation does this correctly — it awaits
+  // stopAudioRecording() which returns a Promise that resolves
+  // only when MediaRecorder.onstop fires and the blob is built.
+  //
+  // POTENTIAL ISSUE: If stopAudioRecording() returns null
+  // (recorder not active), the audio for that question is LOST
+  // and STT will have no audio to transcribe → LER unavailable.
+  //
+  // The 100ms setTimeout before starting next recording is to
+  // let React state settle — this is safe but could be replaced
+  // with a requestAnimationFrame or removed if not needed.
+  // ============================================================
   const handleNext = async () => {
-    // Capture video frame
-    const frame = captureFrame();
-    if (frame) {
-      capturedFramesRef.current.set(currentIndex, frame);
-    }
+    if (analyzing) return; // prevent double-click
+    setAnalyzing(true);
 
-    // Stop audio recording for this question
-    const audio = await stopAudioRecording();
-    if (audio) {
-      capturedAudioRef.current.set(currentIndex, audio);
-    }
+    try {
+      // Stop frame capture interval for this question
+      stopFrameCapture();
 
-    // Save response entry
-    setResponses((prev) => [
-      ...prev,
-      { question: questions[currentIndex], answer: "[Audio response recorded]" },
-    ]);
+      // Capture one final frame for this question
+      const frame = captureFrame();
+      if (frame) {
+        const existing = capturedFramesRef.current.get(currentIndex) || [];
+        existing.push(frame);
+        capturedFramesRef.current.set(currentIndex, existing);
+      }
 
-    if (currentIndex < questions.length - 1) {
-      const nextIndex = currentIndex + 1;
-      setCurrentIndex(nextIndex);
-      // Start audio recording for next question (after a tick so state updates)
-      setTimeout(() => startAudioRecording(), 100);
-    } else {
-      // Last question answered — finish
-      handleFinish();
+      // Stop audio recording for this question
+      const audio = await stopAudioRecording();
+      if (audio) {
+        capturedAudioRef.current.set(currentIndex, audio);
+      }
+
+      // Save response entry
+      setResponses((prev) => [
+        ...prev,
+        { question: questions[currentIndex], answer: "[Audio response recorded]" },
+      ]);
+
+      if (currentIndex < questions.length - 1) {
+        const nextIndex = currentIndex + 1;
+        setCurrentIndex(nextIndex);
+        // Start audio + frame recording for next question (after a tick so state updates)
+        setTimeout(() => {
+          startAudioRecording();
+          startFrameCapture();
+        }, 100);
+      } else {
+        // Last question answered — finish
+        handleFinish();
+      }
+    } finally {
+      setAnalyzing(false);
     }
   };
 
@@ -259,16 +336,21 @@ export default function InterviewRoom() {
   const handleFinish = async () => {
     setState("finished");
 
+    // Stop frame capture interval
+    stopFrameCapture();
+
     // Stop and capture last question's audio
     const lastAudio = await stopAudioRecording();
     if (lastAudio) {
       capturedAudioRef.current.set(currentIndex, lastAudio);
     }
 
-    // Capture final frame
+    // Capture final frame for last question
     const lastFrame = captureFrame();
     if (lastFrame) {
-      capturedFramesRef.current.set(currentIndex, lastFrame);
+      const existing = capturedFramesRef.current.get(currentIndex) || [];
+      existing.push(lastFrame);
+      capturedFramesRef.current.set(currentIndex, existing);
     }
 
     stopMedia();
@@ -279,10 +361,12 @@ export default function InterviewRoom() {
       { question: questions[currentIndex], answer: "[Audio response recorded]" },
     ];
 
-    // Build File arrays for upload
+    // Build File arrays for upload — multi-frame: frame_N_M.jpg
     const files: File[] = [];
-    capturedFramesRef.current.forEach((blob, idx) => {
-      files.push(new File([blob], `frame_${idx}.jpg`, { type: "image/jpeg" }));
+    capturedFramesRef.current.forEach((frames, questionIdx) => {
+      frames.forEach((blob, frameIdx) => {
+        files.push(new File([blob], `frame_${questionIdx}_${frameIdx}.jpg`, { type: "image/jpeg" }));
+      });
     });
     capturedAudioRef.current.forEach((blob, idx) => {
       files.push(new File([blob], `audio_${idx}.webm`, { type: "audio/webm" }));
@@ -447,7 +531,7 @@ export default function InterviewRoom() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500 text-sm font-bold text-white">
             A
           </div>
-          <span className="text-sm font-medium text-white">Amumata</span>
+          <span className="text-sm font-medium text-white">Anumata</span>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-white">
@@ -534,9 +618,19 @@ export default function InterviewRoom() {
             </button>
             <button
               onClick={handleNext}
-              className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+              disabled={analyzing}
+              className={`flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white transition ${
+                analyzing
+                  ? "bg-blue-400 cursor-wait"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
             >
-              {currentIndex < questions.length - 1 ? (
+              {analyzing ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Analyzing response...
+                </>
+              ) : currentIndex < questions.length - 1 ? (
                 <>
                   Next Question
                   <SkipForward size={16} />

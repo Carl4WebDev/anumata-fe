@@ -47,12 +47,7 @@ export default function AppRoutes() {
   return (
     <ToastProvider>
     <UserProvider>
-      <PatientsProvider>
-        <SessionsProvider>
           <Routes>
-            {/* Landing — always accessible */}
-            <Route path="/" element={<SuspenseWrap><LandingPage /></SuspenseWrap>} />
-
             {/* Interview flow — public, client-facing, no auth required */}
             <Route path="/interview/:token" element={<SuspenseWrap><ConsentPage /></SuspenseWrap>} />
             <Route path="/interview/:token/room" element={<SuspenseWrap><InterviewRoom /></SuspenseWrap>} />
@@ -60,21 +55,26 @@ export default function AppRoutes() {
             <Route path="/interview/:token/results" element={<SuspenseWrap><ResultsPage /></SuspenseWrap>} />
             <Route path="/interview/:token/recommendation" element={<SuspenseWrap><RecommendationPage /></SuspenseWrap>} />
 
-            {/* Auth routes — redirect to dashboard if already logged in */}
+            {/* Public routes — redirect to dashboard if already logged in */}
             <Route element={<PublicRoute />}>
+              <Route path="/" element={<SuspenseWrap><LandingPage /></SuspenseWrap>} />
               <Route path="/login" element={<SuspenseWrap><LoginPage /></SuspenseWrap>} />
               <Route path="/register" element={<SuspenseWrap><RegisterPage /></SuspenseWrap>} />
             </Route>
 
             {/* Protected routes */}
             <Route element={
-              <DashboardProvider>
-                <QuestionSetsProvider>
-                  <InterviewLinksProvider>
-                    <ProtectedLayout />
-                  </InterviewLinksProvider>
-                </QuestionSetsProvider>
-              </DashboardProvider>
+              <PatientsProvider>
+                <SessionsProvider>
+                  <DashboardProvider>
+                    <QuestionSetsProvider>
+                      <InterviewLinksProvider>
+                        <ProtectedLayout />
+                      </InterviewLinksProvider>
+                    </QuestionSetsProvider>
+                  </DashboardProvider>
+                </SessionsProvider>
+              </PatientsProvider>
             }>
               <Route path="/dashboard" element={<SuspenseWrap><DashboardPage /></SuspenseWrap>} />
               <Route path="/patients" element={<SuspenseWrap><PatientsPage /></SuspenseWrap>} />
@@ -86,8 +86,6 @@ export default function AppRoutes() {
               <Route path="/settings" element={<SuspenseWrap><SettingsPage /></SuspenseWrap>} />
             </Route>
           </Routes>
-        </SessionsProvider>
-      </PatientsProvider>
     </UserProvider>
     </ToastProvider>
   );

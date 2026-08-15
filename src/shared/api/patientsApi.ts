@@ -1,4 +1,5 @@
 import { httpClient } from "./httpClient";
+import type { LongitudinalReport } from "../types/session";
 
 export interface Patient {
   patient_id: number;
@@ -10,6 +11,7 @@ export interface Patient {
   session_count: number;
   risk_level: string | null;
   last_interview: string | null;
+  longitudinal_report?: LongitudinalReport | null;
   created_at: string;
   updated_at?: string;
 }
@@ -38,5 +40,9 @@ export const patientsApi = {
 
   remove(id: number) {
     return httpClient.delete<{ deleted: boolean }>(`/api/patients/${id}`);
+  },
+
+  generateLongitudinalReport(id: number) {
+    return httpClient.post<LongitudinalReport>(`/api/patients/${id}/longitudinal-report`);
   },
 };

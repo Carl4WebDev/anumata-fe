@@ -1,17 +1,21 @@
 import { useState } from "react";
-import { Plus, Eye, Trash2, Search, FileText } from "lucide-react";
+import { Plus, Eye, Trash2, Search, FileText, Pencil, Sparkles } from "lucide-react";
 import { useQuestionSets } from "../../context/questionSets/useQuestionSets";
 import AddQuestionSetModal from "../modals/AddQuestionSetModal";
+import EditQuestionSetModal from "../modals/EditQuestionSetModal";
 import ViewQuestionSetModal from "../modals/ViewQuestionSetModal";
+import AiQuestionSetBuilderModal from "../modals/AiQuestionSetBuilderModal";
 import LoadingSpinner from "../../../shared/components/LoadingSpinner";
 import EmptyState from "../../../shared/components/EmptyState";
 import { useToast } from "../../../shared/context/ToastContext";
 
 export default function QuestionSetsPage() {
-  const { questionSets, addQuestionSet, removeQuestionSet, loading, error } = useQuestionSets();
+  const { questionSets, addQuestionSet, updateQuestionSet, removeQuestionSet, loading, error } = useQuestionSets();
   const { success } = useToast();
   const [search, setSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [editSet, setEditSet] = useState<{ id: number; name: string; description: string; questions: string[] } | null>(null);
   const [viewSet, setViewSet] = useState<{ id: number; name: string; description: string; questions: string[] } | null>(null);
 
   const filtered = questionSets.filter((qs) =>
@@ -29,6 +33,13 @@ export default function QuestionSetsPage() {
     setShowAddModal(false);
   };
 
+  const handleEditSave = async (data: Parameters<typeof addQuestionSet>[0]) => {
+    if (!editSet) return;
+    await updateQuestionSet(editSet.id, data);
+    success("Template updated.");
+    setEditSet(null);
+  };
+
   if (loading) {
     return <LoadingSpinner message="Loading templates..." />;
   }
@@ -41,13 +52,22 @@ export default function QuestionSetsPage() {
           <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Question Sets</h1>
           <p className="mt-1 text-sm text-slate-500">Therapist-approved interview templates.</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-        >
-          <Plus size={18} />
-          New Template
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowAiModal(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-purple-700"
+          >
+            <Sparkles size={18} />
+            AI Generate
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+          >
+            <Plus size={18} />
+            New Template
+          </button>
+        </div>
       </div>
 
       {/* Error */}
@@ -79,13 +99,22 @@ export default function QuestionSetsPage() {
           >
             <div className="mb-3 flex items-start justify-between">
               <h2 className="text-base font-semibold text-slate-900">{qs.name}</h2>
-              <button
-                onClick={() => handleDelete(qs.id, qs.name)}
-                className="rounded-lg p-1.5 text-slate-300 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                aria-label={`Delete ${qs.name}`}
-              >
-                <Trash2 size={16} />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setEditSet(qs)}
+                  className="rounded-lg p-1.5 text-slate-300 opacity-0 transition hover:bg-blue-50 hover:text-blue-500 group-hover:opacity-100"
+                  aria-label={`Edit ${qs.name}`}
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
+                  onClick={() => handleDelete(qs.id, qs.name)}
+                  className="rounded-lg p-1.5 text-slate-300 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+                  aria-label={`Delete ${qs.name}`}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             </div>
             <p className="mb-4 text-sm leading-relaxed text-slate-500">{qs.description}</p>
             <div className="flex items-center justify-between">
@@ -128,6 +157,17 @@ export default function QuestionSetsPage() {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSave={handleSave}
+      />
+      <AiQuestionSetBuilderModal
+        isOpen={showAiModal}
+        onClose={() => setShowAiModal(false)}
+        onSave={handleSave}
+      />
+      <EditQuestionSetModal
+        isOpen={!!editSet}
+        onClose={() => setEditSet(null)}
+        onSave={handleEditSave}
+        questionSet={editSet}
       />
       <ViewQuestionSetModal
         isOpen={!!viewSet}

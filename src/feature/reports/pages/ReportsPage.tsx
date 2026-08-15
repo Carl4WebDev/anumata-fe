@@ -1,84 +1,134 @@
+import { useMemo } from "react";
 import { useSessions } from "../../context/sessions/useSessions";
 import { usePatients } from "../../context/patients/usePatients";
 import { Link } from "react-router-dom";
-import { TrendingDown, TrendingUp, AlertTriangle, Users, Activity, BarChart3 } from "lucide-react";
+import { AlertTriangle, Users, Activity, BarChart3, TrendingUp, TrendingDown, Minus, ArrowRight } from "lucide-react";
 import LoadingSpinner from "../../../shared/components/LoadingSpinner";
 import EmptyState from "../../../shared/components/EmptyState";
+
+const emotionColors: Record<string, string> = {
+  sad: "bg-blue-500",
+  happy: "bg-green-500",
+  angry: "bg-red-500",
+  neutral: "bg-slate-400",
+};
+
+const riskBadge: Record<string, string> = {
+  High: "bg-red-50 text-red-600",
+  Moderate: "bg-yellow-50 text-yellow-600",
+  Low: "bg-green-50 text-green-600",
+};
 
 export default function ReportsPage() {
   const { sessions, loading: sessionsLoading } = useSessions();
   const { patients, loading: patientsLoading } = usePatients();
 
+  const stats = useMemo(() => {
+    if (sessions.length === 0) return null;
+
+    const total = sessions.length;
+    const highRisk = sessions.filter((s) => s.riskLevel === "High").length;
+    const moderateRisk = sessions.filter((s) => s.riskLevel === "Moderate").length;
+    const lowRisk = sessions.filter((s) => s.riskLevel === "Low").length;
+
+    // Average emotions
+    const avgEmotions = {
+      sad: Math.round(sessions.reduce((sum, s) => sum + s.emotions.sad, 0) / total),
+      happy: Math.round(sessions.reduce((sum, s) => sum + s.emotions.happy, 0) / total),
+      angry: Math.round(sessions.reduce((sum, s) => sum + s.emotions.angry, 0) / total),
+      neutral: Math.round(sessions.reduce((sum, s) => sum + s.emotions.neutral, 0) / total),
+    };
+
+    // Top indicators
+    const indicatorCounts: Record<string, number> = {};
+    sessions.forEach((s) => {
+      s.indicators.forEach((ind) => {
+        indicatorCounts[ind] = (indicatorCounts[ind] ?? 0) + 1;
+      });
+    });
+    const topIndicators = Object.entries(indicatorCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5);
+
+    // Most common interview topic
+    const topicCounts: Record<string, number> = {};
+    sessions.forEach((s) => {
+      const topic = s.templateName || "Unknown";
+      topicCounts[topic] = (topicCounts[topic] ?? 0) + 1;
+    });
+    const topTopic = Object.entries(topicCounts).sort(([, a], [, b]) => b - a)[0];
+
+    // Dominant emotion overall
+    const dominantEmotion = Object.entries(avgEmotions).sort(([, a], [, b]) => b - a)[0];
+
+    // Spike data with session references
+    const spikes = sessions.flatMap((s) =>
+      s.spikes.map((sp) => ({
+        question: s.responses[sp.questionIndex]?.question ?? "Unknown",
+        template: s.templateName,
+        emotion: sp.emotion,
+        intensity: sp.intensity,
+        date: s.date,
+        sessionId: s.id,
+        patientName: s.patientName,
+      }))
+    );
+
+    // Recent sessions (5 max)
+    const recent = [...sessions].reverse().slice(0, 5);
+
+    return {
+      total,
+      highRisk,
+      moderateRisk,
+      lowRisk,
+      avgEmotions,
+      topIndicators,
+      topTopic,
+      dominantEmotion,
+      spikes,
+      recent,
+    };
+  }, [sessions]);
+
   if (sessionsLoading || patientsLoading) {
     return <LoadingSpinner message="Loading reports..." />;
   }
 
-  // Compute stats
-  const totalSessions = sessions.length;
-  const highRisk = sessions.filter((s) => s.riskLevel === "High").length;
-  const moderateRisk = sessions.filter((s) => s.riskLevel === "Moderate").length;
-  const lowRisk = sessions.filter((s) => s.riskLevel === "Low").length;
-
-  // Aggregate emotions across all sessions
-  const avgEmotions = totalSessions > 0
-    ? {
-        sad: Math.round(sessions.reduce((sum, s) => sum + s.emotions.sad, 0) / totalSessions),
-        happy: Math.round(sessions.reduce((sum, s) => sum + s.emotions.happy, 0) / totalSessions),
-        angry: Math.round(sessions.reduce((sum, s) => sum + s.emotions.angry, 0) / totalSessions),
-        neutral: Math.round(sessions.reduce((sum, s) => sum + s.emotions.neutral, 0) / totalSessions),
-      }
-    : { sad: 0, happy: 0, angry: 0, neutral: 0 };
-
-  // Per-session emotion trend (most recent first)
-  const trend = [...sessions].reverse().map((s) => ({
-    label: s.date,
-    template: s.templateName,
-    ...s.emotions,
-  }));
-
-  // Aggregate indicators
-  const indicatorCounts: Record<string, number> = {};
-  sessions.forEach((s) => {
-    s.indicators.forEach((ind) => {
-      indicatorCounts[ind] = (indicatorCounts[ind] ?? 0) + 1;
-    });
-  });
-  const topIndicators = Object.entries(indicatorCounts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 6);
-
-  // Aggregate spike question topics
-  const spikeQuestions = sessions.flatMap((s) =>
-    s.spikes.map((sp) => ({
-      question: s.responses[sp.questionIndex]?.question ?? "Unknown",
-      template: s.templateName,
-      intensity: sp.intensity,
-    }))
-  );
-
-  const emotionColors: Record<string, string> = {
-    sad: "bg-blue-500",
-    happy: "bg-green-500",
-    angry: "bg-red-500",
-    neutral: "bg-slate-400",
-  };
+  if (!stats) {
+    return (
+      <div className="space-y-6 md:space-y-8">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Reports</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Practice-level AI insights and trends across completed sessions.
+          </p>
+        </div>
+        <EmptyState
+          icon={BarChart3}
+          title="No session data yet"
+          description="Complete your first interview to see AI-generated practice insights and emotional trends."
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 md:space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Reports</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Emotional trends, common triggers, and long-term progress across all sessions.
+          Practice-level AI insights and trends across completed sessions.
         </p>
       </div>
 
-      {/* Stat Cards */}
+      {/* Overall AI Insights */}
       <section className="grid grid-cols-2 gap-3 md:gap-6 lg:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-slate-500 md:text-sm">Total Sessions</p>
-              <h2 className="mt-1 text-2xl font-bold md:mt-2 md:text-3xl">{totalSessions}</h2>
+              <h2 className="mt-1 text-2xl font-bold md:mt-2 md:text-3xl">{stats.total}</h2>
             </div>
             <Activity size={24} className="text-blue-600" />
           </div>
@@ -86,8 +136,8 @@ export default function ReportsPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-500 md:text-sm">High Risk Cases</p>
-              <h2 className="mt-1 text-2xl font-bold text-red-500 md:mt-2 md:text-3xl">{highRisk}</h2>
+              <p className="text-xs text-slate-500 md:text-sm">Sessions Requiring Review</p>
+              <h2 className="mt-1 text-2xl font-bold text-red-500 md:mt-2 md:text-3xl">{stats.highRisk}</h2>
             </div>
             <AlertTriangle size={24} className="text-red-500" />
           </div>
@@ -96,7 +146,7 @@ export default function ReportsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-slate-500 md:text-sm">Moderate Risk</p>
-              <h2 className="mt-1 text-2xl font-bold text-yellow-500 md:mt-2 md:text-3xl">{moderateRisk}</h2>
+              <h2 className="mt-1 text-2xl font-bold text-yellow-500 md:mt-2 md:text-3xl">{stats.moderateRisk}</h2>
             </div>
             <TrendingUp size={24} className="text-yellow-500" />
           </div>
@@ -115,11 +165,11 @@ export default function ReportsPage() {
       <section className="grid gap-6 xl:grid-cols-3">
         {/* Left column */}
         <div className="space-y-6 xl:col-span-2">
-          {/* Overall Emotion Distribution */}
+          {/* Detected Emotional Indicators */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Overall Emotion Distribution</h2>
+            <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Detected Emotional Indicators</h2>
             <div className="space-y-4">
-              {Object.entries(avgEmotions)
+              {Object.entries(stats.avgEmotions)
                 .sort(([, a], [, b]) => b - a)
                 .map(([label, pct]) => (
                   <div key={label}>
@@ -138,63 +188,87 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Session-by-Session Trend */}
+          {/* Emotional Trends Summary */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Session-by-Session Trend</h2>
-            {trend.length > 0 ? (
-              <div className="space-y-3">
-                {trend.map((t, i) => (
-                  <div key={i} className="rounded-xl border border-slate-200 p-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm font-medium">{t.template}</span>
-                      <span className="text-xs text-slate-400">{t.label}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {Object.entries({ sad: t.sad, happy: t.happy, angry: t.angry, neutral: t.neutral })
-                        .sort(([, a], [, b]) => b - a)
-                        .map(([label, pct]) => (
-                          <div key={label} className="flex flex-1 flex-col items-center gap-1">
-                            <div className="h-16 w-full rounded-md bg-slate-100 relative overflow-hidden">
-                              <div
-                                className={`absolute bottom-0 w-full rounded-md ${emotionColors[label]}`}
-                                style={{ height: `${pct}%` }}
-                              />
-                            </div>
-                            <span className="text-[10px] capitalize text-slate-400">{label}</span>
-                            <span className="text-xs font-medium text-slate-600">{pct}%</span>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                ))}
+            <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Emotional Trends</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {/* Dominant emotion */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Dominant Emotion</p>
+                <p className="mt-1 text-lg font-bold capitalize text-slate-800">{stats.dominantEmotion[0]}</p>
+                <p className="text-xs text-slate-400">{stats.dominantEmotion[1]}% average across all sessions</p>
               </div>
-            ) : (
-              <EmptyState
-                icon={BarChart3}
-                title="No session data yet"
-                description="Complete your first interview to see emotion trends."
-              />
-            )}
+
+              {/* Most common topic */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Most Common Interview Topic</p>
+                <p className="mt-1 text-lg font-bold text-slate-800">{stats.topTopic?.[0] || "N/A"}</p>
+                <p className="text-xs text-slate-400">{stats.topTopic?.[1] || 0} sessions</p>
+              </div>
+
+              {/* Risk trend */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Risk Distribution</p>
+                <div className="mt-1 flex items-center gap-3">
+                  <span className="text-sm font-semibold text-red-600">{stats.highRisk} High</span>
+                  <span className="text-sm font-semibold text-yellow-600">{stats.moderateRisk} Moderate</span>
+                  <span className="text-sm font-semibold text-green-600">{stats.lowRisk} Low</span>
+                </div>
+              </div>
+
+              {/* Emotional stability */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Overall Pattern</p>
+                <div className="mt-1 flex items-center gap-2">
+                  {stats.avgEmotions.sad > 40 || stats.avgEmotions.angry > 30 ? (
+                    <>
+                      <TrendingUp size={16} className="text-amber-500" />
+                      <span className="text-sm font-semibold text-amber-700">Elevated negative indicators</span>
+                    </>
+                  ) : stats.avgEmotions.happy > 50 ? (
+                    <>
+                      <TrendingDown size={16} className="text-green-500" />
+                      <span className="text-sm font-semibold text-green-700">Generally positive indicators</span>
+                    </>
+                  ) : (
+                    <>
+                      <Minus size={16} className="text-slate-400" />
+                      <span className="text-sm font-semibold text-slate-600">Mixed emotional indicators</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Common Emotional Spikes */}
+          {/* Emotional Spike Analysis */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Common Emotional Spike Topics</h2>
-            {spikeQuestions.length > 0 ? (
+            <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Emotional Spike Analysis</h2>
+            {stats.spikes.length > 0 ? (
               <div className="space-y-3">
-                {spikeQuestions.map((sq, i) => (
-                  <div
+                {stats.spikes.map((sp, i) => (
+                  <Link
                     key={i}
-                    className="flex items-start gap-3 rounded-xl border-l-4 border-yellow-400 bg-yellow-50 p-4"
+                    to={`/sessions/${sp.sessionId}`}
+                    className="flex items-start gap-3 rounded-xl border-l-4 border-yellow-400 bg-yellow-50 p-4 transition hover:bg-yellow-100"
                   >
                     <AlertTriangle size={16} className="mt-0.5 shrink-0 text-yellow-600" />
-                    <div>
-                      <p className="text-sm font-medium text-yellow-800">{sq.question}</p>
-                      <p className="text-xs text-yellow-600">
-                        Template: {sq.template} — Intensity: {sq.intensity}%
-                      </p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-yellow-800">{sp.question}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-yellow-600">
+                        <span>{sp.patientName}</span>
+                        <span>&middot;</span>
+                        <span>{sp.template}</span>
+                        <span>&middot;</span>
+                        <span className="capitalize">{sp.emotion}</span>
+                        <span>&middot;</span>
+                        <span>Intensity: {sp.intensity}%</span>
+                        <span>&middot;</span>
+                        <span>{sp.date}</span>
+                      </div>
                     </div>
-                  </div>
+                    <ArrowRight size={14} className="mt-1 shrink-0 text-yellow-400" />
+                  </Link>
                 ))}
               </div>
             ) : (
@@ -209,12 +283,12 @@ export default function ReportsPage() {
 
         {/* Right column */}
         <div className="space-y-6">
-          {/* Common Indicators */}
+          {/* Top Indicators */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:text-xl">Top Indicators</h2>
-            {topIndicators.length > 0 ? (
+            <h2 className="mb-4 text-lg font-semibold md:text-xl">Top Emotional Indicators</h2>
+            {stats.topIndicators.length > 0 ? (
               <div className="space-y-3">
-                {topIndicators.map(([label, count]) => (
+                {stats.topIndicators.map(([label, count]) => (
                   <div key={label} className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
                     <span className="text-sm font-medium text-slate-700">{label}</span>
                     <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-600">
@@ -232,16 +306,16 @@ export default function ReportsPage() {
             )}
           </div>
 
-          {/* Risk Distribution */}
+          {/* Session Risk Distribution */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:text-xl">Risk Distribution</h2>
+            <h2 className="mb-4 text-lg font-semibold md:text-xl">Session Risk Distribution</h2>
             <div className="space-y-3">
               {[
-                { label: "High", count: highRisk, color: "bg-red-500", textColor: "text-red-600" },
-                { label: "Moderate", count: moderateRisk, color: "bg-yellow-500", textColor: "text-yellow-600" },
-                { label: "Low", count: lowRisk, color: "bg-green-500", textColor: "text-green-600" },
+                { label: "High", count: stats.highRisk, color: "bg-red-500", textColor: "text-red-600" },
+                { label: "Moderate", count: stats.moderateRisk, color: "bg-yellow-500", textColor: "text-yellow-600" },
+                { label: "Low", count: stats.lowRisk, color: "bg-green-500", textColor: "text-green-600" },
               ].map((item) => {
-                const max = totalSessions || 1;
+                const max = stats.total || 1;
                 return (
                   <div key={item.label}>
                     <div className="mb-1 flex items-center justify-between text-sm">
@@ -260,30 +334,11 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Therapist Summary */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:text-xl">Therapist Summary</h2>
-            <div className="space-y-3 text-sm leading-relaxed text-slate-600">
-              <p>
-                Most emotional spikes occur during discussions about <strong>family expectations</strong>,{" "}
-                <strong>self-worth</strong>, and <strong>academic performance</strong>.
-              </p>
-              <p>
-                Recent interviews indicate a reduction in anger-related responses but continued
-                sadness indicators among moderate-risk patients.
-              </p>
-              <div className="flex items-center gap-2 text-green-600">
-                <TrendingDown size={16} />
-                <span className="text-xs font-medium">Sadness trending down from 52% to 45%</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Recent Sessions Quick Links */}
+          {/* Recent Sessions */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
             <h2 className="mb-4 text-lg font-semibold md:text-xl">Recent Sessions</h2>
             <div className="space-y-2">
-              {sessions.slice(0, 3).map((s) => (
+              {stats.recent.map((s) => (
                 <Link
                   key={s.id}
                   to={`/sessions/${s.id}`}
@@ -293,15 +348,7 @@ export default function ReportsPage() {
                     <span className="text-sm font-medium">{s.patientName}</span>
                     <p className="text-xs text-slate-400">{s.templateName} — {s.date}</p>
                   </div>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      s.riskLevel === "High"
-                        ? "bg-red-50 text-red-600"
-                        : s.riskLevel === "Moderate"
-                          ? "bg-yellow-50 text-yellow-600"
-                          : "bg-green-50 text-green-600"
-                    }`}
-                  >
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${riskBadge[s.riskLevel] ?? "bg-slate-100 text-slate-500"}`}>
                     {s.riskLevel}
                   </span>
                 </Link>

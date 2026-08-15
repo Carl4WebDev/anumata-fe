@@ -14,7 +14,7 @@ export default function DashboardPage() {
   const stats = [
     { title: "Total Patients", value: totalPatients, icon: Users },
     { title: "Pending Interviews", value: 0, icon: ClipboardCheck },
-    { title: "High Risk Cases", value: highRisk, icon: AlertTriangle },
+    { title: "Sessions Requiring Review", value: highRisk, icon: AlertTriangle },
     { title: "Completed This Week", value: 0, icon: Activity },
   ];
 
@@ -38,7 +38,7 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Therapist Dashboard</h1>
         <p className="mt-1 text-sm text-slate-500 md:mt-2 md:text-base">
-          Monitor patients, interviews, and emotional reports.
+          Monitor interviews, emotional indicators, and session reports.
         </p>
       </div>
 
@@ -63,10 +63,10 @@ export default function DashboardPage() {
 
       {/* Content Grid */}
       <section className="grid gap-6 lg:grid-cols-3">
-        {/* Recent Patients */}
+        {/* Recent Interviews */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between md:mb-6">
-            <h2 className="text-lg font-semibold md:text-xl">Recent Patients</h2>
+            <h2 className="text-lg font-semibold md:text-xl">Recent Interviews</h2>
             <Link to="/patients" className="text-sm font-medium text-blue-600 hover:underline">
               View All
             </Link>
@@ -115,9 +115,9 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Risk Overview */}
+        {/* Session Risk Distribution */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-          <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Risk Overview</h2>
+          <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Session Risk Distribution</h2>
           {totalPatients > 0 ? (
             <div className="space-y-4">
               {[

@@ -12,6 +12,8 @@ export default function InterviewLinksPage() {
   const [showModal, setShowModal] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
+  const activeLinks = links.filter((link) => link.status !== "Completed");
+
   const handleCopy = async (token: string, id: number) => {
     const url = `${window.location.origin}/interview/${token}`;
     try {
@@ -52,7 +54,7 @@ export default function InterviewLinksPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Interview Links</h1>
-          <p className="mt-1 text-sm text-slate-500">Generate and send AI interview links to clients.</p>
+          <p className="mt-1 text-sm text-slate-500">Generate and send AI-assisted interview links to patients.</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
@@ -83,7 +85,7 @@ export default function InterviewLinksPage() {
             </tr>
           </thead>
           <tbody>
-            {links.map((link) => (
+            {activeLinks.map((link) => (
               <tr key={link.id} className="border-t border-slate-100">
                 <td className="p-4 font-medium">{link.patientName}</td>
                 <td className="p-4 text-sm text-slate-500">{link.templateName}</td>
@@ -130,13 +132,13 @@ export default function InterviewLinksPage() {
                 </td>
               </tr>
             ))}
-            {links.length === 0 && (
+            {activeLinks.length === 0 && (
               <tr>
                 <td colSpan={5} className="p-8">
                   <EmptyState
                     icon={Link2}
-                    title="No interview links yet"
-                    description="Generate an interview link to send to a client for AI-assisted emotional pre-evaluation."
+                    title="No active interview links"
+                    description="Generate an interview link to send to a patient for AI-assisted emotional pre-evaluation. Completed interviews appear in the patient's session history."
                     action={
                       <button
                         onClick={() => setShowModal(true)}
@@ -156,7 +158,7 @@ export default function InterviewLinksPage() {
 
       {/* Cards — mobile */}
       <div className="space-y-3 md:hidden">
-        {links.map((link) => (
+        {activeLinks.map((link) => (
           <div key={link.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between">
               <div>
@@ -203,11 +205,11 @@ export default function InterviewLinksPage() {
             </div>
           </div>
         ))}
-        {links.length === 0 && (
+        {activeLinks.length === 0 && (
           <EmptyState
             icon={Link2}
             title="No interview links yet"
-            description="Generate an interview link to send to a client."
+            description="Generate an interview link to send to a patient."
           />
         )}
       </div>

@@ -48,6 +48,7 @@ export default function ResultsPage() {
             combined_emotion: t.combined_emotion,
             transcript_text: t.answer,
             text_analysis: t.text_analysis,
+            frame_image: t.frame_image ?? null,
           })),
           total_questions: result.transcript.length,
           emotional_events: result.emotional_events,
@@ -129,9 +130,16 @@ export default function ResultsPage() {
     combined_emotion: q.combined_emotion,
     fer_emotion: q.fer?.emotion || null,
     ser_emotion: q.ser?.emotion || null,
+    ler_emotion: q.ler?.emotion || null,
     fer_confidence: q.fer?.confidence || 0,
     ser_confidence: q.ser?.confidence || 0,
-    frame_image: null,
+    ler_confidence: q.ler?.confidence || 0,
+    ler_probabilities: q.ler?.probabilities || null,
+    language_detected: q.ler?.language_detected || null,
+    facial_details: q.fer?.facial_details || null,
+    audio_details: q.ser?.audio_details || null,
+    text_analysis: q.text_analysis || null,
+    frame_image: q.frame_image ?? null,
   }));
 
   return (
@@ -152,15 +160,15 @@ export default function ResultsPage() {
           )}
         </div>
 
-        {/* Risk Level */}
+        {/* Detected Risk Indicator */}
         <div className="mb-6 rounded-2xl bg-white p-6 shadow-md border border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-900 mb-3">Risk Assessment</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-3">Detected Risk Indicator</h2>
           <div className="flex items-center gap-4">
             <span
               className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${getRiskColor(analysis.risk_level)}`}
             >
               {analysis.risk_level === "High" && <AlertTriangle size={16} />}
-              {analysis.risk_level} Risk
+              {analysis.risk_level} Risk Indicator
             </span>
           </div>
           {indicators.length > 0 && (
@@ -179,7 +187,7 @@ export default function ResultsPage() {
 
         {/* Emotion Distribution */}
         <div className="mb-6 rounded-2xl bg-white p-6 shadow-md border border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Emotion Distribution</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Detected Emotional Indicators</h2>
           <div className="space-y-3">
             {Object.entries(distribution)
               .sort(([, a], [, b]) => b - a)
@@ -289,7 +297,7 @@ export default function ResultsPage() {
                       <div className="mt-3">
                         <EvidencePanel
                           questionIndex={q.question_index}
-                          frame_image={null}
+                          frame_image={q.frame_image ?? null}
                           facial_details={q.fer?.facial_details}
                           audio_details={q.ser?.audio_details}
                           text_analysis={q.text_analysis}

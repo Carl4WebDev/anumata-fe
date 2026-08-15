@@ -35,7 +35,7 @@ export default function RegisterPage() {
             A
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Amumata</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Anumata</h1>
             <p className="text-sm text-slate-500">Create Account</p>
           </div>
         </div>

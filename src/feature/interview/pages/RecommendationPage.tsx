@@ -154,7 +154,7 @@ export default function RecommendationPage() {
 
         {/* Footer info */}
         <p className="text-center text-xs text-slate-400">
-          Amumata — AI-Assisted Emotional Pre-Evaluation System &bull; Davao City, 2025
+          Anumata — AI-Assisted Emotional Pre-Evaluation System &bull; Davao City, 2026
         </p>
       </div>
     </div>

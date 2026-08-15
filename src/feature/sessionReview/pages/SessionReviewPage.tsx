@@ -1,4 +1,29 @@
-import { useState, useEffect } from "react";
+/**
+ * SESSION REVIEW PAGE
+ *
+ * Purpose:
+ * Main therapist view for inspecting a completed pre-evaluation session.
+ * Displays per-question FER/SER/LER evidence, fusion results, emotional
+ * events, AI session summary, and therapist notes.
+ *
+ * Data source:
+ * Backend session API (GET /api/sessions/:id)
+ *   → SessionsProvider (fetch + mapSession)
+ *   → useSessionComputed (derived data)
+ *   → THIS COMPONENT
+ *
+ * Child components:
+ * - SessionOverviewCard — overall emotion, risk, agreement
+ * - EmotionTimelineHeatmap — per-question timeline
+ * - QuestionCard — per-question transcript + AI evidence
+ * - AiReportSection — LLM-generated session summary
+ * - SpikeContextPanel — spike context viewer
+ *
+ * Related backend:
+ * - src/modules/sessions/infrastructure/SessionRepo.js → findById()
+ * - src/modules/emotion_analysis/application/EmotionAnalysisService.js → creates sessions
+ */
+import { useState, useEffect, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Save } from "lucide-react";
 import { useSessions } from "../../context/sessions/useSessions";
@@ -10,13 +35,13 @@ import EmotionTimelineHeatmap from "../components/EmotionTimelineHeatmap";
 import QuestionMiniNav from "../components/QuestionMiniNav";
 import SpikeContextPanel from "../components/SpikeContextPanel";
 import QuestionCard from "../components/QuestionCard";
-import QwenReportSection from "../components/QwenReportSection";
+import AiReportSection from "../components/AiReportSection";
 import LoadingSpinner from "../../../shared/components/LoadingSpinner";
 import { useToast } from "../../../shared/context/ToastContext";
 
 export default function SessionReviewPage() {
   const { id } = useParams();
-  const { getSessionById, fetchSessionById, updateNotes, loading } = useSessions();
+  const { getSessionById, fetchSessionById, updateNotes, regenerateReport, loading } = useSessions();
   const { success: showSuccess } = useToast();
   const cachedSession = getSessionById(Number(id));
   const [session, setSession] = useState<MappedSession | null>(cachedSession);
@@ -30,22 +55,35 @@ export default function SessionReviewPage() {
   const computed = useSessionComputed(session);
   const { getNote, updateNote } = usePerQuestionNotes(session?.id);
 
+  const handleRegenerateReport = useCallback(async () => {
+    if (!session?.id) return;
+    const newReport = await regenerateReport(session.id);
+    setSession((prev) => (prev ? { ...prev, report: newReport } : prev));
+    showSuccess("AI report regenerated");
+  }, [session?.id, regenerateReport, showSuccess]);
+
   // Sync notes when session data arrives
   useEffect(() => {
     if (session) setNotes(session.notes ?? "");
   }, [session]);
 
-  // Fetch full session data if cached version is incomplete
+  // Always fetch fresh session data from the detail endpoint.
+  // The list endpoint omits `report` and other large fields,
+  // so the cached session is incomplete. Use it only as an
+  // optimistic initial display to avoid a blank loading screen.
   useEffect(() => {
-    if (cachedSession && cachedSession.responses.length > 0) {
+    if (cachedSession) {
       setSession(cachedSession);
-      return;
     }
+    let cancelled = false;
     setFetching(true);
     fetchSessionById(Number(id)).then((full) => {
-      if (full) setSession(full);
-    }).finally(() => setFetching(false));
-  }, [id, cachedSession, fetchSessionById]);
+      if (full && !cancelled) setSession(full);
+    }).finally(() => {
+      if (!cancelled) setFetching(false);
+    });
+    return () => { cancelled = true; };
+  }, [id, fetchSessionById]);
 
   if (loading || fetching) {
     return <LoadingSpinner message="Loading session data..." />;
@@ -139,7 +177,21 @@ export default function SessionReviewPage() {
       </div>
 
       {/* 5. AI Session Summary */}
-      <QwenReportSection report={(session as any).report ?? null} />
+      {/* ============================================================ */}
+      {/* NOTE: reportStatus is derived in useSessionComputed.ts as:    */}
+      {/*   hasReport ? "available" : "unavailable"                     */}
+      {/*                                                               */}
+      {/* If this shows "unavailable" but the backend generated a       */}
+      {/* report (including fallback), the issue is:                    */}
+      {/* 1. Report not persisted to DB (check migration)               */}
+      {/* 2. Report not returned by API (check SessionRepo.findById)    */}
+      {/* 3. Report lost in mapSession (check SessionsProvider.tsx)     */}
+      {/*                                                               */}
+      {/* The Python report_generator.py ALWAYS returns a dict          */}
+      {/* (either Ollama or fallback). So mlResult.report should        */}
+      {/* never be null. If it is, the Express→DB handoff failed.       */}
+      {/* ============================================================ */}
+      <AiReportSection report={session.report ?? null} reportStatus={computed?.overview.reportStatus} onRegenerate={handleRegenerateReport} />
 
       {/* 6. Emotion Distribution */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">

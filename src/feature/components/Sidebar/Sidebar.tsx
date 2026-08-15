@@ -59,7 +59,7 @@ export default function Sidebar() {
               A
             </div>
             <div>
-              <h1 className="text-xl font-bold">Amumata</h1>
+              <h1 className="text-xl font-bold">Anumata</h1>
               <p className="text-sm text-slate-400">Therapist Portal</p>
             </div>
           </Link>

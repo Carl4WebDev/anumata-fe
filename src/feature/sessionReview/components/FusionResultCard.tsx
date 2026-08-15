@@ -1,4 +1,4 @@
-import { Zap, CheckCircle, XCircle } from "lucide-react";
+import { Zap, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 import EmotionTag from "../../../shared/components/EmotionTag";
 import ConfidenceBadge from "../../../shared/components/ConfidenceBadge";
 import AgreementBar from "./AgreementBar";
@@ -28,14 +28,24 @@ export default function FusionResultCard({ question }: FusionResultCardProps) {
           : "low"
       : "low";
 
+  const isMixedEvidence = agreement.score <= 33 && agreement.availableCount >= 2;
+  const borderColor = isMixedEvidence ? "border-amber-300" : "border-indigo-200";
+  const bgColor = isMixedEvidence ? "bg-amber-50/50" : "bg-indigo-50/50";
+
   return (
-    <div className="rounded-xl border-2 border-indigo-200 bg-indigo-50/50 p-4">
+    <div className={`rounded-xl border-2 ${borderColor} ${bgColor} p-4`}>
       {/* Header */}
       <div className="mb-3 flex items-center gap-2">
-        <Zap size={16} className="text-indigo-600" />
-        <span className="text-sm font-semibold text-indigo-800">Fusion Result</span>
+        <Zap size={16} className={isMixedEvidence ? "text-amber-600" : "text-indigo-600"} />
+        <span className={`text-sm font-semibold ${isMixedEvidence ? "text-amber-800" : "text-indigo-800"}`}>Fusion Result</span>
+        {isMixedEvidence && (
+          <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+            <AlertTriangle size={10} />
+            Mixed Evidence
+          </span>
+        )}
         <span className={`ml-auto rounded-full border px-2 py-0.5 text-[10px] font-medium ${RISK_COLORS[riskLevel]}`}>
-          {riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1)} Risk
+          {riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1)} Risk Indicator
         </span>
       </div>
 
