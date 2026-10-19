@@ -6,6 +6,8 @@ import { useSessions } from "../../context/sessions/useSessions";
 import { patientsApi } from "../../../shared/api/patientsApi";
 import type { Patient } from "../../../shared/api/patientsApi";
 import type { LongitudinalReport, DeterministicAnalysis } from "../../../shared/types/session";
+import CollapsibleSection from "../../../shared/components/CollapsibleSection";
+import EmotionTransitionHeatmap from "../components/EmotionTransitionHeatmap";
 
 export default function PatientDetailsPage() {
   const { id } = useParams();
@@ -78,7 +80,7 @@ export default function PatientDetailsPage() {
   if (!patient) {
     return (
       <div className="space-y-4">
-        <Link to="/patients" className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline">
+        <Link to="/patients" className="inline-flex items-center gap-2 text-sm text-teal-600 hover:underline">
           <ArrowLeft size={16} />
           Back to Patients
         </Link>
@@ -106,6 +108,20 @@ export default function PatientDetailsPage() {
     neutral: "bg-slate-400",
   };
 
+  // Compute emotion transitions for heatmap
+  const sessionTransitions = patientSessions
+    .filter((s) => s.responses.length >= 2)
+    .map((s) => ({
+      sessionId: s.id,
+      sessionLabel: `${s.date} — ${s.templateName}`,
+      transitions: s.responses.slice(0, -1).map((r, i) => ({
+        from: r.emotion || "neutral",
+        to: s.responses[i + 1].emotion || "neutral",
+        fromPct: r.emotionPct || 0,
+        toPct: s.responses[i + 1].emotionPct || 0,
+      })),
+    }));
+
   const longitudinalReport: LongitudinalReport | null | undefined =
     fullPatient?.longitudinal_report ?? null;
 
@@ -116,18 +132,18 @@ export default function PatientDetailsPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <Link to="/patients" className="mb-2 inline-flex items-center gap-2 text-sm text-blue-600 hover:underline">
+          <Link to="/patients" className="mb-2 inline-flex items-center gap-2 text-sm text-teal-600 hover:underline">
             <ArrowLeft size={16} />
             Back to Patients
           </Link>
-          <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">{patient.name}</h1>
+          <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">{patient.name}</h1>
           <p className="mt-1 text-sm text-slate-500">
             {patient.age} &middot; {patient.gender} &middot; {patient.concern}
           </p>
         </div>
         <button
           onClick={() => navigate("/interview-links")}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700"
         >
           <Link2 size={18} />
           Generate Interview Link
@@ -138,34 +154,34 @@ export default function PatientDetailsPage() {
       <section className="grid grid-cols-2 gap-3 md:gap-6 lg:grid-cols-4">
         {[
           { label: "Latest AI Analysis", value: patient.status },
-          { label: "Latest Risk Indicator", value: patient.risk, color: patient.risk === "High" ? "text-red-600" : patient.risk === "Moderate" ? "text-yellow-600" : patient.risk === "Low" ? "text-green-600" : "" },
+          { label: "Latest Risk Indicator", value: patient.risk, color: patient.risk === "High" ? "text-red-600" : patient.risk === "Moderate" ? "text-amber-600" : patient.risk === "Low" ? "text-emerald-600" : "" },
           { label: "Total Sessions", value: String(patientSessions.length) },
           { label: "Last Interview", value: patientSessions.length > 0 ? patientSessions[0].date : "N/A" },
         ].map((card) => (
-          <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <p className="text-xs text-slate-500 md:text-sm">{card.label}</p>
-            <h3 className={`mt-1 text-lg font-semibold md:mt-2 md:text-xl ${card.color ?? ""}`}>{card.value}</h3>
+          <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6 hover:shadow-md transition-shadow">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{card.label}</p>
+            <h3 className={`mt-1 text-lg font-semibold md:mt-2 md:text-xl ${card.color ?? "text-slate-900"}`}>{card.value}</h3>
           </div>
         ))}
       </section>
 
       {/* AI-Assisted Progress Summary */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between md:mb-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
-              <Brain size={20} className="text-blue-600" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50">
+              <Brain size={20} className="text-teal-600" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold md:text-xl">AI-Assisted Progress Summary</h2>
-              <p className="text-xs text-slate-400">Cross-session emotional pattern analysis</p>
+              <h2 className="text-base font-semibold text-slate-900">AI-Assisted Progress Summary</h2>
+              <p className="text-xs text-slate-500">Cross-session emotional pattern analysis</p>
             </div>
           </div>
           {hasCompletedSessions && (
             <button
               onClick={handleGenerate}
               disabled={generating}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
             >
               <RefreshCw size={16} className={generating ? "animate-spin" : ""} />
               {generating ? "Generating..." : longitudinalReport ? "Regenerate" : "Generate Summary"}
@@ -184,54 +200,61 @@ export default function PatientDetailsPage() {
           </div>
         )}
 
-        {/* No completed sessions */}
-        {!hasCompletedSessions && (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-10 text-center">
-            <Brain size={32} className="mx-auto text-slate-300" />
-            <p className="mt-3 text-sm text-slate-500">
-              Complete at least one interview to generate a progress summary.
-            </p>
-          </div>
-        )}
+        <CollapsibleSection
+          title={longitudinalReport ? "View Summary" : "Details"}
+          defaultOpen={false}
+          className=""
+          titleClassName="text-xs font-medium text-slate-500"
+        >
+          {/* No completed sessions */}
+          {!hasCompletedSessions && (
+            <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 py-10 text-center">
+              <Brain size={32} className="mx-auto text-slate-300" />
+              <p className="mt-3 text-sm text-slate-500">
+                Complete at least one interview to generate a progress summary.
+              </p>
+            </div>
+          )}
 
-        {/* Loading state */}
-        {hasCompletedSessions && fetchingDetails && !longitudinalReport && (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-10 text-center">
-            <RefreshCw size={24} className="mx-auto animate-spin text-slate-400" />
-            <p className="mt-3 text-sm text-slate-500">Loading summary...</p>
-          </div>
-        )}
+          {/* Loading state */}
+          {hasCompletedSessions && fetchingDetails && !longitudinalReport && (
+            <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 py-10 text-center">
+              <RefreshCw size={24} className="mx-auto animate-spin text-slate-400" />
+              <p className="mt-3 text-sm text-slate-500">Loading summary...</p>
+            </div>
+          )}
 
-        {/* Report content */}
-        {hasCompletedSessions && longitudinalReport && (
-          <LongitudinalReportContent
-            report={longitudinalReport}
-            expandedSections={expandedSections}
-            toggleSection={toggleSection}
-          />
-        )}
+          {/* Report content */}
+          {hasCompletedSessions && longitudinalReport && (
+            <LongitudinalReportContent
+              report={longitudinalReport}
+              expandedSections={expandedSections}
+              toggleSection={toggleSection}
+            />
+          )}
 
-        {/* Empty state — sessions exist but no report generated yet */}
-        {hasCompletedSessions && !fetchingDetails && !longitudinalReport && !generating && !generateError && (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-10 text-center">
-            <Brain size={32} className="mx-auto text-slate-300" />
-            <p className="mt-3 text-sm text-slate-500">
-              No summary generated yet. Click &quot;Generate Summary&quot; to create an AI-assisted progress analysis.
-            </p>
-          </div>
-        )}
+          {/* Empty state — sessions exist but no report generated yet */}
+          {hasCompletedSessions && !fetchingDetails && !longitudinalReport && !generating && !generateError && (
+            <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 py-10 text-center">
+              <Brain size={32} className="mx-auto text-slate-300" />
+              <p className="mt-3 text-sm text-slate-500">
+                No summary generated yet. Click &quot;Generate Summary&quot; to create an AI-assisted progress analysis.
+              </p>
+            </div>
+          )}
+        </CollapsibleSection>
       </section>
 
       {/* Content: Interview History + Emotional Trend */}
       <section className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6 lg:col-span-2">
-          <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Interview History</h2>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6 lg:col-span-2">
+          <h2 className="mb-4 text-base font-semibold text-slate-900 md:mb-5">Interview History</h2>
           {patientSessions.length > 0 ? (
             <div className="space-y-3">
               {patientSessions.map((session) => (
                 <div
                   key={session.id}
-                  className="flex items-center justify-between rounded-xl border border-slate-200 p-4 transition hover:border-blue-200 hover:bg-blue-50/30"
+                  className="flex items-center justify-between rounded-lg border border-slate-200 p-4 transition hover:border-teal-200 hover:bg-teal-50/30"
                 >
                   <div>
                     <span className="text-sm font-medium">{session.templateName}</span>
@@ -240,12 +263,12 @@ export default function PatientDetailsPage() {
                       <span className="text-xs text-slate-300">&middot;</span>
                       <span className="text-xs text-slate-400">{session.duration}</span>
                       <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                           session.riskLevel === "High"
-                            ? "bg-red-50 text-red-600"
+                            ? "bg-red-50 text-red-700"
                             : session.riskLevel === "Moderate"
-                              ? "bg-yellow-50 text-yellow-600"
-                              : "bg-green-50 text-green-600"
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-emerald-50 text-emerald-700"
                         }`}
                       >
                         {session.riskLevel}
@@ -254,7 +277,7 @@ export default function PatientDetailsPage() {
                   </div>
                   <Link
                     to={`/sessions/${session.id}`}
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:underline"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 hover:text-teal-700"
                   >
                     Review
                     <ExternalLink size={14} />
@@ -267,8 +290,8 @@ export default function PatientDetailsPage() {
           )}
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-          <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Emotional Indicator Trend</h2>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+          <h2 className="mb-4 text-base font-semibold text-slate-900 md:mb-5">Emotional Indicator Trend</h2>
           {avgEmotions ? (
             <div className="space-y-4">
               {Object.entries(avgEmotions)
@@ -293,6 +316,12 @@ export default function PatientDetailsPage() {
           )}
         </div>
       </section>
+
+      {/* Emotion Transition Heatmap */}
+      <EmotionTransitionHeatmap
+        sessions={sessionTransitions}
+        onCellClick={(sessionId) => navigate(`/sessions/${sessionId}`)}
+      />
     </div>
   );
 }
@@ -317,10 +346,10 @@ function SourceIndicator({ reportSource }: { reportSource?: string }) {
 
   if (isLLM) {
     return (
-      <div className="mb-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-        <Sparkles size={14} className="text-blue-600" />
-        <span className="text-xs font-medium text-blue-800">AI-Assisted Interpretation</span>
-        <span className="text-xs text-blue-500">— Interpretation generated from the patient's longitudinal session data and detected emotional indicators.</span>
+      <div className="mb-4 flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2">
+        <Sparkles size={14} className="text-teal-600" />
+        <span className="text-xs font-medium text-teal-800">AI-Assisted Interpretation</span>
+        <span className="text-xs text-teal-600">— Interpretation generated from the patient's longitudinal session data and detected emotional indicators.</span>
       </div>
     );
   }
@@ -366,7 +395,7 @@ function ReportSection({ title, icon, items, expanded, onToggle, color = "slate"
     slate: "border-slate-200",
     amber: "border-amber-200 bg-amber-50/30",
     green: "border-green-200 bg-green-50/30",
-    blue: "border-blue-200 bg-blue-50/30",
+    teal: "border-teal-200 bg-teal-50/30",
     red: "border-red-200 bg-red-50/30",
   };
 
@@ -463,7 +492,7 @@ function LongitudinalReportContent({ report, expandedSections, toggleSection }: 
 
       {/* Overall Summary */}
       {report.overall_summary && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+        <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-4">
           <p className="text-sm leading-relaxed text-slate-800">{report.overall_summary}</p>
         </div>
       )}
@@ -501,15 +530,15 @@ function LongitudinalReportContent({ report, expandedSections, toggleSection }: 
           items={report.emotional_patterns}
           expanded={expandedSections.patterns}
           onToggle={() => toggleSection("patterns")}
-          color="blue"
+          color="teal"
         >
           {analysis && analysis.emotional_patterns.length > 0 && (
             <div className="mt-3 space-y-2">
               {analysis.emotional_patterns.map((p, i) => (
-                <div key={i} className="rounded-lg bg-blue-50/50 px-3 py-2">
+                <div key={i} className="rounded-lg bg-teal-50/50 px-3 py-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-slate-800">{p.pattern}</span>
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{p.frequency}</span>
+                    <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs text-teal-700">{p.frequency}</span>
                   </div>
                   {p.supporting_sessions.length > 0 && (
                     <p className="mt-1 text-xs text-slate-500">
@@ -632,7 +661,7 @@ function LongitudinalReportContent({ report, expandedSections, toggleSection }: 
           items={report.suggested_follow_up_questions}
           expanded={expandedSections.questions}
           onToggle={() => toggleSection("questions")}
-          color="blue"
+          color="teal"
         />
       </div>
 

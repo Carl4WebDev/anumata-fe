@@ -13,13 +13,13 @@ import {
 } from "lucide-react";
 
 const steps = [
-  { num: "01", label: "Therapist creates an interview", tag: "Setup", color: "bg-blue-50 text-blue-600" },
+  { num: "01", label: "Therapist creates an interview", tag: "Setup", color: "bg-teal-50 text-teal-600" },
   { num: "02", label: "Client opens the interview link", tag: "Start", color: "bg-teal-50 text-teal-600" },
-  { num: "03", label: "AI asks standardized questions", tag: "Interview", color: "bg-blue-50 text-blue-600" },
+  { num: "03", label: "AI asks standardized questions", tag: "Interview", color: "bg-teal-50 text-teal-600" },
   { num: "04", label: "Client responds through video and audio", tag: "Capture", color: "bg-teal-50 text-teal-600" },
-  { num: "05", label: "FER, SER, and LER analyze each response", tag: "Analysis", color: "bg-blue-50 text-blue-600" },
+  { num: "05", label: "FER, SER, and LER analyze each response", tag: "Analysis", color: "bg-teal-50 text-teal-600" },
   { num: "06", label: "Multimodal fusion combines emotional evidence", tag: "Fusion", color: "bg-teal-50 text-teal-600" },
-  { num: "07", label: "System generates a structured pre-evaluation report", tag: "Report", color: "bg-blue-50 text-blue-600" },
+  { num: "07", label: "System generates a structured pre-evaluation report", tag: "Report", color: "bg-teal-50 text-teal-600" },
   { num: "08", label: "Therapist reviews emotional indicators and patterns", tag: "Review", color: "bg-teal-50 text-teal-600" },
 ];
 
@@ -73,7 +73,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 md:px-8">
           <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-500 text-lg font-bold text-white">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500 text-lg font-bold text-white">
               A
             </div>
             <div>
@@ -91,7 +91,7 @@ export default function LandingPage() {
             </Link>
             <Link
               to="/login"
-              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+              className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700"
             >
               Get Started
             </Link>
@@ -103,12 +103,12 @@ export default function LandingPage() {
       <section className="mx-auto max-w-6xl px-4 pb-16 pt-12 md:px-8 md:pb-24 md:pt-20">
         <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <div>
-            <span className="mb-4 inline-block rounded-full bg-blue-50 px-4 py-1.5 text-xs font-semibold text-blue-600">
+            <span className="mb-4 inline-block rounded-full bg-teal-50 px-4 py-1.5 text-xs font-semibold text-teal-600">
               Facial Expression &bull; Speech Emotion &bull; Language Analysis
             </span>
             <h1 className="text-3xl font-bold leading-tight text-slate-900 md:text-5xl lg:text-[3.5rem]">
               AI-assisted emotional pre-evaluation{" "}
-              <span className="text-blue-600">for therapists</span>.
+              <span className="text-teal-600">for therapists</span>.
             </h1>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-slate-600 md:text-lg">
               Anumata guides clients through standardized therapist-informed questions, records their
@@ -118,7 +118,7 @@ export default function LandingPage() {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 to="/login"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-teal-700"
               >
                 Start Prototype
                 <ArrowRight size={16} />
@@ -137,7 +137,7 @@ export default function LandingPage() {
             <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-lg">
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-2xl">
-                  <Video size={24} className="text-blue-600" />
+                  <Video size={24} className="text-teal-600" />
                 </div>
                 <div>
                   <p className="font-semibold text-slate-900">Interview Room</p>
@@ -149,15 +149,15 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              <div className="mb-6 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-12 text-center">
+              <div className="mb-6 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-12 text-center">
                 <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-3xl">
                   🙂
                 </div>
                 <p className="text-sm text-slate-500">Camera Preview</p>
               </div>
 
-              <div className="rounded-xl border-l-4 border-blue-500 bg-blue-50 p-4">
-                <p className="text-sm font-medium text-blue-900">
+              <div className="rounded-xl border-l-4 border-teal-500 bg-teal-50 p-4">
+                <p className="text-sm font-medium text-teal-900">
                   Can you tell me about a situation with your family that has been affecting you recently?
                 </p>
               </div>
@@ -166,7 +166,7 @@ export default function LandingPage() {
                 {[45, 60, 80, 55, 70, 40, 65, 50].map((h, i) => (
                   <div key={i} className="flex-1 rounded-full bg-slate-100">
                     <div
-                      className="rounded-full bg-gradient-to-t from-blue-600 to-teal-400 transition-all"
+                      className="rounded-full bg-gradient-to-t from-teal-600 to-teal-400 transition-all"
                       style={{ height: `${h}px` }}
                     />
                   </div>
@@ -189,7 +189,7 @@ export default function LandingPage() {
             {steps.map((step) => (
               <div
                 key={step.num}
-                className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-[#F1F5F9] p-5 transition hover:shadow-md"
+                className="flex items-center gap-4 rounded-xl border border-slate-200 bg-[#F1F5F9] p-5 transition hover:shadow-md"
               >
                 <span className="text-2xl font-bold text-slate-300">{step.num}</span>
                 <span className="flex-1 text-sm font-medium text-slate-700">{step.label}</span>
@@ -218,10 +218,10 @@ export default function LandingPage() {
               return (
                 <div
                   key={feature.title}
-                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md"
+                  className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md"
                 >
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50">
-                    <Icon size={22} className="text-blue-600" />
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-teal-50">
+                    <Icon size={22} className="text-teal-600" />
                   </div>
                   <h3 className="mb-2 text-base font-semibold text-slate-900">{feature.title}</h3>
                   <p className="text-sm leading-relaxed text-slate-500">{feature.desc}</p>
@@ -254,7 +254,7 @@ export default function LandingPage() {
                   { label: "Evidence Quality", value: "Modality availability and confidence indicators per question" },
                 ].map((item) => (
                   <div key={item.label} className="flex items-start gap-3">
-                    <ChevronRight size={16} className="mt-0.5 shrink-0 text-blue-600" />
+                    <ChevronRight size={16} className="mt-0.5 shrink-0 text-teal-600" />
                     <div>
                       <p className="text-sm font-medium text-slate-700">{item.label}</p>
                       <p className="text-sm text-slate-500">{item.value}</p>
@@ -299,9 +299,9 @@ export default function LandingPage() {
                 </p>
               </div>
 
-              <div className="mb-4 rounded-xl border-l-4 border-blue-400 bg-blue-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Suggested Therapist Focus</p>
-                <p className="mt-1 text-sm text-blue-800">
+              <div className="mb-4 rounded-xl border-l-4 border-teal-400 bg-teal-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-teal-600">Suggested Therapist Focus</p>
+                <p className="mt-1 text-sm text-teal-800">
                   Explore family-related stressors. Assess anger expression patterns.
                 </p>
               </div>
@@ -342,7 +342,7 @@ export default function LandingPage() {
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 md:flex-row md:px-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500 text-sm font-bold text-white">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500 text-sm font-bold text-white">
               A
             </div>
             <span className="text-sm font-medium text-slate-700">Anumata</span>
@@ -350,7 +350,7 @@ export default function LandingPage() {
           <p className="text-center text-xs text-slate-400">
             AI-Assisted Emotional State Pre-Evaluation System &bull; Davao City &bull; 2026
           </p>
-          <Link to="/login" className="text-sm font-medium text-blue-600 hover:underline">
+          <Link to="/login" className="text-sm font-medium text-teal-600 hover:underline">
             Therapist Login
           </Link>
         </div>

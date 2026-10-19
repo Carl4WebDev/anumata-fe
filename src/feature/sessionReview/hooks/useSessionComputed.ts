@@ -99,14 +99,15 @@ export function useSessionComputed(session: MappedSession | null | undefined) {
       const fusionEmotion = (r.emotion || "neutral").charAt(0).toUpperCase() + (r.emotion || "neutral").slice(1);
       const fusionConfidence = (r.emotionPct || 0) / 100;
 
+      // LER excluded from agreement/explanation — experimental, not part of fusion
       const agreement = calculateAgreement(
         fer.emotion,
         ser.emotion,
-        ler.emotion,
+        null,
         fusionEmotion,
       );
 
-      const explanation = generateExplanation(fusionEmotion, fer, ser, ler);
+      const explanation = generateExplanation(fusionEmotion, fer, ser, null);
 
       return {
         index: i,

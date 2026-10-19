@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from "react";
 import { UserContext } from "./UserContext";
 import { authApi } from "../../../shared/api/authApi";
 import { ApiError } from "../../../shared/api/httpClient";
+import { formatName } from "../../../shared/utils/formatName";
 
 export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(false);
@@ -18,7 +19,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       const user = {
         id: res.data.user.user_id,
         email: res.data.user.email,
-        name: res.data.user.full_name,
+        name: formatName(res.data.user.f_name, res.data.user.m_name, res.data.user.l_name),
         role: "THERAPIST",
       };
       localStorage.setItem("user_token", res.data.token);
@@ -33,7 +34,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  const register = useCallback(async (payload: { email: string; name: string; password: string }) => {
+  const register = useCallback(async (payload: { email: string; f_name: string; m_name?: string; l_name: string; password: string }) => {
     setLoading(true);
     setError(null);
 
@@ -41,14 +42,16 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
       await authApi.register({
         email: payload.email,
         password: payload.password,
-        full_name: payload.name,
+        f_name: payload.f_name,
+        m_name: payload.m_name,
+        l_name: payload.l_name,
       });
 
       const loginRes = await authApi.login(payload.email, payload.password);
       const user = {
         id: loginRes.data.user.user_id,
         email: loginRes.data.user.email,
-        name: loginRes.data.user.full_name,
+        name: formatName(loginRes.data.user.f_name, loginRes.data.user.m_name, loginRes.data.user.l_name),
         role: "THERAPIST",
       };
       localStorage.setItem("user_token", loginRes.data.token);

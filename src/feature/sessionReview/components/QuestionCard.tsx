@@ -18,12 +18,12 @@ function QuestionCardInner({ data, note, onNoteChange }: QuestionCardProps) {
   return (
     <article
       id={`question-${data.index}`}
-      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6"
+      className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6"
       aria-label={`Question ${data.index + 1}`}
     >
       {/* Question header */}
       <div className="mb-3 flex items-start gap-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-100 text-sm font-bold text-teal-700">
           {data.index + 1}
         </span>
         <div className="flex-1">
@@ -109,9 +109,9 @@ function QuestionCardInner({ data, note, onNoteChange }: QuestionCardProps) {
 
       {/* Pipeline flow: AI Evidence → Fusion */}
       <div className="flex items-center gap-2 my-3">
-        <div className="h-px flex-1 bg-indigo-200" />
-        <span className="text-[10px] text-indigo-400 uppercase tracking-wider">Fusion Result</span>
-        <div className="h-px flex-1 bg-indigo-200" />
+        <div className="h-px flex-1 bg-teal-200" />
+        <span className="text-[10px] text-teal-500 uppercase tracking-wider">Fusion Result</span>
+        <div className="h-px flex-1 bg-teal-200" />
       </div>
 
       {/* Fusion Result */}

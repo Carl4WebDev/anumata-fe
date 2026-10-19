@@ -4,7 +4,9 @@ import type { LongitudinalReport } from "../types/session";
 export interface Patient {
   patient_id: number;
   therapist_id: number;
-  full_name: string;
+  f_name: string;
+  m_name: string | null;
+  l_name: string;
   age: number;
   gender: string;
   primary_concern: string;
@@ -30,11 +32,11 @@ export const patientsApi = {
     return httpClient.get<Patient>(`/api/patients/${id}`);
   },
 
-  create(data: { full_name: string; age: number; gender: string; primary_concern: string }) {
+  create(data: { f_name: string; m_name?: string; l_name: string; age: number; gender: string; primary_concern: string }) {
     return httpClient.post<Patient>("/api/patients", data);
   },
 
-  update(id: number, data: { full_name?: string; age?: number; gender?: string; primary_concern?: string }) {
+  update(id: number, data: { f_name?: string; m_name?: string; l_name?: string; age?: number; gender?: string; primary_concern?: string }) {
     return httpClient.patch<Patient>(`/api/patients/${id}`, data);
   },
 

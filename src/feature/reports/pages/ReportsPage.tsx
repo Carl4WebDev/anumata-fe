@@ -14,9 +14,9 @@ const emotionColors: Record<string, string> = {
 };
 
 const riskBadge: Record<string, string> = {
-  High: "bg-red-50 text-red-600",
-  Moderate: "bg-yellow-50 text-yellow-600",
-  Low: "bg-green-50 text-green-600",
+  High: "bg-red-50 text-red-700",
+  Moderate: "bg-amber-50 text-amber-700",
+  Low: "bg-emerald-50 text-emerald-700",
 };
 
 export default function ReportsPage() {
@@ -99,7 +99,7 @@ export default function ReportsPage() {
     return (
       <div className="space-y-6 md:space-y-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Reports</h1>
+          <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Reports</h1>
           <p className="mt-1 text-sm text-slate-500">
             Practice-level AI insights and trends across completed sessions.
           </p>
@@ -116,7 +116,7 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6 md:space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Reports</h1>
+        <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Reports</h1>
         <p className="mt-1 text-sm text-slate-500">
           Practice-level AI insights and trends across completed sessions.
         </p>
@@ -124,40 +124,40 @@ export default function ReportsPage() {
 
       {/* Overall AI Insights */}
       <section className="grid grid-cols-2 gap-3 md:gap-6 lg:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-500 md:text-sm">Total Sessions</p>
-              <h2 className="mt-1 text-2xl font-bold md:mt-2 md:text-3xl">{stats.total}</h2>
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Total Sessions</p>
+              <h2 className="mt-1 mt-2 text-3xl font-bold">{stats.total}</h2>
             </div>
-            <Activity size={24} className="text-blue-600" />
+            <Activity size={24} className="text-teal-600" />
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-500 md:text-sm">Sessions Requiring Review</p>
-              <h2 className="mt-1 text-2xl font-bold text-red-500 md:mt-2 md:text-3xl">{stats.highRisk}</h2>
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Sessions Requiring Review</p>
+              <h2 className="mt-1 mt-2 text-3xl font-bold text-red-500">{stats.highRisk}</h2>
             </div>
             <AlertTriangle size={24} className="text-red-500" />
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-500 md:text-sm">Moderate Risk</p>
-              <h2 className="mt-1 text-2xl font-bold text-yellow-500 md:mt-2 md:text-3xl">{stats.moderateRisk}</h2>
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Moderate Risk</p>
+              <h2 className="mt-1 mt-2 text-3xl font-bold text-amber-500">{stats.moderateRisk}</h2>
             </div>
-            <TrendingUp size={24} className="text-yellow-500" />
+            <TrendingUp size={24} className="text-amber-500" />
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-slate-500 md:text-sm">Total Patients</p>
-              <h2 className="mt-1 text-2xl font-bold md:mt-2 md:text-3xl">{patients.length}</h2>
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Total Patients</p>
+              <h2 className="mt-1 mt-2 text-3xl font-bold">{patients.length}</h2>
             </div>
-            <Users size={24} className="text-blue-600" />
+            <Users size={24} className="text-teal-600" />
           </div>
         </div>
       </section>
@@ -166,8 +166,8 @@ export default function ReportsPage() {
         {/* Left column */}
         <div className="space-y-6 xl:col-span-2">
           {/* Detected Emotional Indicators */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Detected Emotional Indicators</h2>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+            <h2 className="mb-4 text-base font-semibold text-slate-900 md:mb-5">Detected Emotional Indicators</h2>
             <div className="space-y-4">
               {Object.entries(stats.avgEmotions)
                 .sort(([, a], [, b]) => b - a)
@@ -189,8 +189,8 @@ export default function ReportsPage() {
           </div>
 
           {/* Emotional Trends Summary */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Emotional Trends</h2>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+            <h2 className="mb-4 text-base font-semibold text-slate-900 md:mb-5">Emotional Trends</h2>
             <div className="grid gap-3 sm:grid-cols-2">
               {/* Dominant emotion */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -211,7 +211,7 @@ export default function ReportsPage() {
                 <p className="text-xs text-slate-500">Risk Distribution</p>
                 <div className="mt-1 flex items-center gap-3">
                   <span className="text-sm font-semibold text-red-600">{stats.highRisk} High</span>
-                  <span className="text-sm font-semibold text-yellow-600">{stats.moderateRisk} Moderate</span>
+                  <span className="text-sm font-semibold text-amber-600">{stats.moderateRisk} Moderate</span>
                   <span className="text-sm font-semibold text-green-600">{stats.lowRisk} Low</span>
                 </div>
               </div>
@@ -242,8 +242,8 @@ export default function ReportsPage() {
           </div>
 
           {/* Emotional Spike Analysis */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Emotional Spike Analysis</h2>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+            <h2 className="mb-4 text-base font-semibold text-slate-900 md:mb-5">Emotional Spike Analysis</h2>
             {stats.spikes.length > 0 ? (
               <div className="space-y-3">
                 {stats.spikes.map((sp, i) => (
@@ -284,14 +284,14 @@ export default function ReportsPage() {
         {/* Right column */}
         <div className="space-y-6">
           {/* Top Indicators */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:text-xl">Top Emotional Indicators</h2>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+            <h2 className="mb-4 text-base font-semibold text-slate-900">Top Emotional Indicators</h2>
             {stats.topIndicators.length > 0 ? (
               <div className="space-y-3">
                 {stats.topIndicators.map(([label, count]) => (
                   <div key={label} className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
                     <span className="text-sm font-medium text-slate-700">{label}</span>
-                    <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-600">
+                    <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-semibold text-teal-600">
                       {count}x
                     </span>
                   </div>
@@ -307,12 +307,12 @@ export default function ReportsPage() {
           </div>
 
           {/* Session Risk Distribution */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:text-xl">Session Risk Distribution</h2>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+            <h2 className="mb-4 text-base font-semibold text-slate-900">Session Risk Distribution</h2>
             <div className="space-y-3">
               {[
                 { label: "High", count: stats.highRisk, color: "bg-red-500", textColor: "text-red-600" },
-                { label: "Moderate", count: stats.moderateRisk, color: "bg-yellow-500", textColor: "text-yellow-600" },
+                { label: "Moderate", count: stats.moderateRisk, color: "bg-amber-500", textColor: "text-amber-600" },
                 { label: "Low", count: stats.lowRisk, color: "bg-green-500", textColor: "text-green-600" },
               ].map((item) => {
                 const max = stats.total || 1;
@@ -335,14 +335,14 @@ export default function ReportsPage() {
           </div>
 
           {/* Recent Sessions */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:text-xl">Recent Sessions</h2>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+            <h2 className="mb-4 text-base font-semibold text-slate-900">Recent Sessions</h2>
             <div className="space-y-2">
               {stats.recent.map((s) => (
                 <Link
                   key={s.id}
                   to={`/sessions/${s.id}`}
-                  className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 transition hover:border-blue-200 hover:bg-blue-50/30"
+                  className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 transition hover:border-teal-200 hover:bg-teal-50/30"
                 >
                   <div>
                     <span className="text-sm font-medium">{s.patientName}</span>

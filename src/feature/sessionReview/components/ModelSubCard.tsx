@@ -57,6 +57,13 @@ export default function ModelSubCard({ evidence }: ModelSubCardProps) {
         </p>
       )}
 
+      {/* Experimental badge for LER */}
+      {evidence.model === "LER" && (
+        <p className="mt-1.5 text-[10px] font-medium text-orange-600 bg-orange-50 rounded px-2 py-1 inline-block">
+          Experimental — Not Included in Fusion
+        </p>
+      )}
+
       {/* Expandable probabilities */}
       {probs && Object.keys(probs).length > 0 && (
         <div className="mt-2">

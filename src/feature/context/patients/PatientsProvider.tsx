@@ -2,11 +2,12 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import { PatientsContext } from "./PatientsContext";
 import { patientsApi } from "../../../shared/api/patientsApi";
 import { ApiError } from "../../../shared/api/httpClient";
+import { formatName } from "../../../shared/utils/formatName";
 
 function mapPatient(p: any) {
   return {
     id: p.patient_id,
-    name: p.full_name,
+    name: formatName(p.f_name, p.m_name, p.l_name),
     age: p.age,
     gender: p.gender.charAt(0).toUpperCase() + p.gender.slice(1),
     concern: p.primary_concern,
@@ -44,10 +45,12 @@ export const PatientsProvider = ({ children }: { children: React.ReactNode }) =>
 
   const clearError = useCallback(() => setError(null), []);
 
-  const addPatient = useCallback(async (data: { name: string; age: number; gender: string; concern: string }) => {
+  const addPatient = useCallback(async (data: { f_name: string; m_name?: string; l_name: string; age: number; gender: string; concern: string }) => {
     try {
       const res = await patientsApi.create({
-        full_name: data.name,
+        f_name: data.f_name,
+        m_name: data.m_name,
+        l_name: data.l_name,
         age: data.age,
         gender: data.gender.toLowerCase(),
         primary_concern: data.concern,

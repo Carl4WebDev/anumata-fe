@@ -161,10 +161,10 @@ export default function EvidenceSnapshot({
               </div>
 
               {/* LER */}
-              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+              <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2">
                 <Languages size={12} className="text-purple-500" />
                 <div>
-                  <p className="text-[10px] text-slate-400">LER</p>
+                  <p className="text-[10px] text-orange-600 font-medium">LER (Experimental)</p>
                   <p className="text-xs font-semibold text-slate-700">
                     {lerEmotion || "—"} {lerConfidence > 0 ? `(${fmtPct(lerConfidence)})` : ""}
                   </p>

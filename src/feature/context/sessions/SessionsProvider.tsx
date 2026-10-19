@@ -75,6 +75,7 @@ function mapSession(s: Session): MappedSession {
       label: sp.label ?? "Emotional spike",
       emotion: sp.emotion ?? "sad",
       intensity: sp.intensity ?? 0,
+      type: sp.type,
     })),
     responses: (s.transcript || []).map((t) => ({
       question: typeof t.question === "object" ? t.question?.text ?? JSON.stringify(t.question) : t.question ?? "",

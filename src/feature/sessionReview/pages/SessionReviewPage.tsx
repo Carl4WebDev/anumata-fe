@@ -34,6 +34,7 @@ import SessionOverviewCard from "../components/SessionOverviewCard";
 import EmotionTimelineHeatmap from "../components/EmotionTimelineHeatmap";
 import QuestionMiniNav from "../components/QuestionMiniNav";
 import SpikeContextPanel from "../components/SpikeContextPanel";
+import EvidenceQualityCard from "../components/EvidenceQualityCard";
 import QuestionCard from "../components/QuestionCard";
 import AiReportSection from "../components/AiReportSection";
 import LoadingSpinner from "../../../shared/components/LoadingSpinner";
@@ -92,7 +93,7 @@ export default function SessionReviewPage() {
   if (!session || !computed) {
     return (
       <div className="space-y-4">
-        <Link to="/patients" className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline">
+        <Link to="/patients" className="inline-flex items-center gap-2 text-sm text-teal-600 hover:underline">
           <ArrowLeft size={16} />
           Back to Patients
         </Link>
@@ -108,7 +109,7 @@ export default function SessionReviewPage() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const spikeIndices = session.spikes.map((s) => s.question_index);
+  const spikeIndices = session.spikes.map((s) => s.questionIndex);
 
   // Emotion distribution colors
   const emotionBarColors: Record<string, string> = {
@@ -124,12 +125,12 @@ export default function SessionReviewPage() {
       <div>
         <Link
           to={`/patients/${session.patientId}`}
-          className="mb-2 inline-flex items-center gap-2 text-sm text-blue-600 hover:underline"
+          className="mb-2 inline-flex items-center gap-2 text-sm text-teal-600 hover:underline"
         >
           <ArrowLeft size={16} />
           Back to Patient
         </Link>
-        <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Session Review</h1>
+        <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Session Review</h1>
         <p className="mt-1 text-sm text-slate-500">
           {session.patientName} — {session.templateName} — {session.date}
         </p>
@@ -141,21 +142,37 @@ export default function SessionReviewPage() {
       {/* 2. Timeline + Question Navigation */}
       <div className="relative">
         <EmotionTimelineHeatmap
-          points={session.responses.map((r, i) => ({
-            questionIndex: i,
-            emotion: (r.emotion || "neutral").charAt(0).toUpperCase() + (r.emotion || "neutral").slice(1),
-            confidence: (r.emotionPct || 0) / 100,
-            isSpike: session.spikes.some((s) => s.question_index === i),
-          }))}
+          points={session.responses.map((r, i) => {
+            const spike = session.spikes.find((s) => s.questionIndex === i);
+            return {
+              questionIndex: i,
+              emotion: (r.emotion || "neutral").charAt(0).toUpperCase() + (r.emotion || "neutral").slice(1),
+              confidence: (r.emotionPct || 0) / 100,
+              isSpike: !!spike,
+              spikeType: spike?.type,
+              spikeLabel: spike?.label,
+            };
+          })}
           onSpikeClick={(index) => {
-            const spike = session.spikes.find((s) => s.question_index === index);
-            if (spike) setSelectedSpike(spike);
+            const spike = session.spikes.find((s) => s.questionIndex === index);
+            if (spike) {
+              setSelectedSpike({
+                question_index: spike.questionIndex,
+                label: spike.label,
+                emotion: spike.emotion as EmotionalSpike["emotion"],
+                intensity: spike.intensity,
+                type: spike.type,
+              });
+            }
           }}
         />
         <QuestionMiniNav questionCount={session.responses.length} spikeIndices={spikeIndices} />
       </div>
 
-      {/* 3. Spike Context (if selected) */}
+      {/* 3. Evidence Quality & Modality Coverage */}
+      <EvidenceQualityCard responses={session.responses} />
+
+      {/* 4. Spike Context (if selected) */}
       {selectedSpike && (
         <SpikeContextPanel
           spike={selectedSpike}
@@ -194,8 +211,8 @@ export default function SessionReviewPage() {
       <AiReportSection report={session.report ?? null} reportStatus={computed?.overview.reportStatus} onRegenerate={handleRegenerateReport} />
 
       {/* 6. Emotion Distribution */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-        <h2 className="mb-4 text-lg font-semibold md:text-xl">Emotion Distribution</h2>
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+        <h2 className="mb-4 text-base font-semibold text-slate-900">Emotion Distribution</h2>
         <div className="space-y-3">
           {Object.entries(session.emotions)
             .sort(([, a], [, b]) => (b as number) - (a as number))
@@ -217,11 +234,11 @@ export default function SessionReviewPage() {
       </div>
 
       {/* 7. Detected Indicators */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-        <h2 className="mb-3 text-lg font-semibold md:text-xl">Detected Indicators</h2>
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+        <h2 className="mb-3 text-base font-semibold text-slate-900">Detected Indicators</h2>
         <div className="flex flex-wrap gap-2">
           {session.indicators.map((ind: string) => (
-            <span key={ind} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+            <span key={ind} className="rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-700">
               {ind}
             </span>
           ))}
@@ -230,8 +247,8 @@ export default function SessionReviewPage() {
 
       {/* 8. Emotional Event Report */}
       {session.emotionalEvents && session.emotionalEvents.length > 0 && (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50/30 p-4 shadow-sm md:p-6">
-          <h2 className="mb-4 text-lg font-semibold text-blue-900 md:text-xl">Emotional Event Report</h2>
+        <div className="rounded-xl border border-teal-200 bg-teal-50/30 p-5 shadow-sm md:p-6">
+          <h2 className="mb-4 text-base font-semibold text-teal-900">Emotional Event Report</h2>
           <p className="mb-4 text-xs text-slate-500 italic">
             This report identifies moments during the interview where notable emotional responses were detected.
             All observations are generated by AI analysis and should be interpreted by a qualified professional.
@@ -309,8 +326,8 @@ export default function SessionReviewPage() {
           </div>
           {/* Session Highlights */}
           {session.sessionHighlights && (
-            <div className="mt-6 rounded-xl border border-blue-200 bg-white p-4">
-              <h3 className="mb-3 text-sm font-semibold text-blue-800">Session Emotional Highlights</h3>
+            <div className="mt-6 rounded-lg border border-teal-200 bg-white p-4">
+              <h3 className="mb-3 text-sm font-semibold text-teal-800">Session Emotional Highlights</h3>
               <div className="grid gap-3 text-sm md:grid-cols-2">
                 <div>
                   <p className="text-xs text-slate-500">Total Emotional Events Detected</p>
@@ -335,9 +352,9 @@ export default function SessionReviewPage() {
                   </p>
                 </div>
               </div>
-              <div className="mt-3 rounded-lg bg-blue-50 p-3">
-                <p className="text-xs font-medium text-blue-700">Overall Summary</p>
-                <p className="mt-1 text-xs leading-relaxed text-blue-800">
+              <div className="mt-3 rounded-lg bg-teal-50 p-3">
+                <p className="text-xs font-medium text-teal-700">Overall Summary</p>
+                <p className="mt-1 text-xs leading-relaxed text-teal-800">
                   {session.sessionHighlights.overall_summary}
                 </p>
               </div>
@@ -347,12 +364,12 @@ export default function SessionReviewPage() {
       )}
 
       {/* 9. Session-level Therapist Notes */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold md:text-xl">Therapist Notes</h2>
+          <h2 className="text-base font-semibold text-slate-900">Therapist Notes</h2>
           <button
             onClick={handleSaveNotes}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700"
+            className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-teal-700"
           >
             <Save size={12} />
             {saved ? "Saved!" : "Save"}
@@ -363,7 +380,7 @@ export default function SessionReviewPage() {
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Add your clinical notes here..."
           rows={6}
-          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
+          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 resize-none"
         />
       </div>
     </div>

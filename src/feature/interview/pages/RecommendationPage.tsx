@@ -72,7 +72,7 @@ export default function RecommendationPage() {
         {/* Back link */}
         <Link
           to={`/interview/${token}/results`}
-          className="mb-6 inline-flex items-center gap-2 text-sm text-blue-600 hover:underline"
+          className="mb-6 inline-flex items-center gap-2 text-sm text-teal-600 hover:underline"
         >
           <ArrowLeft size={16} />
           Back to Results
@@ -89,7 +89,7 @@ export default function RecommendationPage() {
         </div>
 
         {/* Risk Banner */}
-        <div className={`mb-6 rounded-2xl border p-6 ${recommendation.color}`}>
+        <div className={`mb-6 rounded-xl border p-6 ${recommendation.color}`}>
           <h2 className="text-lg font-bold">{recommendation.heading}</h2>
           <div className="mt-3 flex flex-wrap gap-2">
             {INDICATORS.map((ind) => (
@@ -110,10 +110,10 @@ export default function RecommendationPage() {
             return (
               <div
                 key={i}
-                className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                className="flex gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50">
-                  <Icon size={20} className="text-blue-600" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-50">
+                  <Icon size={20} className="text-teal-600" />
                 </div>
                 <div>
                   <p className="font-semibold text-slate-900">{step.title}</p>
@@ -126,7 +126,7 @@ export default function RecommendationPage() {
 
         {/* Crisis box for High risk */}
         {RISK_LEVEL === "High" && (
-          <div className="mb-6 rounded-2xl border-2 border-red-200 bg-red-50 p-6">
+          <div className="mb-6 rounded-xl border-2 border-red-200 bg-red-50 p-6">
             <div className="flex items-start gap-3">
               <Phone size={24} className="shrink-0 text-red-600" />
               <div>
@@ -143,7 +143,7 @@ export default function RecommendationPage() {
         )}
 
         {/* Disclaimer */}
-        <div className="mb-6 rounded-2xl border border-orange-200 bg-orange-50 p-5">
+        <div className="mb-6 rounded-xl border border-orange-200 bg-orange-50 p-5">
           <p className="text-sm text-orange-700">
             <strong>Disclaimer:</strong> This recommendation is AI-generated based on
             emotional pre-evaluation data. It is not a clinical diagnosis. Always

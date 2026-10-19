@@ -20,10 +20,10 @@ export default function ConsentPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#F1F5F9] px-4 py-8">
-      <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-md border border-slate-200 md:p-8">
+      <div className="w-full max-w-xl rounded-xl bg-white p-6 shadow-md border border-slate-200 md:p-8">
         {/* Header */}
         <div className="mb-6 flex items-center gap-3 justify-center">
-          <div className="w-12 h-12 rounded-2xl bg-cyan-500 flex items-center justify-center text-xl font-bold text-white">
+          <div className="w-12 h-12 rounded-xl bg-teal-500 flex items-center justify-center text-xl font-bold text-white">
             A
           </div>
           <div>
@@ -40,8 +40,8 @@ export default function ConsentPage() {
         {/* What happens */}
         <div className="space-y-4 mb-6">
           <div className="flex gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50">
-              <Camera size={18} className="text-blue-600" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-50">
+              <Camera size={18} className="text-teal-600" />
             </div>
             <div>
               <p className="text-sm font-medium text-slate-900">Camera Access</p>
@@ -52,8 +52,8 @@ export default function ConsentPage() {
           </div>
 
           <div className="flex gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50">
-              <Mic size={18} className="text-blue-600" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-50">
+              <Mic size={18} className="text-teal-600" />
             </div>
             <div>
               <p className="text-sm font-medium text-slate-900">Microphone Access</p>
@@ -64,8 +64,8 @@ export default function ConsentPage() {
           </div>
 
           <div className="flex gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50">
-              <FileText size={18} className="text-blue-600" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-50">
+              <FileText size={18} className="text-teal-600" />
             </div>
             <div>
               <p className="text-sm font-medium text-slate-900">Structured Interview</p>
@@ -77,12 +77,12 @@ export default function ConsentPage() {
         </div>
 
         {/* Privacy notice */}
-        <div className="mb-6 rounded-xl border-l-4 border-blue-500 bg-blue-50 p-4">
+        <div className="mb-6 rounded-xl border-l-4 border-teal-500 bg-teal-50 p-4">
           <div className="flex gap-2 items-start">
-            <Shield size={18} className="text-blue-600 shrink-0 mt-0.5" />
+            <Shield size={18} className="text-teal-600 shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-blue-800 mb-1">Data Privacy (RA 10173)</p>
-              <p className="text-xs text-blue-700 leading-relaxed">
+              <p className="text-sm font-medium text-teal-800 mb-1">Data Privacy (RA 10173)</p>
+              <p className="text-xs text-teal-700 leading-relaxed">
                 Your data is collected solely for emotional pre-evaluation purposes.
                 All recordings and analysis results are kept confidential and will only
                 be shared with your assigned therapist. You may request deletion of your
@@ -111,7 +111,7 @@ export default function ConsentPage() {
             type="checkbox"
             checked={agreed}
             onChange={(e) => setAgreed(e.target.checked)}
-            className="mt-1 h-5 w-5 shrink-0 accent-blue-600"
+            className="mt-1 h-5 w-5 shrink-0 accent-teal-600"
           />
           <span className="text-sm text-slate-700">
             I understand how my data will be used, I consent to camera and microphone
@@ -124,7 +124,7 @@ export default function ConsentPage() {
         <button
           onClick={handleProceed}
           disabled={!agreed}
-          className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full rounded-lg bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           I Agree — Start Interview
         </button>

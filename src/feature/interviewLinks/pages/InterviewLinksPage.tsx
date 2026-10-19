@@ -53,12 +53,12 @@ export default function InterviewLinksPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Interview Links</h1>
+          <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Interview Links</h1>
           <p className="mt-1 text-sm text-slate-500">Generate and send AI-assisted interview links to patients.</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700"
         >
           <Link2 size={18} />
           Generate Link
@@ -73,7 +73,7 @@ export default function InterviewLinksPage() {
       )}
 
       {/* Table — desktop */}
-      <div className="hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
+      <div className="hidden rounded-xl border border-slate-200 bg-white shadow-sm md:block">
         <table className="w-full">
           <thead className="bg-slate-50">
             <tr>
@@ -93,10 +93,10 @@ export default function InterviewLinksPage() {
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                       link.status === "Completed"
-                        ? "bg-green-50 text-green-600"
+                        ? "bg-emerald-50 text-emerald-700"
                         : link.status === "In Progress"
-                          ? "bg-blue-50 text-blue-600"
-                          : "bg-yellow-50 text-yellow-600"
+                          ? "bg-teal-50 text-teal-700"
+                          : "bg-amber-50 text-amber-700"
                     }`}
                   >
                     {link.status}
@@ -109,14 +109,14 @@ export default function InterviewLinksPage() {
                       href={`/interview/${link.token}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-teal-50 hover:text-teal-600"
                       aria-label={`Open interview link for ${link.patientName}`}
                     >
                       <ExternalLink size={16} />
                     </a>
                     <button
                       onClick={() => handleCopy(link.token, link.id)}
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-teal-50 hover:text-teal-600"
                       aria-label="Copy link"
                     >
                       {copiedId === link.id ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
@@ -142,7 +142,7 @@ export default function InterviewLinksPage() {
                     action={
                       <button
                         onClick={() => setShowModal(true)}
-                        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                        className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors"
                       >
                         <Link2 size={16} />
                         Generate Link
@@ -159,7 +159,7 @@ export default function InterviewLinksPage() {
       {/* Cards — mobile */}
       <div className="space-y-3 md:hidden">
         {activeLinks.map((link) => (
-          <div key={link.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div key={link.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between">
               <div>
                 <p className="font-medium">{link.patientName}</p>
@@ -168,10 +168,10 @@ export default function InterviewLinksPage() {
               <span
                 className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                   link.status === "Completed"
-                    ? "bg-green-50 text-green-600"
+                    ? "bg-emerald-50 text-emerald-700"
                     : link.status === "In Progress"
-                      ? "bg-blue-50 text-blue-600"
-                      : "bg-yellow-50 text-yellow-600"
+                      ? "bg-teal-50 text-teal-700"
+                      : "bg-amber-50 text-amber-700"
                 }`}
               >
                 {link.status}

@@ -19,9 +19,9 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#F1F5F9] px-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-md border border-slate-200">
+      <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-md border border-slate-200">
         <div className="flex items-center gap-3 mb-8 justify-center">
-          <div className="w-12 h-12 rounded-2xl bg-cyan-500 flex items-center justify-center text-xl font-bold text-white">
+          <div className="w-12 h-12 rounded-xl bg-teal-500 flex items-center justify-center text-xl font-bold text-white">
             A
           </div>
           <div>
@@ -38,7 +38,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
               placeholder="therapist@email.com"
             />
           </div>
@@ -50,7 +50,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
               placeholder="••••••••"
             />
           </div>
@@ -60,14 +60,14 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+            className="w-full rounded-lg bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-60"
           >
             {loading ? "Logging in..." : "Login"}
           </button>
 
           <div className="text-center text-sm text-slate-600">
             Don&apos;t have an account?{" "}
-            <Link to="/register" className="font-medium text-blue-600 hover:underline">
+            <Link to="/register" className="font-medium text-teal-600 hover:underline">
               Create one
             </Link>
           </div>

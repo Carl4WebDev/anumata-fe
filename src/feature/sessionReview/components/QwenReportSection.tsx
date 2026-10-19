@@ -25,13 +25,13 @@ interface QwenReportSectionProps {
 function QwenReportSection({ report, reportStatus = "available" }: QwenReportSectionProps) {
   if (reportStatus === "generating") {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 md:p-6 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
         <div className="flex items-center gap-2 mb-3">
-          <FileText size={16} className="text-blue-500" />
+          <FileText size={16} className="text-teal-500" />
           <h3 className="text-sm font-semibold text-slate-700">AI Session Summary</h3>
         </div>
         <div className="flex items-center gap-2">
-          <Loader2 size={14} className="animate-spin text-blue-500" />
+          <Loader2 size={14} className="animate-spin text-teal-500" />
           <p className="text-xs text-slate-500">Generating AI Session Summary...</p>
         </div>
       </div>
@@ -40,7 +40,7 @@ function QwenReportSection({ report, reportStatus = "available" }: QwenReportSec
 
   if (reportStatus === "failed") {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 md:p-6 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
         <div className="flex items-center gap-2 mb-3">
           <FileText size={16} className="text-red-400" />
           <h3 className="text-sm font-semibold text-slate-700">AI Session Summary</h3>
@@ -55,7 +55,7 @@ function QwenReportSection({ report, reportStatus = "available" }: QwenReportSec
 
   if (!report) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 md:p-6 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
         <div className="flex items-center gap-2 mb-3">
           <FileText size={16} className="text-slate-400" />
           <h3 className="text-sm font-semibold text-slate-700">AI Session Summary</h3>
@@ -66,9 +66,9 @@ function QwenReportSection({ report, reportStatus = "available" }: QwenReportSec
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 md:p-6 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
       <div className="flex items-center gap-2 mb-4">
-        <FileText size={16} className="text-blue-600" />
+        <FileText size={16} className="text-teal-600" />
         <h3 className="text-sm font-semibold text-slate-800">AI Session Summary</h3>
         <span className="text-[10px] text-slate-400 ml-auto">AI-generated</span>
       </div>
@@ -87,7 +87,7 @@ function QwenReportSection({ report, reportStatus = "available" }: QwenReportSec
         {report.session_summary && (
           <CollapsibleSection
             title="Session Summary"
-            defaultOpen={true}
+            defaultOpen={false}
             className="rounded-lg border border-slate-100 bg-slate-50 p-3"
             titleClassName="text-xs font-semibold text-slate-700"
           >
@@ -104,7 +104,7 @@ function QwenReportSection({ report, reportStatus = "available" }: QwenReportSec
           >
             <div className="flex flex-wrap gap-1.5 mt-2">
               {report.topics_discussed.map((topic, i) => (
-                <span key={i} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">
+                <span key={i} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-teal-50 text-teal-600 border border-teal-100">
                   <BookOpen size={10} />
                   {topic}
                 </span>
@@ -135,7 +135,7 @@ function QwenReportSection({ report, reportStatus = "available" }: QwenReportSec
         {report.therapist_explanation && (
           <CollapsibleSection
             title="Therapist Explanation"
-            defaultOpen={true}
+            defaultOpen={false}
             className="rounded-lg border border-slate-100 bg-slate-50 p-3"
             titleClassName="text-xs font-semibold text-slate-700"
           >

@@ -12,12 +12,13 @@ export function generateExplanation(
   fusionEmotion: string,
   fer: ModelInfo,
   ser: ModelInfo,
-  ler: ModelInfo,
+  ler: ModelInfo | null,
 ): string {
-  const available = [fer, ser, ler].filter((m) => m.available);
+  const models = [fer, ser, ler];
+  const available = models.filter((m) => m?.available);
   const names = ["facial expression", "voice tone", "language"];
-  const availableNames = names.filter((_, i) => [fer, ser, ler][i].available);
-  const unavailableNames = names.filter((_, i) => ![fer, ser, ler][i].available);
+  const availableNames = names.filter((_, i) => models[i]?.available);
+  const unavailableNames = names.filter((_, i) => !models[i]?.available);
 
   // All unavailable
   if (available.length === 0) {
@@ -46,8 +47,8 @@ export function generateExplanation(
       `All available modalities (${availableNames.join(", ")}) consistently indicate ${fusionEmotion.toLowerCase()}.`,
     );
   } else if (agreeing.length >= 2) {
-    const agreeNames = agreeing.map((m) => names[[fer, ser, ler].indexOf(m)]);
-    const disNames = disagreeing.map((m) => names[[fer, ser, ler].indexOf(m)]);
+    const agreeNames = agreeing.map((m) => names[models.indexOf(m)]);
+    const disNames = disagreeing.map((m) => names[models.indexOf(m)]);
     parts.push(
       `${agreeNames.join(" and ")} indicate ${fusionEmotion.toLowerCase()}, while ${disNames.join(" and ")} ${disNames.length === 1 ? "suggests" : "suggest"} a different emotion. The dominant indication is ${fusionEmotion.toLowerCase()}.`,
     );

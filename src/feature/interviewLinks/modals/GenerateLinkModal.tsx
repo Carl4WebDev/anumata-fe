@@ -113,7 +113,7 @@ export default function GenerateLinkModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl md:p-8">
+      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl md:p-8">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-xl font-bold text-slate-900">
             {generated ? "Link Generated" : "Generate Interview Link"}
@@ -139,8 +139,8 @@ export default function GenerateLinkModal({
               <p className="font-medium">{generated.templateName}</p>
             </div>
 
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-              <p className="mb-2 text-sm font-medium text-blue-700">
+            <div className="rounded-xl border border-teal-200 bg-teal-50 p-4">
+              <p className="mb-2 text-sm font-medium text-teal-700">
                 Interview Link
               </p>
 
@@ -149,12 +149,12 @@ export default function GenerateLinkModal({
                   type="text"
                   value={generated.url}
                   readOnly
-                  className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-slate-700"
+                  className="w-full rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm text-slate-700"
                 />
 
                 <button
                   onClick={handleCopy}
-                  className="shrink-0 rounded-lg bg-blue-600 p-2.5 text-white hover:bg-blue-700"
+                  className="shrink-0 rounded-lg bg-teal-600 p-2.5 text-white hover:bg-teal-700"
                 >
                   {copied ? (
                     <Check size={16} />
@@ -173,7 +173,7 @@ export default function GenerateLinkModal({
 
             <button
               onClick={handleClose}
-              className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+              className="w-full rounded-lg bg-teal-600 py-3 text-sm font-semibold text-white hover:bg-teal-700"
             >
               Done
             </button>
@@ -231,7 +231,7 @@ export default function GenerateLinkModal({
                     key={qs.id}
                     value={qs.id}
                   >
-                    {qs.name} ({qs.questions.length} questions)
+                    {qs.name} ({(qs as any).questionCount ?? qs.questions.length} questions)
                   </option>
                 ))}
               </select>
@@ -258,7 +258,7 @@ export default function GenerateLinkModal({
                   patients.length === 0 ||
                   questionSets.length === 0
                 }
-                className="flex-1 rounded-xl bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                className="flex-1 rounded-lg bg-teal-600 py-3 font-semibold text-white hover:bg-teal-700 disabled:opacity-50"
               >
                 Generate Link
               </button>

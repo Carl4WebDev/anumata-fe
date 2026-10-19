@@ -18,10 +18,10 @@ export default function SessionOverviewCard({ data }: SessionOverviewCardProps) 
 
   return (
     <section
-      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6"
+      className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6"
       aria-label="Session Overview"
     >
-      <h2 className="mb-4 text-lg font-semibold text-slate-800">Session Overview</h2>
+      <h2 className="mb-4 text-base font-semibold text-slate-900">Session Overview</h2>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {/* Overall Emotion */}

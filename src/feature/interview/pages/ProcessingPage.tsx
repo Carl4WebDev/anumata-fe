@@ -78,15 +78,15 @@ export default function ProcessingPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#F1F5F9] px-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-md border border-slate-200">
+      <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-md border border-slate-200">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-teal-100">
             {error ? (
               <AlertCircle size={32} className="text-red-500" />
             ) : completed ? (
               <Check size={32} className="text-green-600" />
             ) : (
-              <Loader2 size={32} className="animate-spin text-blue-600" />
+              <Loader2 size={32} className="animate-spin text-teal-600" />
             )}
           </div>
           <h1 className="text-2xl font-bold text-slate-900">
@@ -109,7 +109,7 @@ export default function ProcessingPage() {
                   {i < currentStage ? (
                     <Check size={16} className="text-green-600" />
                   ) : i === currentStage && !completed ? (
-                    <Loader2 size={16} className="animate-spin text-blue-600" />
+                    <Loader2 size={16} className="animate-spin text-teal-600" />
                   ) : completed ? (
                     <Check size={16} className="text-green-600" />
                   ) : (
@@ -143,7 +143,7 @@ export default function ProcessingPage() {
           {completed && (
             <button
               onClick={handleViewResults}
-              className="w-full rounded-xl bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700 transition"
+              className="w-full rounded-lg bg-teal-600 px-6 py-3 text-sm font-medium text-white hover:bg-teal-700 transition"
             >
               View Results
             </button>

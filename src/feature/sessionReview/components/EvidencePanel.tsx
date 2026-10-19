@@ -166,12 +166,16 @@ export default function EvidencePanel({
             <div className="flex items-center gap-2 mb-2">
               <Languages size={14} className="text-orange-500" />
               <span className="text-xs font-semibold text-slate-700">Language Emotion Recognition</span>
+              <span className="text-[10px] font-medium text-orange-600 bg-orange-50 rounded px-1.5 py-0.5">Experimental</span>
               {ler_confidence != null && ler_confidence > 0 && (
                 <span className="text-[10px] text-slate-400 ml-auto">
                   Confidence: {Math.round(ler_confidence * 100)}%
                 </span>
               )}
             </div>
+            <p className="text-[10px] text-orange-600 mb-2">
+              Experimental analysis — not included in fusion. This component has not yet been validated using a Davao City-specific dataset.
+            </p>
             <div className="space-y-1">
               <p className="text-xs text-slate-600">
                 <span className="font-medium text-slate-700">Detected Emotion:</span> {ler_emotion}

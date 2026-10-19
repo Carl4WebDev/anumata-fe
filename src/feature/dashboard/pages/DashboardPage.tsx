@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Users, AlertTriangle, ClipboardCheck, Activity, UserPlus } from "lucide-react";
+import { Users, AlertTriangle, ClipboardCheck, Activity, UserPlus, ArrowRight } from "lucide-react";
 import { usePatients } from "../../context/patients/usePatients";
 import LoadingSpinner from "../../../shared/components/LoadingSpinner";
 import EmptyState from "../../../shared/components/EmptyState";
@@ -12,10 +12,10 @@ export default function DashboardPage() {
   const recentPatients = patients.slice(0, 4);
 
   const stats = [
-    { title: "Total Patients", value: totalPatients, icon: Users },
-    { title: "Pending Interviews", value: 0, icon: ClipboardCheck },
-    { title: "Sessions Requiring Review", value: highRisk, icon: AlertTriangle },
-    { title: "Completed This Week", value: 0, icon: Activity },
+    { title: "Total Patients", value: totalPatients, icon: Users, color: "text-teal-600", bg: "bg-teal-50", border: "border-l-teal-500" },
+    { title: "Pending Interviews", value: 0, icon: ClipboardCheck, color: "text-amber-600", bg: "bg-amber-50", border: "border-l-amber-500" },
+    { title: "Sessions Requiring Review", value: highRisk, icon: AlertTriangle, color: "text-red-600", bg: "bg-red-50", border: "border-l-red-500" },
+    { title: "Completed This Week", value: 0, icon: Activity, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-l-emerald-500" },
   ];
 
   if (loading) {
@@ -25,7 +25,7 @@ export default function DashboardPage() {
   if (error) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Therapist Dashboard</h1>
+        <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Therapist Dashboard</h1>
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
@@ -36,25 +36,29 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 md:space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Therapist Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-500 md:mt-2 md:text-base">
+        <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Therapist Dashboard</h1>
+        <p className="mt-1 text-sm text-slate-500">
           Monitor interviews, emotional indicators, and session reports.
         </p>
       </div>
 
       {/* Stat Cards */}
-      <section className="grid grid-cols-2 gap-3 md:gap-6 lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((item) => {
           const Icon = item.icon;
           return (
-            <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+            <div
+              key={item.title}
+              className={`rounded-xl border border-slate-200 border-l-4 ${item.border} bg-white p-5 shadow-sm transition-shadow hover:shadow-md`}
+            >
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs text-slate-500 md:text-sm">{item.title}</p>
-                  <h2 className="mt-1 text-2xl font-bold md:mt-2 md:text-3xl">{item.value}</h2>
+                  <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{item.title}</p>
+                  <p className="mt-2 text-3xl font-bold text-slate-900">{item.value}</p>
                 </div>
-                <Icon size={24} className="shrink-0 text-blue-600 md:hidden" />
-                <Icon size={28} className="hidden shrink-0 text-blue-600 md:block" />
+                <div className={`rounded-lg ${item.bg} p-2.5`}>
+                  <Icon size={20} className={item.color} />
+                </div>
               </div>
             </div>
           );
@@ -64,32 +68,42 @@ export default function DashboardPage() {
       {/* Content Grid */}
       <section className="grid gap-6 lg:grid-cols-3">
         {/* Recent Interviews */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between md:mb-6">
-            <h2 className="text-lg font-semibold md:text-xl">Recent Interviews</h2>
-            <Link to="/patients" className="text-sm font-medium text-blue-600 hover:underline">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6 lg:col-span-2">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-slate-900">Recent Interviews</h2>
+            <Link
+              to="/patients"
+              className="inline-flex items-center gap-1 text-sm font-medium text-teal-600 hover:text-teal-700"
+            >
               View All
+              <ArrowRight size={14} />
             </Link>
           </div>
           {recentPatients.length > 0 ? (
-            <div className="space-y-3 md:space-y-4">
+            <div className="divide-y divide-slate-100">
               {recentPatients.map((patient) => (
-                <div key={patient.id} className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div>
-                    <Link to={`/patients/${patient.id}`} className="text-sm font-medium hover:text-blue-600 md:text-base">
+                <div
+                  key={patient.id}
+                  className="flex items-center justify-between py-3.5 first:pt-0 last:pb-0"
+                >
+                  <div className="min-w-0">
+                    <Link
+                      to={`/patients/${patient.id}`}
+                      className="text-sm font-medium text-slate-900 hover:text-teal-600"
+                    >
                       {patient.name}
                     </Link>
-                    <p className="text-xs text-slate-500 md:text-sm">{patient.lastInterview}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{patient.lastInterview}</p>
                   </div>
                   <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold md:py-1 ${
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
                       patient.risk === "High"
-                        ? "bg-red-50 text-red-600"
+                        ? "bg-red-50 text-red-700"
                         : patient.risk === "Moderate"
-                          ? "bg-yellow-50 text-yellow-600"
+                          ? "bg-amber-50 text-amber-700"
                           : patient.risk === "Low"
-                            ? "bg-green-50 text-green-600"
-                            : "bg-slate-100 text-slate-500"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-slate-100 text-slate-600"
                     }`}
                   >
                     {patient.risk}
@@ -105,7 +119,7 @@ export default function DashboardPage() {
               action={
                 <Link
                   to="/patients"
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700"
                 >
                   <UserPlus size={16} />
                   Add Patient
@@ -116,25 +130,25 @@ export default function DashboardPage() {
         </div>
 
         {/* Session Risk Distribution */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-          <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Session Risk Distribution</h2>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+          <h2 className="mb-5 text-base font-semibold text-slate-900">Session Risk Distribution</h2>
           {totalPatients > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {[
                 { label: "High Risk", count: patients.filter((p) => p.risk === "High").length, color: "bg-red-500" },
-                { label: "Moderate Risk", count: patients.filter((p) => p.risk === "Moderate").length, color: "bg-yellow-500" },
-                { label: "Low Risk", count: patients.filter((p) => p.risk === "Low").length, color: "bg-green-500" },
+                { label: "Moderate Risk", count: patients.filter((p) => p.risk === "Moderate").length, color: "bg-amber-500" },
+                { label: "Low Risk", count: patients.filter((p) => p.risk === "Low").length, color: "bg-emerald-500" },
               ].map((item) => {
                 const max = totalPatients || 1;
                 return (
                   <div key={item.label}>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-slate-500">{item.label}</p>
-                      <span className="text-xs text-slate-400">{item.count}</span>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <p className="text-sm font-medium text-slate-700">{item.label}</p>
+                      <span className="text-sm font-semibold text-slate-900">{item.count}</span>
                     </div>
-                    <div className="mt-2 h-3 w-full rounded-full bg-slate-100">
+                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
                       <div
-                        className={`h-full rounded-full ${item.color} transition-all`}
+                        className={`h-full rounded-full ${item.color} transition-all duration-500`}
                         style={{ width: `${(item.count / max) * 100}%` }}
                       />
                     </div>

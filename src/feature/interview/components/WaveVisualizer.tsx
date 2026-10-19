@@ -25,7 +25,7 @@ export default function WaveVisualizer({ isActive }: { isActive: boolean }) {
       {heights.map((h, i) => (
         <div
           key={i}
-          className="w-2 rounded-full bg-gradient-to-t from-blue-600 to-teal-400 transition-all duration-200 ease-out"
+          className="w-2 rounded-full bg-gradient-to-t from-teal-600 to-teal-400 transition-all duration-200 ease-out"
           style={{ height: `${h}px` }}
         />
       ))}

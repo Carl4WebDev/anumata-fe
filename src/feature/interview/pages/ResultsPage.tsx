@@ -106,7 +106,7 @@ export default function ResultsPage() {
           <p className="text-red-500 mb-4">{error || "No results found"}</p>
           <button
             onClick={() => navigate("/")}
-            className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700"
+            className="rounded-lg bg-teal-600 px-6 py-3 text-sm font-medium text-white hover:bg-teal-700"
           >
             Go Home
           </button>
@@ -161,7 +161,7 @@ export default function ResultsPage() {
         </div>
 
         {/* Detected Risk Indicator */}
-        <div className="mb-6 rounded-2xl bg-white p-6 shadow-md border border-slate-200">
+        <div className="mb-6 rounded-xl bg-white p-6 shadow-md border border-slate-200">
           <h2 className="text-lg font-semibold text-slate-900 mb-3">Detected Risk Indicator</h2>
           <div className="flex items-center gap-4">
             <span
@@ -186,7 +186,7 @@ export default function ResultsPage() {
         </div>
 
         {/* Emotion Distribution */}
-        <div className="mb-6 rounded-2xl bg-white p-6 shadow-md border border-slate-200">
+        <div className="mb-6 rounded-xl bg-white p-6 shadow-md border border-slate-200">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">Detected Emotional Indicators</h2>
           <div className="space-y-3">
             {Object.entries(distribution)
@@ -224,7 +224,7 @@ export default function ResultsPage() {
 
         {/* Emotional Spikes */}
         {spikes.length > 0 && (
-          <div className="mb-6 rounded-2xl bg-white p-6 shadow-md border border-slate-200">
+          <div className="mb-6 rounded-xl bg-white p-6 shadow-md border border-slate-200">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">Emotional Spikes</h2>
             {selectedSpike ? (
               <SpikeContextPanel
@@ -257,7 +257,7 @@ export default function ResultsPage() {
 
         {/* Per-Question Breakdown */}
         {analysis.per_question.length > 0 && (
-          <div className="mb-6 rounded-2xl bg-white p-6 shadow-md border border-slate-200">
+          <div className="mb-6 rounded-xl bg-white p-6 shadow-md border border-slate-200">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">Question-by-Question Analysis</h2>
             <div className="space-y-4">
               {analysis.per_question.map((q, i) => {
@@ -319,10 +319,10 @@ export default function ResultsPage() {
 
         {/* Emotional Event Report */}
         {analysis.emotional_events && analysis.emotional_events.length > 0 && (
-          <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50/30 p-6 shadow-md">
+          <div className="mb-6 rounded-xl border border-teal-200 bg-teal-50/30 p-6 shadow-md">
             <div className="mb-4 flex items-center gap-2">
-              <Brain size={20} className="text-blue-600" />
-              <h2 className="text-lg font-semibold text-blue-900">Emotional Event Report</h2>
+              <Brain size={20} className="text-teal-600" />
+              <h2 className="text-base font-semibold text-teal-900">Emotional Event Report</h2>
             </div>
             <p className="mb-4 text-xs text-slate-500 italic">
               This report identifies moments during the interview where notable emotional responses were detected.
@@ -421,8 +421,8 @@ export default function ResultsPage() {
 
             {/* Session Highlights */}
             {analysis.session_highlights && (
-              <div className="mt-6 rounded-xl border border-blue-200 bg-white p-4">
-                <h3 className="mb-3 text-sm font-semibold text-blue-800">Session Emotional Highlights</h3>
+              <div className="mt-6 rounded-xl border border-teal-200 bg-white p-4">
+                <h3 className="mb-3 text-sm font-semibold text-teal-800">Session Emotional Highlights</h3>
                 <div className="grid gap-3 text-sm md:grid-cols-2">
                   <div>
                     <p className="text-xs text-slate-500">Total Emotional Events Detected</p>
@@ -447,9 +447,9 @@ export default function ResultsPage() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-3 rounded-lg bg-blue-50 p-3">
-                  <p className="text-xs font-medium text-blue-700">Overall Summary</p>
-                  <p className="mt-1 text-xs leading-relaxed text-blue-800">
+                <div className="mt-3 rounded-lg bg-teal-50 p-3">
+                  <p className="text-xs font-medium text-teal-700">Overall Summary</p>
+                  <p className="mt-1 text-xs leading-relaxed text-teal-800">
                     {analysis.session_highlights.overall_summary}
                   </p>
                 </div>
@@ -459,8 +459,8 @@ export default function ResultsPage() {
         )}
 
         {/* Disclaimer */}
-        <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-          <p className="text-xs text-blue-800">
+        <div className="mb-6 rounded-xl border border-teal-200 bg-teal-50 p-4">
+          <p className="text-xs text-teal-800">
             <strong>Disclaimer:</strong> This is an AI-assisted emotional pre-evaluation, not a clinical diagnosis.
             Results should be reviewed by a licensed mental health professional. This tool is intended to support
             — not replace — professional judgment.

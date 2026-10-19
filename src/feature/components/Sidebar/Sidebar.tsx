@@ -49,13 +49,13 @@ export default function Sidebar() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[240px] flex-col bg-[#08132E] text-white transition-transform duration-200 ease-in-out md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-[240px] flex-col bg-[#08132E] text-white transition-transform duration-200 ease-in-out md:sticky md:top-0 md:h-screen md:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="p-6">
           <Link to="/dashboard" className="flex items-center gap-4" onClick={handleNav}>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500 text-xl font-bold">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-500 text-xl font-bold">
               A
             </div>
             <div>
@@ -65,7 +65,7 @@ export default function Sidebar() {
           </Link>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3">
+        <nav className="flex-1 overflow-y-auto space-y-1 px-3">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive =

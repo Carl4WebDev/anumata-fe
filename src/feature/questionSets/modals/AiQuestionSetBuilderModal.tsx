@@ -218,12 +218,12 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-12">
-      <div className="w-full max-w-3xl rounded-2xl bg-white shadow-xl">
+      <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50">
-              <Sparkles size={18} className="text-blue-600" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-50">
+              <Sparkles size={18} className="text-teal-600" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
@@ -249,7 +249,7 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g., Initial Emotional Well-Being Assessment"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
 
@@ -259,7 +259,7 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
                   value={focus}
                   onChange={(e) => setFocus(e.target.value)}
                   placeholder="e.g., General emotional well-being"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
 
@@ -270,7 +270,7 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Brief description of the question set's purpose"
                   rows={2}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
 
@@ -280,7 +280,7 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
                   <select
                     value={numQuestions}
                     onChange={(e) => setNumQuestions(Number(e.target.value))}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
                   >
                     {[3, 4, 5, 6, 7, 8, 10, 12].map((n) => (
                       <option key={n} value={n}>{n}</option>
@@ -292,7 +292,7 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
                   <select
                     value={language}
                     onChange={(e) => setLanguage(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
                   >
                     <option>English</option>
                     <option>Filipino</option>
@@ -308,7 +308,7 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
                   onChange={(e) => setAdditionalInstructions(e.target.value)}
                   placeholder="e.g., Use open-ended and non-leading questions"
                   rows={2}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
 
@@ -322,10 +322,10 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
           {step === "draft" && (
             <div className="space-y-4">
               {/* Draft title/description */}
-              <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+              <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-4">
                 <div className="flex items-center gap-2">
-                  <Sparkles size={14} className="text-blue-600" />
-                  <span className="text-xs font-medium text-blue-800">AI DRAFT</span>
+                  <Sparkles size={14} className="text-teal-600" />
+                  <span className="text-xs font-medium text-teal-800">AI DRAFT</span>
                 </div>
                 <p className="mt-1 text-sm text-slate-600">
                   These questions were generated by AI. Review, edit, add, or remove questions before approving.
@@ -337,7 +337,7 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
                 <input
                   value={draftTitle}
                   onChange={(e) => setDraftTitle(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
 
@@ -347,7 +347,7 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
                   value={draftDescription}
                   onChange={(e) => setDraftDescription(e.target.value)}
                   rows={2}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
 
@@ -373,7 +373,7 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
 
               <button
                 onClick={addQuestion}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 py-3 text-sm font-medium text-slate-600 transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 py-3 text-sm font-medium text-slate-600 transition hover:border-blue-400 hover:bg-blue-50 hover:text-teal-600"
               >
                 <Plus size={16} />
                 Add Question
@@ -420,7 +420,7 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
               <button
                 onClick={handleGenerate}
                 disabled={!title.trim() || !focus.trim() || generating}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
               >
                 {generating ? (
                   <>
@@ -526,7 +526,7 @@ function DraftQuestionCard({
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
             {question.order}
           </span>
-          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+          <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-700">
             {question.category}
           </span>
           {hasIssues && (
@@ -541,7 +541,7 @@ function DraftQuestionCard({
             onClick={onRefine}
             disabled={refining}
             title="Improve with AI"
-            className="rounded-lg p-1.5 text-blue-500 transition hover:bg-blue-50 disabled:opacity-50"
+            className="rounded-lg p-1.5 text-teal-500 transition hover:bg-teal-50 disabled:opacity-50"
           >
             <Pencil size={14} className={refining ? "animate-pulse" : ""} />
           </button>
@@ -559,7 +559,7 @@ function DraftQuestionCard({
         value={question.text}
         onChange={(e) => onTextChange(e.target.value)}
         rows={2}
-        className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+        className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
       />
 
       {expanded && (

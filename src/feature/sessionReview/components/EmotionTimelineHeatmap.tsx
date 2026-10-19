@@ -5,6 +5,8 @@ interface TimelinePoint {
   emotion: string; // Capitalized version of Emotion
   confidence: number;
   isSpike: boolean;
+  spikeType?: 'transition' | 'high_confidence' | 'flip' | 'intensification' | 'modality_alert' | 'disagreement';
+  spikeLabel?: string;
 }
 
 interface EmotionTimelineHeatmapProps {
@@ -19,6 +21,15 @@ const emotionColors: Record<string, { bg: string; bar: string; label: string }> 
   Happy: { bg: "bg-green-100", bar: "bg-green-500", label: "text-green-700" },
   Neutral: { bg: "bg-slate-100", bar: "bg-slate-400", label: "text-slate-600" },
   Unknown: { bg: "bg-slate-50", bar: "bg-slate-300", label: "text-slate-400" },
+};
+
+const spikeTypeStyles: Record<string, { bg: string; text: string; border: string; short: string }> = {
+  transition: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", short: "Shift" },
+  high_confidence: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", short: "High Conf" },
+  flip: { bg: "bg-red-50", text: "text-red-700", border: "border-red-200", short: "Flip" },
+  intensification: { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", short: "Intensify" },
+  modality_alert: { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200", short: "Modality" },
+  disagreement: { bg: "bg-slate-100", text: "text-slate-600", border: "border-slate-300", short: "Disagree" },
 };
 
 export default function EmotionTimelineHeatmap({ points, onSpikeClick, showModelBars = false }: EmotionTimelineHeatmapProps) {
@@ -83,24 +94,31 @@ export default function EmotionTimelineHeatmap({ points, onSpikeClick, showModel
                 className="flex-1 flex flex-col items-center justify-end relative group"
                 style={{ height: `${maxBarHeight + 20}px` }}
               >
-                {/* Spike marker */}
-                {point.isSpike && (
+                {/* Spike type badge */}
+                {point.isSpike && point.spikeType && spikeTypeStyles[point.spikeType] && (
+                  <div className="absolute -top-1 left-1/2 -translate-x-1/2">
+                    <span className={`inline-block text-[7px] font-semibold px-1 py-0.5 rounded border leading-none ${spikeTypeStyles[point.spikeType].bg} ${spikeTypeStyles[point.spikeType].text} ${spikeTypeStyles[point.spikeType].border}`}>
+                      {spikeTypeStyles[point.spikeType].short}
+                    </span>
+                  </div>
+                )}
+                {point.isSpike && !point.spikeType && (
                   <div className="absolute -top-1 left-1/2 -translate-x-1/2">
                     <AlertTriangle size={12} className="text-amber-500" />
                   </div>
                 )}
 
-                {/* Confidence label on hover */}
-                <div className="absolute -top-5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-[9px] font-medium text-slate-600 bg-white px-1 rounded shadow-sm whitespace-nowrap">
-                    {point.emotion} {pct}%
+                {/* Hover tooltip: spike label or confidence */}
+                <div className="absolute -top-5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  <span className="text-[9px] font-medium text-slate-600 bg-white px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap border border-slate-200">
+                    {point.isSpike && point.spikeLabel ? point.spikeLabel : `${point.emotion} ${pct}%`}
                   </span>
                 </div>
 
                 {/* Bar */}
                 <div
-                  className={`w-full rounded-t-md transition-all cursor-default ${
-                    point.isSpike ? `${colors.bar} shadow-sm` : `${colors.bar} opacity-70`
+                  className={`w-full rounded-t-md transition-all ${
+                    point.isSpike ? `${colors.bar} shadow-sm cursor-pointer` : `${colors.bar} opacity-70 cursor-default`
                   } ${isAboveBaseline ? "ring-1 ring-amber-300" : ""}`}
                   style={{ height: `${barHeight}px` }}
                   onClick={() => {
@@ -110,6 +128,12 @@ export default function EmotionTimelineHeatmap({ points, onSpikeClick, showModel
                   }}
                   role={point.isSpike ? "button" : undefined}
                   tabIndex={point.isSpike ? 0 : undefined}
+                  onKeyDown={(e) => {
+                    if (point.isSpike && (e.key === "Enter" || e.key === " ") && onSpikeClick) {
+                      e.preventDefault();
+                      onSpikeClick(point.questionIndex);
+                    }
+                  }}
                 />
 
                 {/* Question label */}

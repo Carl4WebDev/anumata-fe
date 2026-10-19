@@ -4,13 +4,18 @@ import { questionSetsApi } from "../../../shared/api/questionSetsApi";
 import { ApiError } from "../../../shared/api/httpClient";
 
 function mapQuestionSet(qs: any) {
+  const legacyQuestions = Array.isArray(qs.questions)
+    ? qs.questions.map((q: any) => (typeof q === "string" ? q : q.text))
+    : [];
+  // Use item_count from question_set_items if available, otherwise fall back to legacy questions
+  const questionCount = (qs.item_count ?? 0) > 0 ? qs.item_count : legacyQuestions.length;
   return {
     id: qs.question_set_id,
     name: qs.name,
     description: qs.description || "",
-    questions: Array.isArray(qs.questions)
-      ? qs.questions.map((q: any) => (typeof q === "string" ? q : q.text))
-      : [],
+    questions: legacyQuestions,
+    questionCount,
+    sourceType: qs.source_type || "custom",
   };
 }
 

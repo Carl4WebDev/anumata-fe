@@ -82,6 +82,18 @@ export const questionSetsApi = {
     return httpClient.delete<{ deleted: boolean }>(`/api/question-sets/${id}`);
   },
 
+  createWithItems(data: {
+    name: string;
+    description?: string;
+    items: { source_type: "standardized" | "custom"; standardized_question_id?: number; custom_question_id?: number }[];
+  }) {
+    return httpClient.post<QuestionSet>("/api/question-sets/with-items", data);
+  },
+
+  getItems(id: number) {
+    return httpClient.get(`/api/question-sets/${id}/items`);
+  },
+
   // --- AI-Assisted ---
 
   /** Generate draft questions via AI. Does NOT save to DB. */

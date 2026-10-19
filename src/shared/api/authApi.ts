@@ -2,13 +2,15 @@ import { httpClient } from "./httpClient";
 
 export interface LoginResponse {
   token: string;
-  user: { user_id: number; email: string; full_name: string };
+  user: { user_id: number; email: string; f_name: string; m_name: string | null; l_name: string };
 }
 
 export interface RegisterResponse {
   user_id: number;
   email: string;
-  full_name: string;
+  f_name: string;
+  m_name: string | null;
+  l_name: string;
 }
 
 export const authApi = {
@@ -16,16 +18,16 @@ export const authApi = {
     return httpClient.post<LoginResponse>("/api/auth/login", { email, password });
   },
 
-  register(data: { email: string; password: string; full_name: string }) {
+  register(data: { email: string; password: string; f_name: string; m_name?: string; l_name: string }) {
     return httpClient.post<RegisterResponse>("/api/auth/register", data);
   },
 
   getProfile() {
-    return httpClient.get<{ user_id: number; email: string; full_name: string }>("/api/auth/profile");
+    return httpClient.get<{ user_id: number; email: string; f_name: string; m_name: string | null; l_name: string }>("/api/auth/profile");
   },
 
-  updateProfile(full_name: string) {
-    return httpClient.patch<{ user_id: number; email: string; full_name: string }>("/api/auth/profile", { full_name });
+  updateProfile(data: { f_name: string; m_name?: string; l_name: string }) {
+    return httpClient.patch<{ user_id: number; email: string; f_name: string; m_name: string | null; l_name: string }>("/api/auth/profile", data);
   },
 
   changePassword(current_password: string, new_password: string) {

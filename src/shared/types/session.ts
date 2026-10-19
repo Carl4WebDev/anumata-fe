@@ -38,6 +38,10 @@ export interface InterviewResponse {
   facial_details: FacialDetails | null;
   audio_details: AudioDetails | null;
   text_analysis: any | null;
+  audio_duration?: number;
+  rms_level?: number;
+  is_silence?: boolean;
+  language_detected_confidence?: number | null;
   frame_image: string | null;
   evidence_frames: {
     frame_image: string;
@@ -51,6 +55,7 @@ export interface EmotionalSpike {
   label: string;
   emotion: Emotion;
   intensity: number;
+  type?: 'transition' | 'high_confidence' | 'flip' | 'intensification' | 'modality_alert' | 'disagreement';
 }
 
 export interface EmotionalEvent {
@@ -124,6 +129,7 @@ export interface MappedSession {
     label: string;
     emotion: string;
     intensity: number;
+    type?: 'transition' | 'high_confidence' | 'flip' | 'intensification' | 'modality_alert' | 'disagreement';
   }[];
   responses: {
     question: string;

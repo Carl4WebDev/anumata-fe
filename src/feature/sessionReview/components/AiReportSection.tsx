@@ -42,13 +42,13 @@ function AiReportSection({ report, reportStatus = "available", onRegenerate }: A
 
   if (reportStatus === "generating" || regenerating) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 md:p-6 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
         <div className="flex items-center gap-2 mb-3">
-          <FileText size={16} className="text-blue-500" />
+          <FileText size={16} className="text-teal-500" />
           <h3 className="text-sm font-semibold text-slate-700">AI Session Summary</h3>
         </div>
         <div className="flex items-center gap-2">
-          <Loader2 size={14} className="animate-spin text-blue-500" />
+          <Loader2 size={14} className="animate-spin text-teal-500" />
           <p className="text-xs text-slate-500">Generating AI Session Summary...</p>
         </div>
       </div>
@@ -57,7 +57,7 @@ function AiReportSection({ report, reportStatus = "available", onRegenerate }: A
 
   if (reportStatus === "failed") {
     return (
-      <div className="rounded-2xl border border-red-200 bg-white p-4 md:p-6 shadow-sm">
+      <div className="rounded-xl border border-red-200 bg-white p-5 shadow-sm md:p-6">
         <div className="flex items-center gap-2 mb-3">
           <FileText size={16} className="text-red-400" />
           <h3 className="text-sm font-semibold text-slate-700">AI Session Summary</h3>
@@ -69,7 +69,7 @@ function AiReportSection({ report, reportStatus = "available", onRegenerate }: A
         {onRegenerate && (
           <button
             onClick={handleRegenerate}
-            className="mt-3 flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 transition-colors"
+            className="mt-3 flex items-center gap-1.5 text-xs text-teal-600 hover:text-teal-800 transition-colors"
           >
             <RefreshCw size={12} />
             Try again
@@ -81,7 +81,7 @@ function AiReportSection({ report, reportStatus = "available", onRegenerate }: A
 
   if (!report) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 md:p-6 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
         <div className="flex items-center gap-2 mb-3">
           <FileText size={16} className="text-slate-400" />
           <h3 className="text-sm font-semibold text-slate-700">AI Session Summary</h3>
@@ -90,7 +90,7 @@ function AiReportSection({ report, reportStatus = "available", onRegenerate }: A
         {onRegenerate && (
           <button
             onClick={handleRegenerate}
-            className="mt-3 flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 transition-colors"
+            className="mt-3 flex items-center gap-1.5 text-xs text-teal-600 hover:text-teal-800 transition-colors"
           >
             <RefreshCw size={12} />
             Generate now
@@ -101,9 +101,9 @@ function AiReportSection({ report, reportStatus = "available", onRegenerate }: A
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 md:p-6 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
       <div className="flex items-center gap-2 mb-4">
-        <FileText size={16} className="text-blue-600" />
+        <FileText size={16} className="text-teal-600" />
         <h3 className="text-sm font-semibold text-slate-800">AI Session Summary</h3>
         <span className="text-[10px] text-slate-400 ml-auto">AI-generated</span>
       </div>
@@ -119,11 +119,11 @@ function AiReportSection({ report, reportStatus = "available", onRegenerate }: A
 
       {/* Fallback notice + regenerate button */}
       {isFallback && onRegenerate && (
-        <div className="mb-3 rounded-lg bg-blue-50 border border-blue-200 p-3 flex items-center justify-between">
-          <p className="text-[11px] text-blue-700">This is a basic template summary. Generate an AI-powered report for richer insights.</p>
+        <div className="mb-3 rounded-lg bg-teal-50 border border-teal-200 p-3 flex items-center justify-between">
+          <p className="text-[11px] text-teal-700">This is a basic template summary. Generate an AI-powered report for richer insights.</p>
           <button
             onClick={handleRegenerate}
-            className="flex items-center gap-1.5 text-[11px] font-medium text-blue-600 hover:text-blue-800 transition-colors shrink-0 ml-3"
+            className="flex items-center gap-1.5 text-[11px] font-medium text-teal-600 hover:text-teal-800 transition-colors shrink-0 ml-3"
           >
             <RefreshCw size={12} />
             Regenerate
@@ -143,7 +143,7 @@ function AiReportSection({ report, reportStatus = "available", onRegenerate }: A
         {report.session_summary && (
           <CollapsibleSection
             title="Session Summary"
-            defaultOpen={true}
+            defaultOpen={false}
             className="rounded-lg border border-slate-100 bg-slate-50 p-3"
             titleClassName="text-xs font-semibold text-slate-700"
           >
@@ -155,14 +155,14 @@ function AiReportSection({ report, reportStatus = "available", onRegenerate }: A
         {report.key_emotional_findings && report.key_emotional_findings.length > 0 && (
           <CollapsibleSection
             title="Key Emotional Findings"
-            defaultOpen={true}
+            defaultOpen={false}
             className="rounded-lg border border-slate-100 bg-slate-50 p-3"
             titleClassName="text-xs font-semibold text-slate-700"
           >
             <ul className="mt-2 space-y-1.5">
               {report.key_emotional_findings.map((finding, i) => (
                 <li key={i} className="flex items-start gap-2 text-xs text-slate-600">
-                  <Search size={12} className="text-blue-500 mt-0.5 shrink-0" />
+                  <Search size={12} className="text-teal-500 mt-0.5 shrink-0" />
                   <span>{finding}</span>
                 </li>
               ))}
@@ -192,7 +192,7 @@ function AiReportSection({ report, reportStatus = "available", onRegenerate }: A
         {(report.therapist_evaluation || report.therapist_explanation) && (
           <CollapsibleSection
             title="Therapist Evaluation"
-            defaultOpen={true}
+            defaultOpen={false}
             className="rounded-lg border border-slate-100 bg-slate-50 p-3"
             titleClassName="text-xs font-semibold text-slate-700"
           >
@@ -247,7 +247,7 @@ function AiReportSection({ report, reportStatus = "available", onRegenerate }: A
           >
             <div className="flex flex-wrap gap-1.5 mt-2">
               {report.topics_discussed.map((topic, i) => (
-                <span key={i} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">
+                <span key={i} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-teal-50 text-teal-600 border border-teal-100">
                   <BookOpen size={10} />
                   {topic}
                 </span>

@@ -1,9 +1,25 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Video, VideoOff, Mic, MicOff, SkipForward, StopCircle, Clock, Loader2 } from "lucide-react";
+import {
+  Video,
+  VideoOff,
+  Mic,
+  MicOff,
+  SkipForward,
+  StopCircle,
+  Clock,
+  Loader2,
+  Volume2,
+  VolumeX,
+  RotateCcw,
+  MessageCircle,
+} from "lucide-react";
 import { interviewLinksApi } from "../../../shared/api/interviewLinksApi";
 import { storeFiles } from "../../../shared/utils/fileStorage";
 import WaveVisualizer from "../components/WaveVisualizer";
+import { useTTS } from "../hooks/useTTS";
+import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
+import { matchRapportResponse } from "../hooks/rapportUtils";
 
 // Hardcoded fallback questions if token not found
 const FALLBACK_QUESTIONS = [
@@ -15,7 +31,19 @@ const FALLBACK_QUESTIONS = [
   "How would you describe your relationship with the people closest to you?",
 ];
 
-type InterviewState = "idle" | "recording" | "paused" | "finished";
+type InterviewState =
+  | "rapport_intro"
+  | "rapport_wait"
+  | "rapport_chat"
+  | "permission_wait"
+  | "idle"
+  | "recording"
+  | "finished";
+
+const RAPPORT_QUESTIONS = [
+  "How are you doing today?",
+  "Is there anything on your mind that you'd like to share before we begin?",
+];
 
 export default function InterviewRoom() {
   const { token } = useParams();
@@ -43,36 +71,61 @@ export default function InterviewRoom() {
   const [linkValid, setLinkValid] = useState(true);
   const [responses, setResponses] = useState<{ question: string; answer: string }[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
+  const [rapportResponses, setRapportResponses] = useState<
+    { question: string; answer: string; acknowledgment: string }[]
+  >([]);
+  const [rapportQuestionIndex, setRapportQuestionIndex] = useState(0);
+  const [rapportInput, setRapportInput] = useState("");
+  // "waiting" = Amumata speaking (or not yet done), "ready" = patient may speak,
+  // "reviewing" = transcript captured, patient confirms/edits before submit.
+  const [voicePhase, setVoicePhase] = useState<"waiting" | "ready" | "reviewing">("waiting");
+
+  const tts = useTTS();
+  const {
+    start: startListening,
+    abort: abortListening,
+    reset: resetListening,
+    status: recognitionStatus,
+    transcript: recognitionTranscript,
+    interimTranscript,
+    isSupported: recognitionSupported,
+    error: recognitionError,
+  } = useSpeechRecognition();
 
   // Load interview data from API by token
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
 
-    interviewLinksApi.getByToken(token).then((res) => {
-      if (cancelled) return;
-      const link = res.data;
-      const qs = link.questions || [];
-      const questionTexts = qs.map((q: any) => (typeof q === "string" ? q : q.text));
-      if (questionTexts.length > 0) {
-        setQuestions(questionTexts);
-        setPatientName(link.patient_name || "Client");
-        setTemplateName(link.question_set_name || "Interview");
-      } else {
+    interviewLinksApi
+      .getByToken(token)
+      .then((res) => {
+        if (cancelled) return;
+        const link = res.data;
+        const qs = link.questions || [];
+        const questionTexts = qs.map((q: any) => (typeof q === "string" ? q : q.text));
+        if (questionTexts.length > 0) {
+          setQuestions(questionTexts);
+          setPatientName(link.patient_name || "Client");
+          setTemplateName(link.question_set_name || "Interview");
+        } else {
+          setQuestions(FALLBACK_QUESTIONS);
+          setPatientName("Client");
+          setTemplateName("Demo Template");
+          setLinkValid(false);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
         setQuestions(FALLBACK_QUESTIONS);
         setPatientName("Client");
         setTemplateName("Demo Template");
         setLinkValid(false);
-      }
-    }).catch(() => {
-      if (cancelled) return;
-      setQuestions(FALLBACK_QUESTIONS);
-      setPatientName("Client");
-      setTemplateName("Demo Template");
-      setLinkValid(false);
-    });
+      });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   // Start camera/mic
@@ -109,7 +162,6 @@ export default function InterviewRoom() {
     if (!ctx) return null;
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    // Convert to JPEG blob synchronously via toDataURL
     const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
     const byteString = atob(dataUrl.split(",")[1]);
     const ab = new ArrayBuffer(byteString.length);
@@ -139,20 +191,7 @@ export default function InterviewRoom() {
     mediaRecorderRef.current = recorder;
   }, [micOn]);
 
-  // Stop audio recording and return blob via callback
-  // ============================================================
-  // RACE CONDITION RISK: If this returns null (recorder inactive
-  // or no chunks), the question's audio is lost → STT fails →
-  // LER unavailable for that question.
-  //
-  // This can happen if:
-  // 1. MediaRecorder was never started for this question
-  // 2. ondataavailable never fired (short recording)
-  // 3. Recorder was already stopped by a previous call
-  //
-  // In handleNext, if `audio` is null, consider logging a warning
-  // and/or showing a UI indicator that audio was not captured.
-  // ============================================================
+  // Stop audio recording and return blob
   const stopAudioRecording = useCallback((): Promise<Blob | null> => {
     return new Promise((resolve) => {
       const recorder = mediaRecorderRef.current;
@@ -199,9 +238,11 @@ export default function InterviewRoom() {
     };
   }, [state]);
 
-  // Re-assign stream to video element when screen changes (idle→recording swaps the element)
+  // Re-attach the stream to the (re-mounted) video element when the screen
+  // changes, but only if it isn't already bound — reassigning the same stream on
+  // every state flip forces the preview to reinitialize and flicker.
   useEffect(() => {
-    if (streamRef.current && videoRef.current) {
+    if (streamRef.current && videoRef.current && videoRef.current.srcObject !== streamRef.current) {
       videoRef.current.srcObject = streamRef.current;
     }
   }, [state]);
@@ -228,10 +269,189 @@ export default function InterviewRoom() {
     }
   };
 
-  // Start frame capture interval — captures a frame every 3 seconds
+  // Disable mic audio track (for TTS playback)
+  const disableMicTrack = useCallback(() => {
+    if (streamRef.current) {
+      const audioTrack = streamRef.current.getAudioTracks()[0];
+      if (audioTrack) audioTrack.enabled = false;
+    }
+  }, []);
+
+  // Enable mic audio track
+  const enableMicTrack = useCallback(() => {
+    if (streamRef.current) {
+      const audioTrack = streamRef.current.getAudioTracks()[0];
+      if (audioTrack) audioTrack.enabled = true;
+    }
+  }, []);
+
+  // Speak with mic control — disables mic during TTS, re-enables after
+  // Hold the latest tts in a ref so speakWithMicControl keeps a stable identity.
+  // useTTS() returns a fresh object every render; depending on it directly would
+  // recreate this callback each render, re-firing every effect that advances the
+  // interview (the flicker + repeated synth.cancel that silenced the first question).
+  const ttsRef = useRef(tts);
+  useEffect(() => {
+    ttsRef.current = tts;
+  });
+
+  const speakWithMicControl = useCallback(
+    async (text: string) => {
+      disableMicTrack();
+      try {
+        await ttsRef.current.speak(text);
+      } finally {
+        enableMicTrack();
+      }
+    },
+    [disableMicTrack, enableMicTrack]
+  );
+
+  // Guards so each prompt advances the interview exactly once. Keyed refs (not
+  // reset-on-change) stay correct under React Strict Mode, which double-invokes
+  // effects: without these a stale .then() runs setRapportQuestionIndex twice.
+  const ranIntroRef = useRef(false);
+  const ackedCountRef = useRef(0);
+
+  // Rapport flow state machine
+  useEffect(() => {
+    if (state === "rapport_intro" && !ranIntroRef.current) {
+      ranIntroRef.current = true;
+      speakWithMicControl(
+        `Hello ${patientName}. I'm Amumata, your interview companion. I'll be guiding you through some questions today. Let's take a moment to settle in.`
+      ).then(() => {
+        setState("rapport_wait");
+      });
+    }
+  }, [state, patientName, speakWithMicControl]);
+
+  useEffect(() => {
+    if (state === "rapport_wait") {
+      // Never listen while Amumata is speaking. Reset clears stale transcript.
+      resetListening();
+      setVoicePhase("waiting");
+      speakWithMicControl(RAPPORT_QUESTIONS[rapportQuestionIndex]).then(() => {
+        setVoicePhase("ready");
+      });
+    }
+  }, [state, rapportQuestionIndex, speakWithMicControl, resetListening]);
+
+  useEffect(() => {
+    if (state === "rapport_chat" && rapportResponses.length > ackedCountRef.current) {
+      ackedCountRef.current = rapportResponses.length;
+      const lastResponse = rapportResponses[rapportResponses.length - 1];
+      if (lastResponse) {
+        speakWithMicControl(lastResponse.acknowledgment).then(() => {
+          if (rapportQuestionIndex < RAPPORT_QUESTIONS.length - 1) {
+            setRapportQuestionIndex((i) => i + 1);
+            setState("rapport_wait");
+          } else {
+            setState("permission_wait");
+          }
+        });
+      }
+    }
+  }, [state, rapportResponses, rapportQuestionIndex, speakWithMicControl]);
+
+  useEffect(() => {
+    if (state === "permission_wait") {
+      speakWithMicControl(
+        "Thank you for sharing. Are you ready to begin the interview? You can start whenever you're ready."
+      );
+    }
+  }, [state, speakWithMicControl]);
+
+  // When speech recognition yields a final transcript, let the patient verify it.
+  // Guarded by a ref so editing the text (voicePhase "reviewing"→"ready") doesn't
+  // clobber the patient's corrections with the raw transcript.
+  const lastReviewedTranscript = useRef("");
+  useEffect(() => {
+    if (
+      state === "rapport_wait" &&
+      recognitionTranscript &&
+      recognitionTranscript !== lastReviewedTranscript.current
+    ) {
+      lastReviewedTranscript.current = recognitionTranscript;
+      setRapportInput(recognitionTranscript);
+      setVoicePhase("reviewing");
+    }
+  }, [state, recognitionTranscript]);
+  // Reset the guard when a fresh question starts.
+  useEffect(() => {
+    lastReviewedTranscript.current = "";
+  }, [rapportQuestionIndex]);
+
+  // Patient clicks mic to speak
+  const handleStartListening = () => {
+    if (tts.isSpeaking) return; // never listen while Amumata speaks
+    tts.stop();
+    lastReviewedTranscript.current = "";
+    setVoicePhase("ready");
+    startListening();
+  };
+
+  // Patient stops recording manually
+  const handleStopListening = () => {
+    abortListening();
+  };
+
+  // Retry: clear transcript and listen again
+  const handleRetryVoice = () => {
+    lastReviewedTranscript.current = "";
+    setRapportInput("");
+    setVoicePhase("ready");
+    startListening();
+  };
+
+  // Submit rapport response
+  const handleRapportSubmit = () => {
+    const text = rapportInput.trim();
+    if (!text) return;
+    // Stop recognition on submit so it can't capture duplicate responses.
+    abortListening();
+    const acknowledgment = matchRapportResponse(text);
+    setRapportResponses((prev) => [
+      ...prev,
+      { question: RAPPORT_QUESTIONS[rapportQuestionIndex], answer: text, acknowledgment },
+    ]);
+    setRapportInput("");
+    setVoicePhase("waiting");
+    setState("rapport_chat");
+  };
+
+  // Skip rapport, go straight to formal interview
+  const handleSkipRapport = () => {
+    tts.stop();
+    abortListening();
+    setVoicePhase("waiting");
+    setState("permission_wait");
+  };
+
+  // Start formal interview from permission_wait or idle
+  const handleStartInterview = () => {
+    // Stop the lingering "Are you ready?" speech now so that when the first
+    // question speaks 200ms later, synth.cancel() inside speak() is a no-op.
+    // Cancelling an active utterance and speaking in the same tick races in
+    // Chrome and silently drops the new utterance (first question had no voice).
+    tts.stop();
+    setState("recording");
+    setElapsed(0);
+    setResponses([]);
+    capturedFramesRef.current.clear();
+    capturedAudioRef.current.clear();
+    setTimeout(() => {
+      startAudioRecording();
+      startFrameCapture();
+      // Speak the first question via TTS
+      if (questions.length > 0) {
+        speakWithMicControl(questions[0]);
+      }
+    }, 200);
+  };
+
+  // Start frame capture interval
   const startFrameCapture = useCallback(() => {
     if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
-    // Capture immediately, then every 3s
     const doCapture = () => {
       const frame = captureFrame();
       if (frame) {
@@ -252,50 +472,17 @@ export default function InterviewRoom() {
     }
   }, []);
 
-  // Start recording
-  const handleStart = () => {
-    setState("recording");
-    setElapsed(0);
-    setResponses([]);
-    capturedFramesRef.current.clear();
-    capturedAudioRef.current.clear();
-    // Start audio recording for the first question
-    setTimeout(() => {
-      startAudioRecording();
-      startFrameCapture();
-    }, 200);
-  };
-
-  // Next question — capture frame + audio for this question
-  // ============================================================
-  // QUESTION TRANSITION ATOMICITY: This function must complete
-  // all of the following before the next question starts:
-  //   1. Stop frame capture interval
-  //   2. Capture final frame
-  //   3. Stop audio recording (await MediaRecorder.onstop)
-  //   4. Store audio blob in capturedAudioRef
-  //
-  // The current implementation does this correctly — it awaits
-  // stopAudioRecording() which returns a Promise that resolves
-  // only when MediaRecorder.onstop fires and the blob is built.
-  //
-  // POTENTIAL ISSUE: If stopAudioRecording() returns null
-  // (recorder not active), the audio for that question is LOST
-  // and STT will have no audio to transcribe → LER unavailable.
-  //
-  // The 100ms setTimeout before starting next recording is to
-  // let React state settle — this is safe but could be replaced
-  // with a requestAnimationFrame or removed if not needed.
-  // ============================================================
+  // Next question
   const handleNext = async () => {
-    if (analyzing) return; // prevent double-click
+    if (analyzing) return;
     setAnalyzing(true);
 
     try {
-      // Stop frame capture interval for this question
+      // Stop TTS if speaking
+      tts.stop();
+
       stopFrameCapture();
 
-      // Capture one final frame for this question
       const frame = captureFrame();
       if (frame) {
         const existing = capturedFramesRef.current.get(currentIndex) || [];
@@ -303,13 +490,11 @@ export default function InterviewRoom() {
         capturedFramesRef.current.set(currentIndex, existing);
       }
 
-      // Stop audio recording for this question
       const audio = await stopAudioRecording();
       if (audio) {
         capturedAudioRef.current.set(currentIndex, audio);
       }
 
-      // Save response entry
       setResponses((prev) => [
         ...prev,
         { question: questions[currentIndex], answer: "[Audio response recorded]" },
@@ -318,13 +503,13 @@ export default function InterviewRoom() {
       if (currentIndex < questions.length - 1) {
         const nextIndex = currentIndex + 1;
         setCurrentIndex(nextIndex);
-        // Start audio + frame recording for next question (after a tick so state updates)
         setTimeout(() => {
           startAudioRecording();
           startFrameCapture();
+          // Speak next question via TTS
+          speakWithMicControl(questions[nextIndex]);
         }, 100);
       } else {
-        // Last question answered — finish
         handleFinish();
       }
     } finally {
@@ -332,20 +517,17 @@ export default function InterviewRoom() {
     }
   };
 
-  // Finish interview — stop last audio, collect all media, navigate to processing
+  // Finish interview
   const handleFinish = async () => {
     setState("finished");
-
-    // Stop frame capture interval
+    tts.stop();
     stopFrameCapture();
 
-    // Stop and capture last question's audio
     const lastAudio = await stopAudioRecording();
     if (lastAudio) {
       capturedAudioRef.current.set(currentIndex, lastAudio);
     }
 
-    // Capture final frame for last question
     const lastFrame = captureFrame();
     if (lastFrame) {
       const existing = capturedFramesRef.current.get(currentIndex) || [];
@@ -355,13 +537,12 @@ export default function InterviewRoom() {
 
     stopMedia();
 
-    // Save the last response
     const finalResponses = [
       ...responses,
       { question: questions[currentIndex], answer: "[Audio response recorded]" },
     ];
 
-    // Build File arrays for upload — multi-frame: frame_N_M.jpg
+    // Build File arrays for upload
     const files: File[] = [];
     capturedFramesRef.current.forEach((frames, questionIdx) => {
       frames.forEach((blob, frameIdx) => {
@@ -372,7 +553,7 @@ export default function InterviewRoom() {
       files.push(new File([blob], `audio_${idx}.webm`, { type: "audio/webm" }));
     });
 
-    // Store interview metadata + files in sessionStorage for ProcessingPage
+    // Store interview metadata (rapport NOT included in formal data)
     const resultData = {
       token,
       patientName,
@@ -384,11 +565,27 @@ export default function InterviewRoom() {
     };
     sessionStorage.setItem(`amumata_result_${token}`, JSON.stringify(resultData));
 
-    // Store files in IndexedDB (sessionStorage has a ~5MB limit)
+    // Store rapport responses separately (sessionStorage only, not sent to analysis)
+    if (rapportResponses.length > 0) {
+      sessionStorage.setItem(
+        `amumata_rapport_${token}`,
+        JSON.stringify(rapportResponses)
+      );
+    }
+
     const fileEntries = files.map((file) => ({ name: file.name, type: file.type, blob: file }));
     await storeFiles(token, fileEntries);
 
     navigate(`/interview/${token}/processing`);
+  };
+
+  // Replay current question TTS
+  const handleReplayQuestion = () => {
+    if (tts.isSpeaking) {
+      tts.stop();
+    } else if (questions[currentIndex]) {
+      speakWithMicControl(questions[currentIndex]);
+    }
   };
 
   // Format timer
@@ -398,11 +595,11 @@ export default function InterviewRoom() {
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   };
 
-  // Idle screen — before recording starts
+  // ─── Idle screen ───
   if (state === "idle") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F1F5F9] px-4">
-        <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-md border border-slate-200 md:p-8">
+        <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-md border border-slate-200 md:p-8">
           <div className="mb-6 text-center">
             <h1 className="text-2xl font-bold text-slate-900">Interview Room</h1>
             <p className="mt-1 text-sm text-slate-500">
@@ -411,7 +608,7 @@ export default function InterviewRoom() {
           </div>
 
           {/* Camera preview */}
-          <div className="mb-6 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-6">
+          <div className="mb-6 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-6">
             <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-xl bg-slate-900">
               <video
                 ref={videoRef}
@@ -479,9 +676,9 @@ export default function InterviewRoom() {
           )}
 
           <button
-            onClick={handleStart}
+            onClick={() => setState("rapport_intro")}
             disabled={!!cameraError}
-            className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+            className="w-full rounded-lg bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
           >
             Start Interview
           </button>
@@ -490,11 +687,11 @@ export default function InterviewRoom() {
     );
   }
 
-  // Finished screen
+  // ─── Finished screen ───
   if (state === "finished") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F1F5F9] px-4">
-        <div className="w-full max-w-xl rounded-2xl bg-white p-8 shadow-md border border-slate-200 text-center">
+        <div className="w-full max-w-xl rounded-xl bg-white p-8 shadow-md border border-slate-200 text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
             <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -513,7 +710,7 @@ export default function InterviewRoom() {
           </p>
           <button
             onClick={() => navigate(`/interview/${token}/processing`)}
-            className="mt-6 w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+            className="mt-6 w-full rounded-lg bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-700"
           >
             View Processing
           </button>
@@ -522,125 +719,393 @@ export default function InterviewRoom() {
     );
   }
 
-  // Recording screen — main interview
-  return (
-    <div className="flex min-h-screen flex-col bg-[#08132E]">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-3 md:px-8">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500 text-sm font-bold text-white">
-            A
+  // ─── Rapport screens (intro, wait, chat, permission_wait) ───
+  if (
+    state === "rapport_intro" ||
+    state === "rapport_wait" ||
+    state === "rapport_chat" ||
+    state === "permission_wait"
+  ) {
+    return (
+      <div className="relative min-h-screen overflow-hidden bg-black">
+        {/* Full-screen camera background */}
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="fixed inset-0 z-0 h-full w-full object-cover"
+          style={{ height: "100dvh" }}
+        />
+        {!cameraOn && (
+          <div className="fixed inset-0 z-10 flex items-center justify-center bg-slate-900/90">
+            <VideoOff size={64} className="text-slate-500" />
           </div>
-          <span className="text-sm font-medium text-white">Anumata</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-white">
-            <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" />
-            <span className="text-sm font-medium">Recording</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-slate-300">
-            <Clock size={14} />
-            <span className="text-sm font-mono">{formatTime(elapsed)}</span>
-          </div>
-        </div>
-      </div>
+        )}
+        <canvas ref={canvasRef} className="hidden" />
 
-      {/* Main content */}
-      <div className="flex flex-1 flex-col lg:flex-row">
-        {/* Camera + Wave */}
-        <div className="flex flex-col items-center justify-center p-4 lg:w-1/2 lg:p-8">
-          <div className="relative w-full max-w-md overflow-hidden rounded-2xl bg-slate-900">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="aspect-video w-full object-cover"
-            />
-            {!cameraOn && (
-              <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80">
-                <VideoOff size={48} className="text-slate-400" />
+        {/* Overlay container */}
+        <div className="relative z-20 flex min-h-screen flex-col" style={{ minHeight: "100dvh" }}>
+          {/* Top: branding left, audio settings right */}
+          <div className="flex items-center justify-between px-4 py-3 md:px-6">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500 text-sm font-bold text-white shadow-lg">
+                A
+              </div>
+              <span className="text-sm font-semibold text-white drop-shadow-lg">Amumata</span>
+            </div>
+            <button
+              onClick={tts.toggleMute}
+              className={`rounded-full p-2 backdrop-blur-sm transition ${
+                tts.isMuted
+                  ? "bg-red-600/80 text-white"
+                  : "bg-black/40 text-white hover:bg-black/60"
+              }`}
+              title={tts.isMuted ? "Unmute voice" : "Mute voice"}
+            >
+              {tts.isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+          </div>
+
+          {/* Middle: conversation content */}
+          <div className="flex flex-1 flex-col justify-center px-4 pb-32 md:px-8 lg:w-1/2">
+            {/* Amumata message */}
+            <div className="mb-6 max-w-lg rounded-2xl border border-white/10 bg-black/50 p-5 backdrop-blur-md md:p-6">
+              <div className="mb-2 flex items-center gap-2">
+                <MessageCircle size={14} className="text-teal-400" />
+                <span className="text-xs font-medium text-teal-400">Amumata</span>
+                {tts.isSpeaking && (
+                  <span className="ml-2 animate-pulse text-xs text-slate-400">Speaking...</span>
+                )}
+              </div>
+              <p className="text-base font-medium leading-relaxed text-white md:text-lg">
+                {state === "rapport_intro" &&
+                  `Hello ${patientName}. I'm Amumata, your interview companion. I'll be guiding you through some questions today. Let's take a moment to settle in.`}
+                {state === "rapport_wait" && RAPPORT_QUESTIONS[rapportQuestionIndex]}
+                {state === "rapport_chat" &&
+                  rapportResponses[rapportResponses.length - 1]?.acknowledgment}
+                {state === "permission_wait" &&
+                  "Thank you for sharing. Are you ready to begin the interview? You can start whenever you're ready."}
+              </p>
+            </div>
+
+            {/* Input area */}
+            {(state === "rapport_wait" || state === "permission_wait") && (
+              <div className="mb-6 max-w-lg">
+                {state === "rapport_wait" && (
+                  <>
+                    {/* Voice input status */}
+                    <div className="mb-4 rounded-xl border border-white/10 bg-black/40 p-4 backdrop-blur-md">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                            recognitionStatus === "listening"
+                              ? "bg-red-600 text-white animate-pulse"
+                              : tts.isSpeaking || voicePhase === "waiting"
+                                ? "bg-slate-700/80 text-slate-300"
+                                : "bg-teal-600 text-white"
+                          }`}
+                        >
+                          {tts.isSpeaking ? (
+                            <Volume2 size={18} />
+                          ) : (
+                            <Mic size={18} />
+                          )}
+                        </div>
+                        <div className="flex-1 text-sm">
+                          {tts.isSpeaking ? (
+                            <p className="animate-pulse text-slate-300">Amumata is speaking...</p>
+                          ) : recognitionStatus === "listening" ? (
+                            <p className="font-medium text-white">Listening... speak now</p>
+                          ) : recognitionStatus === "processing" ? (
+                            <p className="animate-pulse text-slate-300">Processing your response...</p>
+                          ) : voicePhase === "reviewing" ? (
+                            <p className="font-medium text-teal-300">Here's what we heard</p>
+                          ) : (
+                            <p className="font-medium text-white">Your turn to speak</p>
+                          )}
+                          {recognitionStatus === "listening" && interimTranscript && (
+                            <p className="mt-1 italic text-slate-400">{interimTranscript}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {recognitionError && (
+                        <p className="mt-3 rounded-lg bg-red-900/30 px-3 py-2 text-sm text-red-200">
+                          {recognitionError}
+                        </p>
+                      )}
+                      {!recognitionSupported && (
+                        <p className="mt-3 rounded-lg bg-yellow-900/30 px-3 py-2 text-sm text-yellow-200">
+                          Voice input isn't available in this browser. Please type your response below.
+                        </p>
+                      )}
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {recognitionStatus === "listening" ? (
+                          <button
+                            onClick={handleStopListening}
+                            className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+                          >
+                            <StopCircle size={16} />
+                            Stop
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleStartListening}
+                            disabled={tts.isSpeaking || voicePhase === "waiting" || !recognitionSupported}
+                            className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
+                          >
+                            <Mic size={16} />
+                            {voicePhase === "reviewing" ? "Speak again" : "Speak your answer"}
+                          </button>
+                        )}
+                        {voicePhase === "reviewing" && (
+                          <button
+                            onClick={handleRetryVoice}
+                            className="flex items-center gap-2 rounded-lg bg-slate-700/80 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+                          >
+                            <RotateCcw size={16} />
+                            Retry
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Text input fallback */}
+                    <div className="flex gap-3">
+                      <input
+                        type="text"
+                        value={rapportInput}
+                        onChange={(e) => {
+                          setRapportInput(e.target.value);
+                          if (voicePhase === "reviewing") setVoicePhase("ready");
+                        }}
+                        onKeyDown={(e) => e.key === "Enter" && handleRapportSubmit()}
+                        placeholder={
+                          voicePhase === "reviewing"
+                            ? "Edit if needed, then send..."
+                            : "Or type your response..."
+                        }
+                        className="flex-1 rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-white placeholder:text-slate-400 focus:border-teal-500 focus:outline-none backdrop-blur-md"
+                      />
+                      <button
+                        onClick={handleRapportSubmit}
+                        disabled={!rapportInput.trim()}
+                        className="rounded-xl bg-teal-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
+                      >
+                        Send
+                      </button>
+                    </div>
+                    <button
+                      onClick={handleSkipRapport}
+                      className="mt-3 w-full text-center text-sm text-slate-400 transition hover:text-slate-200"
+                    >
+                      Skip introduction and start interview
+                    </button>
+                  </>
+                )}
+                {state === "permission_wait" && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleStartInterview}
+                      className="flex-1 rounded-lg bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-700"
+                    >
+                      Start Interview
+                    </button>
+                    <button
+                      onClick={handleSkipRapport}
+                      className="rounded-xl bg-slate-700/80 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-600 backdrop-blur-sm"
+                    >
+                      Back
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Rapport history */}
+            {rapportResponses.length > 0 && (
+              <div className="max-w-lg space-y-3">
+                {rapportResponses.map((r, i) => (
+                  <div key={i} className="rounded-xl bg-black/40 p-4 backdrop-blur-md">
+                    <p className="text-xs text-slate-400">{r.question}</p>
+                    <p className="mt-1 text-sm text-slate-200">{r.answer}</p>
+                  </div>
+                ))}
               </div>
             )}
           </div>
-          <canvas ref={canvasRef} className="hidden" />
-          <div className="mt-4 w-full max-w-md">
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Recording screen — main interview ───
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-black">
+      {/* Full-screen camera background */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className="fixed inset-0 z-0 h-full w-full object-cover"
+        style={{ height: "100dvh" }}
+      />
+      {!cameraOn && (
+        <div className="fixed inset-0 z-10 flex items-center justify-center bg-slate-900/90">
+          <VideoOff size={64} className="text-slate-500" />
+        </div>
+      )}
+      <canvas ref={canvasRef} className="hidden" />
+
+      {/* Overlay container */}
+      <div className="relative z-20 flex min-h-screen flex-col" style={{ minHeight: "100dvh" }}>
+        {/* Top: branding left, status + audio right */}
+        <div className="flex items-center justify-between px-4 py-3 md:px-6">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500 text-sm font-bold text-white shadow-lg">
+              A
+            </div>
+            <span className="text-sm font-semibold text-white drop-shadow-lg">Amumata</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 rounded-full bg-black/40 px-3 py-1.5 backdrop-blur-sm">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+              <span className="text-xs font-medium text-white">Recording</span>
+              <span className="font-mono text-xs text-slate-300">{formatTime(elapsed)}</span>
+            </div>
+            <button
+              onClick={tts.toggleMute}
+              className={`rounded-full p-2 backdrop-blur-sm transition ${
+                tts.isMuted
+                  ? "bg-red-600/80 text-white"
+                  : "bg-black/40 text-white hover:bg-black/60"
+              }`}
+              title={tts.isMuted ? "Unmute voice" : "Mute voice"}
+            >
+              {tts.isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Question card — upper left */}
+        <div className="px-4 md:px-6">
+          <div className="max-w-md rounded-2xl border border-white/10 bg-black/50 p-4 backdrop-blur-md md:p-5">
+            {/* Progress bar */}
+            <div className="mb-3 flex items-center gap-3">
+              <span className="text-xs font-medium text-teal-400">
+                Question {currentIndex + 1} of {questions.length}
+              </span>
+              <div className="h-1.5 flex-1 rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-teal-500 to-teal-400 transition-all duration-300"
+                  style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
+                />
+              </div>
+            </div>
+            {/* Question text */}
+            <p className="text-base font-medium leading-relaxed text-white md:text-lg">
+              {questions[currentIndex]}
+            </p>
+            {tts.isSpeaking && (
+              <p className="mt-2 animate-pulse text-xs text-teal-400">Speaking question...</p>
+            )}
+            <p className="mt-2 text-xs text-slate-400">
+              Take your time. Speak naturally when you&apos;re ready.
+            </p>
+          </div>
+          {/* Wave visualizer */}
+          <div className="mt-3 w-48">
             <WaveVisualizer isActive={state === "recording" && micOn} />
           </div>
         </div>
 
-        {/* Question + Controls */}
-        <div className="flex flex-1 flex-col justify-center p-4 lg:p-8">
-          {/* Progress */}
-          <div className="mb-4 flex items-center gap-3">
-            <span className="text-sm text-slate-400">
-              Question {currentIndex + 1} of {questions.length}
-            </span>
-            <div className="h-2 flex-1 rounded-full bg-slate-700">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-teal-400 transition-all duration-300"
-                style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
-              />
-            </div>
-          </div>
+        {/* Spacer */}
+        <div className="flex-1" />
 
-          {/* Question card */}
-          <div className="mb-8 rounded-2xl border-l-4 border-blue-500 bg-[#13244D] p-6 md:p-8">
-            <p className="text-lg font-medium leading-relaxed text-white md:text-xl">
-              {questions[currentIndex]}
-            </p>
-          </div>
-
-          {/* Guidance */}
-          <p className="mb-6 text-center text-sm text-slate-400">
-            Take your time. Speak naturally when you&apos;re ready.
-          </p>
-
-          {/* Controls */}
-          <div className="flex items-center justify-center gap-4">
+        {/* Bottom control bar */}
+        <div className="flex justify-center px-4 pb-6 pt-2" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
+          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-4 py-2.5 backdrop-blur-md md:gap-3 md:px-5 md:py-3">
+            {/* Camera toggle */}
             <button
               onClick={toggleCamera}
-              className={`rounded-full p-3 transition ${
-                cameraOn ? "bg-slate-700 text-white hover:bg-slate-600" : "bg-red-600 text-white"
+              className={`flex flex-col items-center gap-0.5 rounded-full p-2.5 transition md:p-3 ${
+                cameraOn
+                  ? "bg-white/10 text-white hover:bg-white/20"
+                  : "bg-red-600/80 text-white"
               }`}
               title={cameraOn ? "Turn off camera" : "Turn on camera"}
             >
               {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
+              <span className="text-[10px]">{cameraOn ? "Camera" : "Off"}</span>
             </button>
+
+            {/* Mic toggle */}
             <button
               onClick={toggleMic}
-              className={`rounded-full p-3 transition ${
-                micOn ? "bg-slate-700 text-white hover:bg-slate-600" : "bg-red-600 text-white"
+              className={`flex flex-col items-center gap-0.5 rounded-full p-2.5 transition md:p-3 ${
+                micOn
+                  ? "bg-white/10 text-white hover:bg-white/20"
+                  : "bg-red-600/80 text-white"
               }`}
-              title={micOn ? "Mute" : "Unmute"}
+              title={micOn ? "Mute microphone" : "Unmute microphone"}
             >
               {micOn ? <Mic size={20} /> : <MicOff size={20} />}
+              <span className="text-[10px]">{micOn ? "Mic" : "Off"}</span>
             </button>
+
+            {/* Replay question */}
+            <button
+              onClick={handleReplayQuestion}
+              disabled={analyzing}
+              className="flex flex-col items-center gap-0.5 rounded-full bg-white/10 p-2.5 text-white transition hover:bg-white/20 disabled:opacity-50 md:p-3"
+              title="Replay question"
+            >
+              <RotateCcw size={20} />
+              <span className="text-[10px]">Replay</span>
+            </button>
+
+            {/* Divider */}
+            <div className="mx-1 h-8 w-px bg-white/20" />
+
+            {/* Next / Finish */}
             <button
               onClick={handleNext}
               disabled={analyzing}
-              className={`flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white transition ${
+              className={`flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition md:px-6 md:py-3 ${
                 analyzing
-                  ? "bg-blue-400 cursor-wait"
-                  : "bg-blue-600 hover:bg-blue-700"
+                  ? "cursor-wait bg-teal-500/60"
+                  : "bg-teal-600 hover:bg-teal-700"
               }`}
             >
               {analyzing ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  Analyzing response...
+                  <span className="hidden sm:inline">Analyzing...</span>
                 </>
               ) : currentIndex < questions.length - 1 ? (
                 <>
-                  Next Question
+                  <span className="hidden sm:inline">Next</span>
                   <SkipForward size={16} />
                 </>
               ) : (
                 <>
-                  Finish Interview
+                  <span className="hidden sm:inline">Finish</span>
                   <StopCircle size={16} />
                 </>
               )}
+            </button>
+
+            {/* End interview */}
+            <button
+              onClick={handleFinish}
+              className="flex flex-col items-center gap-0.5 rounded-full bg-red-600/80 p-2.5 text-white transition hover:bg-red-600 md:p-3"
+              title="End interview"
+            >
+              <StopCircle size={20} />
+              <span className="text-[10px]">End</span>
             </button>
           </div>
         </div>
