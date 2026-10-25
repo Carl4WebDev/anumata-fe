@@ -1,11 +1,21 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Users, AlertTriangle, ClipboardCheck, Activity, UserPlus, ArrowRight } from "lucide-react";
+import { Users, AlertTriangle, ClipboardCheck, Activity, UserPlus, ArrowRight, CalendarClock, CalendarCheck, CalendarX } from "lucide-react";
 import { usePatients } from "../../context/patients/usePatients";
+import { followUpsApi } from "../../../shared/api/followUpsApi";
+import type { FollowUp, FollowUpCounts } from "../../../shared/api/followUpsApi";
 import LoadingSpinner from "../../../shared/components/LoadingSpinner";
 import EmptyState from "../../../shared/components/EmptyState";
 
 export default function DashboardPage() {
   const { patients, loading, error } = usePatients();
+  const [followUpCounts, setFollowUpCounts] = useState<FollowUpCounts | null>(null);
+  const [upcomingFollowUps, setUpcomingFollowUps] = useState<FollowUp[]>([]);
+
+  useEffect(() => {
+    followUpsApi.getCounts().then((res) => setFollowUpCounts(res.data)).catch(() => {});
+    followUpsApi.getUpcoming(5).then((res) => setUpcomingFollowUps(res.data || [])).catch(() => {});
+  }, []);
 
   const totalPatients = patients.length;
   const highRisk = patients.filter((p) => p.risk === "High").length;
@@ -64,6 +74,39 @@ export default function DashboardPage() {
           );
         })}
       </section>
+
+      {/* Follow-up Stats */}
+      {followUpCounts && (
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="rounded-xl border border-slate-200 border-l-4 border-l-blue-500 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-blue-50 p-2"><CalendarClock size={18} className="text-blue-600" /></div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Upcoming</p>
+                <p className="text-2xl font-bold text-slate-900">{followUpCounts.upcoming}</p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 border-l-4 border-l-teal-500 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-teal-50 p-2"><CalendarCheck size={18} className="text-teal-600" /></div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Due Today</p>
+                <p className="text-2xl font-bold text-slate-900">{followUpCounts.due_today}</p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 border-l-4 border-l-red-500 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-red-50 p-2"><CalendarX size={18} className="text-red-600" /></div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Overdue</p>
+                <p className="text-2xl font-bold text-slate-900">{followUpCounts.overdue}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Content Grid */}
       <section className="grid gap-6 lg:grid-cols-3">
@@ -129,35 +172,39 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Session Risk Distribution */}
+        {/* Upcoming Follow-ups */}
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
-          <h2 className="mb-5 text-base font-semibold text-slate-900">Session Risk Distribution</h2>
-          {totalPatients > 0 ? (
-            <div className="space-y-5">
-              {[
-                { label: "High Risk", count: patients.filter((p) => p.risk === "High").length, color: "bg-red-500" },
-                { label: "Moderate Risk", count: patients.filter((p) => p.risk === "Moderate").length, color: "bg-amber-500" },
-                { label: "Low Risk", count: patients.filter((p) => p.risk === "Low").length, color: "bg-emerald-500" },
-              ].map((item) => {
-                const max = totalPatients || 1;
-                return (
-                  <div key={item.label}>
-                    <div className="mb-1.5 flex items-center justify-between">
-                      <p className="text-sm font-medium text-slate-700">{item.label}</p>
-                      <span className="text-sm font-semibold text-slate-900">{item.count}</span>
-                    </div>
-                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className={`h-full rounded-full ${item.color} transition-all duration-500`}
-                        style={{ width: `${(item.count / max) * 100}%` }}
-                      />
-                    </div>
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-slate-900">Upcoming Follow-ups</h2>
+            <Link
+              to="/patients"
+              className="inline-flex items-center gap-1 text-sm font-medium text-teal-600 hover:text-teal-700"
+            >
+              View All
+              <ArrowRight size={14} />
+            </Link>
+          </div>
+          {upcomingFollowUps.length > 0 ? (
+            <div className="divide-y divide-slate-100">
+              {upcomingFollowUps.map((fu) => (
+                <div key={fu.follow_up_id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-900">{fu.patient_name}</p>
+                    <p className="text-xs text-slate-500">
+                      {new Date(fu.recommended_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      {fu.appointment_time && ` · ${fu.appointment_time.slice(0, 5)}`}
+                    </p>
                   </div>
-                );
-              })}
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    fu.status === "scheduled" ? "bg-teal-50 text-teal-700" : "bg-blue-50 text-blue-700"
+                  }`}>
+                    {fu.status === "scheduled" ? "Scheduled" : "Recommended"}
+                  </span>
+                </div>
+              ))}
             </div>
           ) : (
-            <p className="py-8 text-center text-sm text-slate-400">No patient data yet.</p>
+            <p className="py-8 text-center text-sm text-slate-400">No upcoming follow-ups.</p>
           )}
         </div>
       </section>

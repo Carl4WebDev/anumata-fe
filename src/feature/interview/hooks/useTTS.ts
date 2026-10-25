@@ -9,8 +9,16 @@ const PREFERRED_VOICES = [
   "Victoria",
 ];
 
-function pickVoice(): SpeechSynthesisVoice | null {
+function pickVoice(locale?: string): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis.getVoices();
+  // Prefer a voice matching the requested locale (e.g. fil-PH for Tagalog).
+  if (locale) {
+    const base = locale.split("-")[0].toLowerCase();
+    const match =
+      voices.find((v) => v.lang.toLowerCase() === locale.toLowerCase()) ??
+      voices.find((v) => v.lang.toLowerCase().startsWith(base));
+    if (match) return match;
+  }
   // Try preferred names first
   for (const name of PREFERRED_VOICES) {
     const match = voices.find((v) => v.name.includes(name));
@@ -49,7 +57,7 @@ export function useTTS() {
   }, []);
 
   const speak = useCallback(
-    (text: string): Promise<void> => {
+    (text: string, locale?: string): Promise<void> => {
       return new Promise<void>((resolve) => {
         const synth = window.speechSynthesis;
         if (!synth || isMuted || !text.trim()) {
@@ -61,8 +69,9 @@ export function useTTS() {
         synth.cancel();
 
         const utterance = new SpeechSynthesisUtterance(text);
-        const voice = pickVoice();
+        const voice = pickVoice(locale);
         if (voice) utterance.voice = voice;
+        if (locale) utterance.lang = locale;
         utterance.rate = 0.9;
         utterance.pitch = 1.1;
 

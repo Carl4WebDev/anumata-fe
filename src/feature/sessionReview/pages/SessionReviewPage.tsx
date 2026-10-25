@@ -37,6 +37,7 @@ import SpikeContextPanel from "../components/SpikeContextPanel";
 import EvidenceQualityCard from "../components/EvidenceQualityCard";
 import QuestionCard from "../components/QuestionCard";
 import AiReportSection from "../components/AiReportSection";
+import SessionFollowUpCard from "../components/SessionFollowUpCard";
 import LoadingSpinner from "../../../shared/components/LoadingSpinner";
 import { useToast } from "../../../shared/context/ToastContext";
 
@@ -363,7 +364,10 @@ export default function SessionReviewPage() {
         </div>
       )}
 
-      {/* 9. Session-level Therapist Notes */}
+      {/* 9. Follow-up Recommendation — advise patient to come back */}
+      <SessionFollowUpCard sessionId={session.id} patientId={session.patientId} />
+
+      {/* 10. Session-level Therapist Notes */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-900">Therapist Notes</h2>

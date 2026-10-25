@@ -1,7 +1,7 @@
 import { useContext } from "react";
-import { UserContext } from "./UserContext";
+import { UserContext, type UserContextValue } from "./UserContext";
 
-export const useUser = () => {
+export const useUser = (): UserContextValue => {
   const ctx = useContext(UserContext);
 
   if (!ctx) {

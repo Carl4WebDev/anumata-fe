@@ -29,7 +29,6 @@ const ConsentPage = lazy(() => import("../feature/interview/pages/ConsentPage"))
 const InterviewRoom = lazy(() => import("../feature/interview/pages/InterviewRoomPage"));
 const ProcessingPage = lazy(() => import("../feature/interview/pages/ProcessingPage"));
 const ResultsPage = lazy(() => import("../feature/interview/pages/ResultsPage"));
-const RecommendationPage = lazy(() => import("../feature/interview/pages/RecommendationPage"));
 
 function PageLoader() {
   return (
@@ -53,7 +52,6 @@ export default function AppRoutes() {
             <Route path="/interview/:token/room" element={<SuspenseWrap><InterviewRoom /></SuspenseWrap>} />
             <Route path="/interview/:token/processing" element={<SuspenseWrap><ProcessingPage /></SuspenseWrap>} />
             <Route path="/interview/:token/results" element={<SuspenseWrap><ResultsPage /></SuspenseWrap>} />
-            <Route path="/interview/:token/recommendation" element={<SuspenseWrap><RecommendationPage /></SuspenseWrap>} />
 
             {/* Public routes — redirect to dashboard if already logged in */}
             <Route element={<PublicRoute />}>

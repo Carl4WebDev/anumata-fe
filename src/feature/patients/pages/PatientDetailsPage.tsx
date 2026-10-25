@@ -1,20 +1,77 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Link2, ExternalLink, Brain, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Sparkles, BarChart3 } from "lucide-react";
+import { ArrowLeft, Link2, ExternalLink, Brain, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Sparkles, BarChart3, CalendarDays, Camera, Trash2, Pencil, Archive, ArchiveRestore, Search, SlidersHorizontal } from "lucide-react";
 import { usePatients } from "../../context/patients/usePatients";
 import { useSessions } from "../../context/sessions/useSessions";
 import { patientsApi } from "../../../shared/api/patientsApi";
+import { followUpsApi } from "../../../shared/api/followUpsApi";
+import type { FollowUp } from "../../../shared/api/followUpsApi";
 import type { Patient } from "../../../shared/api/patientsApi";
 import type { LongitudinalReport, DeterministicAnalysis } from "../../../shared/types/session";
+import type { MappedSession } from "../../../shared/types/session";
 import CollapsibleSection from "../../../shared/components/CollapsibleSection";
+import Avatar from "../../../shared/components/Avatar";
 import EmotionTransitionHeatmap from "../components/EmotionTransitionHeatmap";
+import FollowUpSection from "../components/FollowUpSection";
+import GenerateLinkModal from "../../interviewLinks/modals/GenerateLinkModal";
+import EditPatientModal from "../modals/EditPatientModal";
+import {
+  filterHistory,
+  countActiveFilters,
+  EMPTY_HISTORY_FILTERS,
+  HISTORY_PAGE_SIZE,
+  type HistoryFilters,
+} from "../utils/historyFilters";
+import { useInterviewLinks } from "../../context/interviewLinks/useInterviewLinks";
+import { useToast } from "../../../shared/context/ToastContext";
+
+/** Downscale an image file to a square PNG data URL of the given size. */
+function resizeImage(file: File, size: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas unavailable"));
+        return;
+      }
+      const scale = Math.max(size / img.width, size / img.height);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Invalid image"));
+    };
+    img.src = url;
+  });
+}
 
 export default function PatientDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { patients } = usePatients();
+  const { patients, updatePatient, setArchived, setProfileImage } = usePatients();
   const { sessions } = useSessions();
+  const { generateLink } = useInterviewLinks();
+  const { success: toastSuccess, error: toastError } = useToast();
   const patient = patients.find((p) => p.id === Number(id));
+
+  // Generate interview link modal
+  const [showLinkModal, setShowLinkModal] = useState(false);
+
+  // Edit patient modal
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  // Profile image state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imageSaving, setImageSaving] = useState(false);
 
   // Full patient details from API (includes longitudinal_report)
   const [fullPatient, setFullPatient] = useState<Patient | null>(null);
@@ -23,6 +80,35 @@ export default function PatientDetailsPage() {
   // Longitudinal report generation state
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+
+  // Follow-ups state — tracked for interview-history notification + next-follow-up stat
+  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+
+  const fetchFollowUps = useCallback(async () => {
+    if (!id) return;
+    try {
+      const res = await followUpsApi.getByPatientId(Number(id));
+      setFollowUps(res.data);
+    } catch {
+      // follow-up fetch failed — non-critical
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchFollowUps();
+  }, [fetchFollowUps]);
+
+  // Interview history — search / filter / pagination
+  const [historyFiltersOpen, setHistoryFiltersOpen] = useState(false);
+  const [historyFilters, setHistoryFilters] = useState<HistoryFilters>(EMPTY_HISTORY_FILTERS);
+  const [historyPage, setHistoryPage] = useState(1);
+
+  const updateHistoryFilters = (patch: Partial<HistoryFilters>) =>
+    setHistoryFilters((prev) => ({ ...prev, ...patch }));
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [historyFilters]);
 
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -77,6 +163,79 @@ export default function PatientDetailsPage() {
     }
   }, [id]);
 
+  // Profile image — client-side resize to keep base64 payload small
+  const handleImagePick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !id) return;
+    if (!file.type.startsWith("image/")) {
+      toastError("Please choose an image file.");
+      return;
+    }
+    setImageSaving(true);
+    try {
+      const dataUrl = await resizeImage(file, 256);
+      const res = await setProfileImage(Number(id), dataUrl);
+      if (res.ok) {
+        toastSuccess("Profile photo updated.");
+        fetchPatientDetails();
+      } else if (res.error) {
+        toastError(res.error);
+      }
+    } catch {
+      toastError("Failed to process image.");
+    } finally {
+      setImageSaving(false);
+    }
+  }, [id, setProfileImage, toastSuccess, toastError, fetchPatientDetails]);
+
+  const handleImageRemove = useCallback(async () => {
+    if (!id) return;
+    setImageSaving(true);
+    try {
+      const res = await setProfileImage(Number(id), null);
+      if (res.ok) {
+        toastSuccess("Profile photo removed.");
+        fetchPatientDetails();
+      } else if (res.error) {
+        toastError(res.error);
+      }
+    } finally {
+      setImageSaving(false);
+    }
+  }, [id, setProfileImage, toastSuccess, toastError, fetchPatientDetails]);
+
+  // Edit patient details
+  const handleSaveEdit = useCallback(async (data: {
+    f_name: string;
+    m_name?: string;
+    l_name: string;
+    age: number;
+    gender: string;
+    primary_concern: string;
+  }) => {
+    if (!id) return { ok: false, error: "Missing patient id" };
+    const res = await updatePatient(Number(id), data);
+    if (res.ok) {
+      toastSuccess("Patient details updated.");
+      fetchPatientDetails();
+    }
+    return res;
+  }, [id, updatePatient, toastSuccess, fetchPatientDetails]);
+
+  // Archive / restore
+  const handleArchiveToggle = useCallback(async () => {
+    if (!id || !patient) return;
+    const next = !patient.isArchived;
+    const res = await setArchived(Number(id), next);
+    if (res.ok) {
+      toastSuccess(next ? "Patient archived." : "Patient restored.");
+      fetchPatientDetails();
+    } else if (res.error) {
+      toastError(res.error);
+    }
+  }, [id, patient, setArchived, toastSuccess, toastError, fetchPatientDetails]);
+
   if (!patient) {
     return (
       <div className="space-y-4">
@@ -127,6 +286,29 @@ export default function PatientDetailsPage() {
 
   const hasCompletedSessions = patientSessions.length > 0;
 
+  // Follow-up computed values
+  const nextFollowUp = followUps
+    .filter((f) => (f.status === "recommended" || f.status === "scheduled") && new Date(f.recommended_date) >= new Date(new Date().toDateString()))
+    .sort((a, b) => new Date(a.recommended_date).getTime() - new Date(b.recommended_date).getTime())[0] || null;
+
+  const followUpBySessionId = new Map<number | string, FollowUp>(
+    followUps.filter((f) => f.session_id).map((f): [number | string, FollowUp] => [f.session_id!, f])
+  );
+
+  // Interview history — filtered + paginated view
+  const historyEntries = patientSessions.map((session: MappedSession) => ({
+    session,
+    followUp: followUpBySessionId.get(session.id),
+  }));
+  const filteredHistory = filterHistory(historyEntries, historyFilters);
+  const historyPageCount = Math.max(1, Math.ceil(filteredHistory.length / HISTORY_PAGE_SIZE));
+  const safeHistoryPage = Math.min(historyPage, historyPageCount);
+  const pagedHistory = filteredHistory.slice(
+    (safeHistoryPage - 1) * HISTORY_PAGE_SIZE,
+    safeHistoryPage * HISTORY_PAGE_SIZE,
+  );
+  const activeHistoryFilterCount = countActiveFilters(historyFilters);
+
   return (
     <div className="space-y-6 md:space-y-8">
       {/* Header */}
@@ -136,27 +318,95 @@ export default function PatientDetailsPage() {
             <ArrowLeft size={16} />
             Back to Patients
           </Link>
-          <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">{patient.name}</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {patient.age} &middot; {patient.gender} &middot; {patient.concern}
-          </p>
+          <div className="flex items-center gap-4">
+            {/* Profile image with hover controls */}
+            <div className="group relative">
+              <Avatar name={patient.name} src={patient.profileImage} size="xl" />
+              {imageSaving && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-white/70">
+                  <RefreshCw size={20} className="animate-spin text-teal-600" />
+                </div>
+              )}
+              <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Upload photo"
+                  className="rounded-full bg-white/90 p-1.5 text-slate-700 hover:bg-white"
+                >
+                  <Camera size={14} />
+                </button>
+                {patient.profileImage && (
+                  <button
+                    onClick={handleImageRemove}
+                    title="Remove photo"
+                    className="rounded-full bg-white/90 p-1.5 text-red-600 hover:bg-white"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImagePick}
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">{patient.name}</h1>
+                {patient.isArchived && (
+                  <span className="rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                    Archived
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-sm text-slate-500">
+                {patient.age} &middot; {patient.gender} &middot; {patient.concern}
+              </p>
+            </div>
+          </div>
         </div>
-        <button
-          onClick={() => navigate("/interview-links")}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700"
-        >
-          <Link2 size={18} />
-          Generate Interview Link
-        </button>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setShowEditModal(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            <Pencil size={16} />
+            Edit
+          </button>
+          <button
+            onClick={handleArchiveToggle}
+            className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition ${
+              patient.isArchived
+                ? "border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            {patient.isArchived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+            {patient.isArchived ? "Restore" : "Archive"}
+          </button>
+          <button
+            onClick={() => setShowLinkModal(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700"
+          >
+            <Link2 size={18} />
+            Generate Interview Link
+          </button>
+        </div>
       </div>
 
       {/* Stat Cards */}
-      <section className="grid grid-cols-2 gap-3 md:gap-6 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 md:gap-6 lg:grid-cols-5">
         {[
-          { label: "Latest AI Analysis", value: patient.status },
+          { label: "Status", value: patient.status },
           { label: "Latest Risk Indicator", value: patient.risk, color: patient.risk === "High" ? "text-red-600" : patient.risk === "Moderate" ? "text-amber-600" : patient.risk === "Low" ? "text-emerald-600" : "" },
           { label: "Total Sessions", value: String(patientSessions.length) },
           { label: "Last Interview", value: patientSessions.length > 0 ? patientSessions[0].date : "N/A" },
+          { label: "Next Follow-up", value: nextFollowUp ? new Date(nextFollowUp.recommended_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "None", color: nextFollowUp ? "text-teal-600" : "text-slate-400" },
         ].map((card) => (
           <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6 hover:shadow-md transition-shadow">
             <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{card.label}</p>
@@ -248,45 +498,161 @@ export default function PatientDetailsPage() {
       {/* Content: Interview History + Emotional Trend */}
       <section className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6 lg:col-span-2">
-          <h2 className="mb-4 text-base font-semibold text-slate-900 md:mb-5">Interview History</h2>
-          {patientSessions.length > 0 ? (
-            <div className="space-y-3">
-              {patientSessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="flex items-center justify-between rounded-lg border border-slate-200 p-4 transition hover:border-teal-200 hover:bg-teal-50/30"
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 md:mb-5">
+            <h2 className="text-base font-semibold text-slate-900">Interview History</h2>
+            {patientSessions.length > 0 && (
+              <button
+                onClick={() => setHistoryFiltersOpen((open) => !open)}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+              >
+                <SlidersHorizontal size={14} />
+                Search &amp; Filter
+                {activeHistoryFilterCount > 0 && (
+                  <span className="rounded-full bg-teal-600 px-1.5 py-0.5 text-xs font-semibold text-white">
+                    {activeHistoryFilterCount}
+                  </span>
+                )}
+                {historyFiltersOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            )}
+          </div>
+
+          {/* Collapsible search & filter panel */}
+          {historyFiltersOpen && patientSessions.length > 0 && (
+            <div className="mb-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <Search size={18} className="shrink-0 text-slate-400" />
+                <input
+                  value={historyFilters.search}
+                  onChange={(e) => updateHistoryFilters({ search: e.target.value })}
+                  placeholder="Search by interview type, date, or follow-up"
+                  className="w-full text-sm outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <select
+                  value={historyFilters.risk}
+                  onChange={(e) => updateHistoryFilters({ risk: e.target.value as HistoryFilters["risk"] })}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
                 >
-                  <div>
-                    <span className="text-sm font-medium">{session.templateName}</span>
-                    <div className="mt-1 flex items-center gap-2">
-                      <span className="text-xs text-slate-400">{session.date}</span>
-                      <span className="text-xs text-slate-300">&middot;</span>
-                      <span className="text-xs text-slate-400">{session.duration}</span>
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          session.riskLevel === "High"
-                            ? "bg-red-50 text-red-700"
-                            : session.riskLevel === "Moderate"
-                              ? "bg-amber-50 text-amber-700"
-                              : "bg-emerald-50 text-emerald-700"
-                        }`}
-                      >
-                        {session.riskLevel}
-                      </span>
-                    </div>
-                  </div>
-                  <Link
-                    to={`/sessions/${session.id}`}
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 hover:text-teal-700"
-                  >
-                    Review
-                    <ExternalLink size={14} />
-                  </Link>
-                </div>
-              ))}
+                  <option value="all">All risk levels</option>
+                  <option value="Low">Low risk</option>
+                  <option value="Moderate">Moderate risk</option>
+                  <option value="High">High risk</option>
+                </select>
+                <select
+                  value={historyFilters.followUp}
+                  onChange={(e) => updateHistoryFilters({ followUp: e.target.value as HistoryFilters["followUp"] })}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                >
+                  <option value="all">All follow-ups</option>
+                  <option value="has">Has follow-up</option>
+                  <option value="overdue">Overdue follow-up</option>
+                  <option value="none">No follow-up</option>
+                </select>
+                <input
+                  type="date"
+                  value={historyFilters.dateFrom}
+                  onChange={(e) => updateHistoryFilters({ dateFrom: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                />
+                <input
+                  type="date"
+                  value={historyFilters.dateTo}
+                  onChange={(e) => updateHistoryFilters({ dateTo: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                />
+              </div>
+              {activeHistoryFilterCount > 0 && (
+                <button
+                  onClick={() => setHistoryFilters(EMPTY_HISTORY_FILTERS)}
+                  className="text-xs font-medium text-teal-600 hover:text-teal-700"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          )}
+
+          {patientSessions.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-400">No interviews yet. Generate an interview link to get started.</p>
+          ) : filteredHistory.length === 0 ? (
+            <div className="py-8 text-center">
+              <p className="text-sm text-slate-400">No interviews match your search.</p>
+              <button
+                onClick={() => setHistoryFilters(EMPTY_HISTORY_FILTERS)}
+                className="mt-2 text-sm font-medium text-teal-600 hover:text-teal-700"
+              >
+                Clear filters
+              </button>
             </div>
           ) : (
-            <p className="py-8 text-center text-sm text-slate-400">No interviews yet. Generate an interview link to get started.</p>
+            <>
+              <div className="space-y-3">
+                {pagedHistory.map(({ session, followUp }) => (
+                  <div
+                    key={session.id}
+                    className="flex items-center justify-between rounded-lg border border-slate-200 p-4 transition hover:border-teal-200 hover:bg-teal-50/30"
+                  >
+                    <div>
+                      <span className="text-sm font-medium">{session.templateName}</span>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="text-xs text-slate-400">{session.date}</span>
+                        <span className="text-xs text-slate-300">&middot;</span>
+                        <span className="text-xs text-slate-400">{session.duration}</span>
+                        {followUp && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 border border-amber-200">
+                            <CalendarDays size={12} />
+                            Patient advised to come back on {new Date(followUp.recommended_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </span>
+                        )}
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            session.riskLevel === "High"
+                              ? "bg-red-50 text-red-700"
+                              : session.riskLevel === "Moderate"
+                                ? "bg-amber-50 text-amber-700"
+                                : "bg-emerald-50 text-emerald-700"
+                          }`}
+                        >
+                          {session.riskLevel}
+                        </span>
+                      </div>
+                    </div>
+                    <Link
+                      to={`/sessions/${session.id}`}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 hover:text-teal-700"
+                    >
+                      Review
+                      <ExternalLink size={14} />
+                    </Link>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pagination — shown only when history spans multiple pages */}
+              {historyPageCount > 1 && (
+                <div className="mt-4 flex items-center justify-between">
+                  <button
+                    onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                    disabled={safeHistoryPage <= 1}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-xs text-slate-500">
+                    Page {safeHistoryPage} of {historyPageCount}
+                  </span>
+                  <button
+                    onClick={() => setHistoryPage((p) => Math.min(historyPageCount, p + 1))}
+                    disabled={safeHistoryPage >= historyPageCount}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -317,11 +683,39 @@ export default function PatientDetailsPage() {
         </div>
       </section>
 
+      {/* Follow-up Appointments — managed per interview record; tracked here */}
+      <FollowUpSection patientId={patient.id} />
+
       {/* Emotion Transition Heatmap */}
       <EmotionTransitionHeatmap
         sessions={sessionTransitions}
         onCellClick={(sessionId) => navigate(`/sessions/${sessionId}`)}
       />
+
+      {/* Generate Interview Link modal — patient pre-selected */}
+      <GenerateLinkModal
+        isOpen={showLinkModal}
+        onClose={() => setShowLinkModal(false)}
+        onGenerate={generateLink}
+        defaultPatientId={patient.id}
+      />
+
+      {/* Edit Patient modal — mounted fresh each open so initial values re-seed */}
+      {fullPatient && showEditModal && (
+        <EditPatientModal
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          initial={{
+            f_name: fullPatient.f_name,
+            m_name: fullPatient.m_name,
+            l_name: fullPatient.l_name,
+            age: fullPatient.age,
+            gender: fullPatient.gender.charAt(0).toUpperCase() + fullPatient.gender.slice(1),
+            primary_concern: fullPatient.primary_concern,
+          }}
+          onSave={handleSaveEdit}
+        />
+      )}
     </div>
   );
 }

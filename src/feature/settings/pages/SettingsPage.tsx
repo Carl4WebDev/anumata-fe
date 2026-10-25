@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useUser } from "../../context/users/useUser";
 import { useNavigate } from "react-router-dom";
-import { Save, LogOut, Lock, User, Brain, Cpu, Eye, Mic, Languages, Zap, FileText, Shield, RefreshCw, Loader2 } from "lucide-react";
+import { Save, LogOut, Lock, User, Brain, Cpu, Eye, Mic, Languages, Zap, FileText, Shield, RefreshCw, Loader2, Camera } from "lucide-react";
 import { useToast } from "../../../shared/context/ToastContext";
 import { fetchSystemHealth, type SystemHealth } from "../../../shared/api/healthApi";
+import Avatar from "../../../shared/components/Avatar";
+import AIModelGuide from "../components/AIModelGuide";
 
 type ComponentStatus = "ready" | "not_ready" | "checking";
 
@@ -60,6 +62,41 @@ const aiComponents: AiComponent[] = [
   },
 ];
 
+const PHOTO_MAX_DIM = 400;
+
+/**
+ * Downscale an uploaded photo on a canvas so any camera image fits
+ * the 1.5MB base64 limit the API enforces. Transparent areas get a
+ * white fill since the output is JPEG.
+ */
+function resizePhoto(file: File, maxDim: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Could not process image"));
+        return;
+      }
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read image"));
+    };
+    img.src = url;
+  });
+}
+
 function StatusBadge({ status }: { status: ComponentStatus }) {
   if (status === "checking") {
     return (
@@ -83,22 +120,50 @@ function StatusBadge({ status }: { status: ComponentStatus }) {
   );
 }
 
+const fieldClass =
+  "w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500";
+
+function FieldLabel({ children, hint }: { children: React.ReactNode; hint?: string }) {
+  return (
+    <label className="mb-1 block text-sm font-medium text-slate-700">
+      {children} {hint && <span className="text-slate-400">{hint}</span>}
+    </label>
+  );
+}
+
 export default function SettingsPage() {
-  const { clearUser } = useUser();
-  const { success } = useToast();
+  const { profile, updateProfile, setProfileImage, clearUser } = useUser();
+  const { success, error } = useToast();
   const navigate = useNavigate();
 
   // Profile form
   const [fName, setFName] = useState("");
   const [mName, setMName] = useState("");
   const [lName, setLName] = useState("");
-  const [email, setEmail] = useState("doctor@email.com");
+  const [phone, setPhone] = useState("");
+  const [specialization, setSpecialization] = useState("");
+  const [licenseNumber, setLicenseNumber] = useState("");
+  const [affiliation, setAffiliation] = useState("");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   // Health state
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [healthLoading, setHealthLoading] = useState(true);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+
+  // Populate the form once the real profile arrives
+  useEffect(() => {
+    if (!profile) return;
+    setFName(profile.f_name ?? "");
+    setMName(profile.m_name ?? "");
+    setLName(profile.l_name ?? "");
+    setPhone(profile.phone ?? "");
+    setSpecialization(profile.specialization ?? "");
+    setLicenseNumber(profile.license_number ?? "");
+    setAffiliation(profile.affiliation ?? "");
+  }, [profile]);
 
   const loadHealth = useCallback(async () => {
     setHealthLoading(true);
@@ -117,11 +182,57 @@ export default function SettingsPage() {
     loadHealth();
   }, [loadHealth]);
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const displayName = [fName, mName, lName].filter(Boolean).join(" ") || profile?.email || "Therapist";
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      error("Photo must be a PNG, JPG, or WebP image.");
+      return;
+    }
+    setPhotoBusy(true);
+    try {
+      const dataUrl = await resizePhoto(file, PHOTO_MAX_DIM);
+      const res = await setProfileImage(dataUrl);
+      if (res.ok) success("Profile photo updated.");
+      else error(res.error ?? "Failed to update photo.");
+    } catch {
+      error("Could not read that image.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    setPhotoBusy(true);
+    const res = await setProfileImage(null);
+    setPhotoBusy(false);
+    if (res.ok) success("Profile photo removed.");
+    else error(res.error ?? "Failed to remove photo.");
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaved(true);
-    success("Settings saved successfully.");
-    setTimeout(() => setSaved(false), 2000);
+    setSaving(true);
+    const res = await updateProfile({
+      f_name: fName.trim(),
+      m_name: mName.trim(),
+      l_name: lName.trim(),
+      phone: phone.trim(),
+      specialization: specialization.trim(),
+      license_number: licenseNumber.trim(),
+      affiliation: affiliation.trim(),
+    });
+    setSaving(false);
+    if (res.ok) {
+      setSaved(true);
+      success("Profile saved successfully.");
+      setTimeout(() => setSaved(false), 2000);
+    } else {
+      error(res.error ?? "Failed to save profile.");
+    }
   };
 
   const handleLogout = () => {
@@ -155,51 +266,137 @@ export default function SettingsPage() {
               </div>
               <h2 className="text-base font-semibold text-slate-900">Therapist Profile</h2>
             </div>
+
+            {/* Profile photo */}
+            <div className="mb-6 flex items-center gap-5">
+              <div className="relative">
+                <Avatar name={displayName} src={profile?.profile_image} size="xl" />
+                {photoBusy && (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
+                    <Loader2 size={20} className="animate-spin text-white" />
+                  </div>
+                )}
+                <label className="absolute -bottom-1 -right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:text-teal-600">
+                  <Camera size={14} />
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={handlePhotoChange}
+                    disabled={photoBusy}
+                  />
+                </label>
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-900">{displayName}</p>
+                <p className="truncate text-xs text-slate-500">{profile?.email ?? ""}</p>
+                {profile?.profile_image && (
+                  <button
+                    type="button"
+                    onClick={handleRemovePhoto}
+                    disabled={photoBusy}
+                    className="mt-1 text-xs font-medium text-red-600 transition hover:underline disabled:opacity-50"
+                  >
+                    Remove photo
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="grid gap-4 md:grid-cols-3">
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">First Name</label>
+                <FieldLabel>First Name</FieldLabel>
                 <input
                   type="text"
                   value={fName}
                   onChange={(e) => setFName(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                  className={fieldClass}
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Middle Name <span className="text-slate-400">(optional)</span></label>
+                <FieldLabel hint="(optional)">Middle Name</FieldLabel>
                 <input
                   type="text"
                   value={mName}
                   onChange={(e) => setMName(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                  className={fieldClass}
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Last Name</label>
+                <FieldLabel>Last Name</FieldLabel>
                 <input
                   type="text"
                   value={lName}
                   onChange={(e) => setLName(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                  className={fieldClass}
                 />
               </div>
             </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <FieldLabel>Email</FieldLabel>
+                <input
+                  type="email"
+                  value={profile?.email ?? ""}
+                  readOnly
+                  className={`${fieldClass} cursor-not-allowed bg-slate-50 text-slate-500`}
+                />
+              </div>
+              <div>
+                <FieldLabel hint="(optional)">Phone</FieldLabel>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+63 ..."
+                  className={fieldClass}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <FieldLabel hint="(optional)">Specialization</FieldLabel>
+                <input
+                  type="text"
+                  value={specialization}
+                  onChange={(e) => setSpecialization(e.target.value)}
+                  placeholder="e.g. Cognitive Behavioral Therapy"
+                  className={fieldClass}
+                />
+              </div>
+              <div>
+                <FieldLabel hint="(optional)">License Number</FieldLabel>
+                <input
+                  type="text"
+                  value={licenseNumber}
+                  onChange={(e) => setLicenseNumber(e.target.value)}
+                  placeholder="e.g. PRC 123456"
+                  className={fieldClass}
+                />
+              </div>
+            </div>
+
             <div className="mt-4">
-              <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>
+              <FieldLabel hint="(optional)">Affiliation</FieldLabel>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                type="text"
+                value={affiliation}
+                onChange={(e) => setAffiliation(e.target.value)}
+                placeholder="e.g. Clinic, hospital, or practice"
+                className={fieldClass}
               />
             </div>
-            <div className="mt-4 flex justify-end">
+
+            <div className="mt-6 flex justify-end">
               <button
                 type="submit"
-                className="flex items-center gap-2 rounded-lg bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700"
+                disabled={saving}
+                className="flex items-center gap-2 rounded-lg bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
               >
-                <Save size={16} />
-                {saved ? "Saved!" : "Save Changes"}
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                {saved ? "Saved!" : saving ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </form>
@@ -293,6 +490,36 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* Therapist Info */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+            <h2 className="mb-4 text-base font-semibold text-slate-900">Therapist Info</h2>
+            <div className="space-y-3 text-sm">
+              {[
+                { label: "Name", value: displayName },
+                { label: "Email", value: profile?.email ?? "—" },
+                { label: "Phone", value: profile?.phone || "—" },
+                { label: "Specialization", value: profile?.specialization || "—" },
+                { label: "License", value: profile?.license_number || "—" },
+                { label: "Affiliation", value: profile?.affiliation || "—" },
+                {
+                  label: "Member Since",
+                  value: profile?.created_at
+                    ? new Date(profile.created_at).toLocaleDateString(undefined, {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })
+                    : "—",
+                },
+              ].map((item) => (
+                <div key={item.label} className="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
+                  <span className="shrink-0 text-slate-500">{item.label}</span>
+                  <span className="truncate text-right font-medium text-slate-700">{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* System Info */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
             <h2 className="mb-4 text-base font-semibold text-slate-900">System Info</h2>
@@ -338,6 +565,11 @@ export default function SettingsPage() {
             </p>
           </div>
         </div>
+      </section>
+
+      {/* AI Model & Project Guide */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+        <AIModelGuide />
       </section>
     </div>
   );

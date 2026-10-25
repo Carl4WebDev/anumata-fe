@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useUser } from "../../context/users/useUser";
 import { LayoutDashboard, Users, FileQuestion, Link2, BarChart3, Settings, LogOut, Menu, X } from "lucide-react";
+import Avatar from "../../../shared/components/Avatar";
 
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -13,7 +14,7 @@ const navItems = [
 ];
 
 export default function Sidebar() {
-  const { clearUser } = useUser();
+  const { user, clearUser } = useUser();
   const location = useLocation();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
@@ -89,7 +90,18 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div className="p-3">
+        <div className="space-y-1 p-3">
+          <Link
+            to="/settings"
+            onClick={handleNav}
+            className="flex items-center gap-3 rounded-2xl px-4 py-3 transition hover:bg-[#13244D]"
+          >
+            <Avatar name={user?.name ?? "Therapist"} src={user?.profileImage} size="md" className="border-[#1A3270]" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-white">{user?.name ?? "Therapist"}</p>
+              <p className="truncate text-xs text-slate-400">{user?.email ?? ""}</p>
+            </div>
+          </Link>
           <button
             onClick={handleLogout}
             className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-[#13244D] hover:text-white"

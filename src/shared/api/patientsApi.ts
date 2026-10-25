@@ -10,6 +10,9 @@ export interface Patient {
   age: number;
   gender: string;
   primary_concern: string;
+  profile_image: string | null;
+  is_archived: boolean;
+  archived_at: string | null;
   session_count: number;
   risk_level: string | null;
   last_interview: string | null;
@@ -36,7 +39,7 @@ export const patientsApi = {
     return httpClient.post<Patient>("/api/patients", data);
   },
 
-  update(id: number, data: { f_name?: string; m_name?: string; l_name?: string; age?: number; gender?: string; primary_concern?: string }) {
+  update(id: number, data: { f_name?: string; m_name?: string; l_name?: string; age?: number; gender?: string; primary_concern?: string; profile_image?: string | null; is_archived?: boolean }) {
     return httpClient.patch<Patient>(`/api/patients/${id}`, data);
   },
 

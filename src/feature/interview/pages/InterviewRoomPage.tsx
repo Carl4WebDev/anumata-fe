@@ -7,7 +7,6 @@ import {
   MicOff,
   SkipForward,
   StopCircle,
-  Clock,
   Loader2,
   Volume2,
   VolumeX,
@@ -15,11 +14,24 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { interviewLinksApi } from "../../../shared/api/interviewLinksApi";
+import { translateQuestion } from "../../../shared/api/translateApi";
 import { storeFiles } from "../../../shared/utils/fileStorage";
 import WaveVisualizer from "../components/WaveVisualizer";
 import { useTTS } from "../hooks/useTTS";
-import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
-import { matchRapportResponse } from "../hooks/rapportUtils";
+import {
+  detectRapportCategory,
+  detectResponseLanguage,
+  pickAcknowledgment,
+  fillName,
+  languageLabel,
+  TTS_LOCALE,
+  INTRO_LINES,
+  RAPPORT_QUESTIONS,
+  PERMISSION_LINES,
+  type LocalizedLine,
+  type ResponseLanguage,
+} from "../hooks/rapportUtils";
+import { useAutoProceed } from "../hooks/useAutoProceed";
 
 // Hardcoded fallback questions if token not found
 const FALLBACK_QUESTIONS = [
@@ -40,10 +52,34 @@ type InterviewState =
   | "recording"
   | "finished";
 
-const RAPPORT_QUESTIONS = [
-  "How are you doing today?",
-  "Is there anything on your mind that you'd like to share before we begin?",
-];
+/**
+ * Prompt bubble text. Before the patient's language is known, show all three
+ * so the patient can read theirs; after, lead with their language + English.
+ */
+function LocalizedBubble({
+  line,
+  primary,
+}: {
+  line: LocalizedLine;
+  primary: ResponseLanguage | "all";
+}) {
+  const [main, ...rest] =
+    primary === "all"
+      ? [line.en, line.tl, line.ceb]
+      : primary === "en"
+        ? [line.en]
+        : [line[primary], line.en];
+  return (
+    <>
+      <span>{main}</span>
+      {rest.map((text) => (
+        <span key={text} className="mt-2 block text-sm font-normal text-slate-300">
+          {text}
+        </span>
+      ))}
+    </>
+  );
+}
 
 export default function InterviewRoom() {
   const { token } = useParams();
@@ -79,18 +115,57 @@ export default function InterviewRoom() {
   // "waiting" = Amumata speaking (or not yet done), "ready" = patient may speak,
   // "reviewing" = transcript captured, patient confirms/edits before submit.
   const [voicePhase, setVoicePhase] = useState<"waiting" | "ready" | "reviewing">("waiting");
+  const [autoProceedEnabled, setAutoProceedEnabled] = useState(true);
+  // Patient's base language — learned from their first response, then used for
+  // question wording, acknowledgments, and TTS voice.
+  const [detectedLang, setDetectedLang] = useState<ResponseLanguage>("en");
+  const [langDetected, setLangDetected] = useState(false);
+  // What the question card shows: translation first, English underneath.
+  const [questionDisplay, setQuestionDisplay] = useState<{ main: string; sub?: string } | null>(null);
 
   const tts = useTTS();
-  const {
-    start: startListening,
-    abort: abortListening,
-    reset: resetListening,
-    status: recognitionStatus,
-    transcript: recognitionTranscript,
-    interimTranscript,
-    isSupported: recognitionSupported,
-    error: recognitionError,
-  } = useSpeechRecognition();
+
+  // Ask the question in the patient's language once known; before that, speak
+  // English and show all three languages so the patient can pick theirs.
+  const questionText = (q: LocalizedLine, lang: ResponseLanguage) =>
+    lang === "en" ? q.en : q[lang];
+
+  // Submit a rapport answer and speak the acknowledgment next (rapport_chat).
+  const submitRapportAnswer = (text: string, lang: ResponseLanguage) => {
+    const acknowledgment = pickAcknowledgment(
+      detectRapportCategory(text),
+      lang,
+      rapportResponses.length
+    );
+    setRapportResponses((prev) => [
+      ...prev,
+      { question: questionText(RAPPORT_QUESTIONS[rapportQuestionIndex], lang), answer: text, acknowledgment },
+    ]);
+    setRapportInput("");
+    setVoicePhase("waiting");
+    setState("rapport_chat");
+  };
+
+  // Whisper capture for both modes. Auto = submit when transcription lands.
+  // Manual = show the transcript for review before sending.
+  const autoProceed = useAutoProceed({
+    stream: streamRef.current,
+    onTranscript: (text: string, whisperLang: string) => {
+      const lang = detectResponseLanguage(text, whisperLang);
+      setDetectedLang(lang);
+      setLangDetected(true);
+      if (autoProceedEnabled) {
+        submitRapportAnswer(text, lang);
+      } else {
+        setRapportInput(text);
+        setVoicePhase("reviewing");
+      }
+    },
+    onError: () => {
+      setVoicePhase("ready");
+    },
+    enabled: true,
+  });
 
   // Load interview data from API by token
   useEffect(() => {
@@ -296,10 +371,10 @@ export default function InterviewRoom() {
   });
 
   const speakWithMicControl = useCallback(
-    async (text: string) => {
+    async (text: string, lang?: ResponseLanguage) => {
       disableMicTrack();
       try {
-        await ttsRef.current.speak(text);
+        await ttsRef.current.speak(text, lang ? TTS_LOCALE[lang] : undefined);
       } finally {
         enableMicTrack();
       }
@@ -313,13 +388,21 @@ export default function InterviewRoom() {
   const ranIntroRef = useRef(false);
   const ackedCountRef = useRef(0);
 
+  // Latest values for the flow effects below. Language can change while an
+  // effect is waiting on TTS (manual review), so read it through the ref —
+  // putting it in deps would re-speak the question mid-answer.
+  const autoProceedRef = useRef(autoProceed);
+  const detectedLangRef = useRef(detectedLang);
+  useEffect(() => {
+    autoProceedRef.current = autoProceed;
+    detectedLangRef.current = detectedLang;
+  });
+
   // Rapport flow state machine
   useEffect(() => {
     if (state === "rapport_intro" && !ranIntroRef.current) {
       ranIntroRef.current = true;
-      speakWithMicControl(
-        `Hello ${patientName}. I'm Amumata, your interview companion. I'll be guiding you through some questions today. Let's take a moment to settle in.`
-      ).then(() => {
+      speakWithMicControl(fillName(INTRO_LINES.en, patientName)).then(() => {
         setState("rapport_wait");
       });
     }
@@ -328,20 +411,22 @@ export default function InterviewRoom() {
   useEffect(() => {
     if (state === "rapport_wait") {
       // Never listen while Amumata is speaking. Reset clears stale transcript.
-      resetListening();
+      autoProceedRef.current.cancel();
       setVoicePhase("waiting");
-      speakWithMicControl(RAPPORT_QUESTIONS[rapportQuestionIndex]).then(() => {
+      const lang = detectedLangRef.current;
+      speakWithMicControl(questionText(RAPPORT_QUESTIONS[rapportQuestionIndex], lang), lang).then(() => {
+        autoProceedRef.current.startListening();
         setVoicePhase("ready");
       });
     }
-  }, [state, rapportQuestionIndex, speakWithMicControl, resetListening]);
+  }, [state, rapportQuestionIndex, speakWithMicControl]);
 
   useEffect(() => {
     if (state === "rapport_chat" && rapportResponses.length > ackedCountRef.current) {
       ackedCountRef.current = rapportResponses.length;
       const lastResponse = rapportResponses[rapportResponses.length - 1];
       if (lastResponse) {
-        speakWithMicControl(lastResponse.acknowledgment).then(() => {
+        speakWithMicControl(lastResponse.acknowledgment, detectedLangRef.current).then(() => {
           if (rapportQuestionIndex < RAPPORT_QUESTIONS.length - 1) {
             setRapportQuestionIndex((i) => i + 1);
             setState("rapport_wait");
@@ -355,84 +440,83 @@ export default function InterviewRoom() {
 
   useEffect(() => {
     if (state === "permission_wait") {
-      speakWithMicControl(
-        "Thank you for sharing. Are you ready to begin the interview? You can start whenever you're ready."
-      );
+      const lang = detectedLangRef.current;
+      speakWithMicControl(PERMISSION_LINES[lang], lang);
     }
   }, [state, speakWithMicControl]);
 
-  // When speech recognition yields a final transcript, let the patient verify it.
-  // Guarded by a ref so editing the text (voicePhase "reviewing"→"ready") doesn't
-  // clobber the patient's corrections with the raw transcript.
-  const lastReviewedTranscript = useRef("");
-  useEffect(() => {
-    if (
-      state === "rapport_wait" &&
-      recognitionTranscript &&
-      recognitionTranscript !== lastReviewedTranscript.current
-    ) {
-      lastReviewedTranscript.current = recognitionTranscript;
-      setRapportInput(recognitionTranscript);
-      setVoicePhase("reviewing");
-    }
-  }, [state, recognitionTranscript]);
-  // Reset the guard when a fresh question starts.
-  useEffect(() => {
-    lastReviewedTranscript.current = "";
-  }, [rapportQuestionIndex]);
-
-  // Patient clicks mic to speak
+  // Patient clicks mic to speak again (overrides auto-proceed)
   const handleStartListening = () => {
-    if (tts.isSpeaking) return; // never listen while Amumata speaks
+    if (tts.isSpeaking) return;
+    autoProceed.cancel();
     tts.stop();
-    lastReviewedTranscript.current = "";
+    setRapportInput("");
     setVoicePhase("ready");
-    startListening();
+    autoProceed.startListening();
   };
 
-  // Patient stops recording manually
+  // Patient stops recording manually — audio so far is still transcribed
   const handleStopListening = () => {
-    abortListening();
+    autoProceed.stopListening();
   };
 
   // Retry: clear transcript and listen again
   const handleRetryVoice = () => {
-    lastReviewedTranscript.current = "";
+    autoProceed.cancel();
     setRapportInput("");
     setVoicePhase("ready");
-    startListening();
+    autoProceed.startListening();
   };
 
-  // Submit rapport response
+  // Submit rapport response (typed, or edited transcript — overrides auto-proceed)
   const handleRapportSubmit = () => {
     const text = rapportInput.trim();
     if (!text) return;
-    // Stop recognition on submit so it can't capture duplicate responses.
-    abortListening();
-    const acknowledgment = matchRapportResponse(text);
-    setRapportResponses((prev) => [
-      ...prev,
-      { question: RAPPORT_QUESTIONS[rapportQuestionIndex], answer: text, acknowledgment },
-    ]);
-    setRapportInput("");
-    setVoicePhase("waiting");
-    setState("rapport_chat");
+    autoProceed.cancel();
+    const lang = detectResponseLanguage(text);
+    setDetectedLang(lang);
+    setLangDetected(true);
+    submitRapportAnswer(text, lang);
   };
 
   // Skip rapport, go straight to formal interview
   const handleSkipRapport = () => {
+    autoProceed.cancel();
     tts.stop();
-    abortListening();
     setVoicePhase("waiting");
     setState("permission_wait");
   };
 
+  // Ask a formal question in the patient's language. Translation is an
+  // enhancement via the AI service — on any failure the English original is
+  // shown and spoken, so the interview never depends on the translator.
+  const questionTransCacheRef = useRef<Map<string, string>>(new Map());
+  const askQuestion = async (index: number) => {
+    const original = questions[index];
+    if (!original) return;
+    const lang = detectedLangRef.current;
+    setQuestionDisplay({ main: original });
+    if (lang === "en") {
+      await speakWithMicControl(original);
+      return;
+    }
+    const cacheKey = `${lang}|${original}`;
+    let translated = questionTransCacheRef.current.get(cacheKey) ?? null;
+    if (!translated) {
+      translated = await translateQuestion(original, lang);
+      if (translated) questionTransCacheRef.current.set(cacheKey, translated);
+    }
+    if (translated) {
+      setQuestionDisplay({ main: translated, sub: original });
+      await speakWithMicControl(translated, lang);
+    } else {
+      await speakWithMicControl(original);
+    }
+  };
+
   // Start formal interview from permission_wait or idle
   const handleStartInterview = () => {
-    // Stop the lingering "Are you ready?" speech now so that when the first
-    // question speaks 200ms later, synth.cancel() inside speak() is a no-op.
-    // Cancelling an active utterance and speaking in the same tick races in
-    // Chrome and silently drops the new utterance (first question had no voice).
+    autoProceed.cancel();
     tts.stop();
     setState("recording");
     setElapsed(0);
@@ -442,10 +526,8 @@ export default function InterviewRoom() {
     setTimeout(() => {
       startAudioRecording();
       startFrameCapture();
-      // Speak the first question via TTS
-      if (questions.length > 0) {
-        speakWithMicControl(questions[0]);
-      }
+      // Ask the first question in the patient's language
+      askQuestion(0);
     }, 200);
   };
 
@@ -506,8 +588,8 @@ export default function InterviewRoom() {
         setTimeout(() => {
           startAudioRecording();
           startFrameCapture();
-          // Speak next question via TTS
-          speakWithMicControl(questions[nextIndex]);
+          // Ask next question in the patient's language
+          askQuestion(nextIndex);
         }, 100);
       } else {
         handleFinish();
@@ -519,6 +601,7 @@ export default function InterviewRoom() {
 
   // Finish interview
   const handleFinish = async () => {
+    if (!token) return;
     setState("finished");
     tts.stop();
     stopFrameCapture();
@@ -584,7 +667,7 @@ export default function InterviewRoom() {
     if (tts.isSpeaking) {
       tts.stop();
     } else if (questions[currentIndex]) {
-      speakWithMicControl(questions[currentIndex]);
+      askQuestion(currentIndex);
     }
   };
 
@@ -754,17 +837,34 @@ export default function InterviewRoom() {
               </div>
               <span className="text-sm font-semibold text-white drop-shadow-lg">Amumata</span>
             </div>
-            <button
-              onClick={tts.toggleMute}
-              className={`rounded-full p-2 backdrop-blur-sm transition ${
-                tts.isMuted
-                  ? "bg-red-600/80 text-white"
-                  : "bg-black/40 text-white hover:bg-black/60"
-              }`}
-              title={tts.isMuted ? "Unmute voice" : "Mute voice"}
-            >
-              {tts.isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Auto-proceed toggle */}
+              <button
+                onClick={() => {
+                  if (autoProceedEnabled) autoProceed.cancel();
+                  setAutoProceedEnabled(!autoProceedEnabled);
+                }}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition ${
+                  autoProceedEnabled
+                    ? "bg-teal-600/80 text-white"
+                    : "bg-black/40 text-slate-300 hover:bg-black/60"
+                }`}
+                title={autoProceedEnabled ? "Auto-proceed: ON (answers send automatically)" : "Auto-proceed: OFF (you confirm before sending)"}
+              >
+                {autoProceedEnabled ? "Auto" : "Manual"}
+              </button>
+              <button
+                onClick={tts.toggleMute}
+                className={`rounded-full p-2 backdrop-blur-sm transition ${
+                  tts.isMuted
+                    ? "bg-red-600/80 text-white"
+                    : "bg-black/40 text-white hover:bg-black/60"
+                }`}
+                title={tts.isMuted ? "Unmute voice" : "Mute voice"}
+              >
+                {tts.isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </button>
+            </div>
           </div>
 
           {/* Middle: conversation content */}
@@ -779,13 +879,27 @@ export default function InterviewRoom() {
                 )}
               </div>
               <p className="text-base font-medium leading-relaxed text-white md:text-lg">
-                {state === "rapport_intro" &&
-                  `Hello ${patientName}. I'm Amumata, your interview companion. I'll be guiding you through some questions today. Let's take a moment to settle in.`}
-                {state === "rapport_wait" && RAPPORT_QUESTIONS[rapportQuestionIndex]}
+                {state === "rapport_intro" && (
+                  <LocalizedBubble
+                    line={{
+                      en: fillName(INTRO_LINES.en, patientName),
+                      tl: fillName(INTRO_LINES.tl, patientName),
+                      ceb: fillName(INTRO_LINES.ceb, patientName),
+                    }}
+                    primary="all"
+                  />
+                )}
+                {state === "rapport_wait" && (
+                  <LocalizedBubble
+                    line={RAPPORT_QUESTIONS[rapportQuestionIndex]}
+                    primary={langDetected ? detectedLang : "all"}
+                  />
+                )}
                 {state === "rapport_chat" &&
                   rapportResponses[rapportResponses.length - 1]?.acknowledgment}
-                {state === "permission_wait" &&
-                  "Thank you for sharing. Are you ready to begin the interview? You can start whenever you're ready."}
+                {state === "permission_wait" && (
+                  <LocalizedBubble line={PERMISSION_LINES} primary={langDetected ? detectedLang : "all"} />
+                )}
               </p>
             </div>
 
@@ -799,7 +913,7 @@ export default function InterviewRoom() {
                       <div className="flex items-center gap-3">
                         <div
                           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-                            recognitionStatus === "listening"
+                            autoProceed.isListening
                               ? "bg-red-600 text-white animate-pulse"
                               : tts.isSpeaking || voicePhase === "waiting"
                                 ? "bg-slate-700/80 text-slate-300"
@@ -815,34 +929,39 @@ export default function InterviewRoom() {
                         <div className="flex-1 text-sm">
                           {tts.isSpeaking ? (
                             <p className="animate-pulse text-slate-300">Amumata is speaking...</p>
-                          ) : recognitionStatus === "listening" ? (
-                            <p className="font-medium text-white">Listening... speak now</p>
-                          ) : recognitionStatus === "processing" ? (
+                          ) : autoProceed.isProcessing ? (
                             <p className="animate-pulse text-slate-300">Processing your response...</p>
+                          ) : autoProceed.isListening ? (
+                            <p className="font-medium text-white">Listening... speak now</p>
                           ) : voicePhase === "reviewing" ? (
                             <p className="font-medium text-teal-300">Here's what we heard</p>
                           ) : (
                             <p className="font-medium text-white">Your turn to speak</p>
                           )}
-                          {recognitionStatus === "listening" && interimTranscript && (
-                            <p className="mt-1 italic text-slate-400">{interimTranscript}</p>
+                          {/* Show detected language */}
+                          {autoProceed.whisperLanguage && voicePhase === "reviewing" && (
+                            <p className="mt-1 text-xs text-slate-500">
+                              Language detected: {languageLabel(autoProceed.whisperLanguage)}
+                            </p>
                           )}
                         </div>
                       </div>
 
-                      {recognitionError && (
+                      {/* Show errors from Whisper capture */}
+                      {autoProceed.whisperError && (
                         <p className="mt-3 rounded-lg bg-red-900/30 px-3 py-2 text-sm text-red-200">
-                          {recognitionError}
+                          {autoProceed.whisperError}
                         </p>
                       )}
-                      {!recognitionSupported && (
+                      {!autoProceed.isSupported && (
                         <p className="mt-3 rounded-lg bg-yellow-900/30 px-3 py-2 text-sm text-yellow-200">
-                          Voice input isn't available in this browser. Please type your response below.
+                          Voice input isn't available right now. Please type your response below.
                         </p>
                       )}
 
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {recognitionStatus === "listening" ? (
+                        {/* Capture controls — Whisper in both modes */}
+                        {autoProceed.isListening ? (
                           <button
                             onClick={handleStopListening}
                             className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
@@ -853,13 +972,14 @@ export default function InterviewRoom() {
                         ) : (
                           <button
                             onClick={handleStartListening}
-                            disabled={tts.isSpeaking || voicePhase === "waiting" || !recognitionSupported}
+                            disabled={tts.isSpeaking || voicePhase === "waiting" || !autoProceed.isSupported}
                             className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
                           >
                             <Mic size={16} />
                             {voicePhase === "reviewing" ? "Speak again" : "Speak your answer"}
                           </button>
                         )}
+                        {/* Retry — during reviewing */}
                         {voicePhase === "reviewing" && (
                           <button
                             onClick={handleRetryVoice}
@@ -1005,10 +1125,13 @@ export default function InterviewRoom() {
                 />
               </div>
             </div>
-            {/* Question text */}
+            {/* Question text — translated for the patient, English underneath */}
             <p className="text-base font-medium leading-relaxed text-white md:text-lg">
-              {questions[currentIndex]}
+              {questionDisplay?.main ?? questions[currentIndex]}
             </p>
+            {questionDisplay?.sub && (
+              <p className="mt-2 text-sm font-normal text-slate-300">{questionDisplay.sub}</p>
+            )}
             {tts.isSpeaking && (
               <p className="mt-2 animate-pulse text-xs text-teal-400">Speaking question...</p>
             )}

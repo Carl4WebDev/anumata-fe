@@ -13,17 +13,21 @@ interface Props {
     questionSetId: number;
     templateName: string;
   }) => Promise<any> | any;
+  defaultPatientId?: number;
 }
 
 export default function GenerateLinkModal({
   isOpen,
   onClose,
   onGenerate,
+  defaultPatientId,
 }: Props) {
   const { patients } = usePatients();
   const { questionSets } = useQuestionSets();
 
-  const [patientId, setPatientId] = useState("");
+  const [patientId, setPatientId] = useState(
+    defaultPatientId ? String(defaultPatientId) : ""
+  );
   const [questionSetId, setQuestionSetId] = useState("");
 
   const [error, setError] = useState("");
@@ -103,7 +107,7 @@ export default function GenerateLinkModal({
   };
 
   const handleClose = () => {
-    setPatientId("");
+    setPatientId(defaultPatientId ? String(defaultPatientId) : "");
     setQuestionSetId("");
     setError("");
     setGenerated(null);
@@ -183,6 +187,16 @@ export default function GenerateLinkModal({
             className="space-y-4"
             onSubmit={handleGenerate}
           >
+            {defaultPatientId ? (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Patient
+                </label>
+                <div className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-700">
+                  {patients.find((p) => p.id === defaultPatientId)?.name ?? "Selected patient"}
+                </div>
+              </div>
+            ) : (
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">
                 Select Patient
@@ -209,6 +223,7 @@ export default function GenerateLinkModal({
                 ))}
               </select>
             </div>
+            )}
 
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">
