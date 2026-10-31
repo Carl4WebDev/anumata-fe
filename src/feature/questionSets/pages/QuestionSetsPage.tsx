@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Eye, Trash2, Search, Pencil, Sparkles, BookOpen, User, Layers, AlertCircle, Check, X, GripVertical } from "lucide-react";
+import { Plus, Eye, Trash2, Search, Pencil, Sparkles, BookOpen, User, Layers, AlertCircle, Check, X } from "lucide-react";
 import { useQuestionSets } from "../../context/questionSets/useQuestionSets";
 import AddQuestionSetModal from "../modals/AddQuestionSetModal";
 import EditQuestionSetModal from "../modals/EditQuestionSetModal";
@@ -345,7 +345,7 @@ export default function QuestionSetsPage() {
           search={search}
           selectedQuestions={selectedQuestions}
           onToggle={toggleQuestion}
-          onToggleCategory={(category, questions) => {
+          onToggleCategory={(_category, questions) => {
             const allSelected = questions.every((q) => isSelected("standardized", q.id));
             if (allSelected) {
               // Deselect all in category
@@ -404,11 +404,8 @@ export default function QuestionSetsPage() {
         onClose={() => setShowAddModal(false)}
         onSave={handleSave}
       />
-      <AiQuestionSetBuilderModal
-        isOpen={showAiModal}
-        onClose={() => setShowAiModal(false)}
-        onSave={handleSave}
-      />
+      {/* Saves on its own ("Approve & Save") */}
+      <AiQuestionSetBuilderModal isOpen={showAiModal} onClose={() => setShowAiModal(false)} />
       <EditQuestionSetModal
         isOpen={!!editSet}
         onClose={() => setEditSet(null)}

@@ -1,10 +1,10 @@
 import { ArrowLeft, AlertTriangle, ExternalLink } from "lucide-react";
-import type { EmotionalSpike, InterviewResponse } from "../../../shared/types/session";
+import type { EmotionalSpike, MappedResponse } from "../../../shared/types/session";
 import EvidenceSnapshot from "./EvidenceSnapshot";
 
 interface SpikeContextPanelProps {
   spike: EmotionalSpike;
-  transcript: InterviewResponse[];
+  transcript: MappedResponse[];
   onClose: () => void;
 }
 
@@ -36,9 +36,11 @@ export default function SpikeContextPanel({ spike, transcript, onClose }: SpikeC
     const entry = transcript[i];
     if (!entry) continue;
 
-    const emotion = entry.combined_emotion || entry.fer_emotion || entry.ser_emotion || entry.ler_emotion || "Neutral";
+    // The fused (combined) emotion first; a single model only if fusion is missing.
+    const fused = entry.emotion ? entry.emotion.charAt(0).toUpperCase() + entry.emotion.slice(1) : null;
+    const emotion = fused || entry.fer_emotion || entry.ser_emotion || entry.ler_emotion || "Neutral";
     const confidence = entry.fer_confidence || entry.ser_confidence || entry.ler_confidence || 0;
-    const pct = Math.round(confidence * 100);
+    const pct = fused ? entry.emotionPct : Math.round(confidence * 100);
 
     windowEntries.push({
       index: i,

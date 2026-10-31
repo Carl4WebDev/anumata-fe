@@ -1,4 +1,5 @@
 import { httpClient } from "./httpClient";
+import { runAiJob } from "./aiJobs";
 
 // =============================================================================
 // Types — Question Set CRUD
@@ -105,16 +106,16 @@ export const questionSetsApi = {
     language?: string;
     additional_instructions?: string;
   }) {
-    return httpClient.post<AiGenerateResponse>("/api/question-sets/ai/generate", data);
+    return runAiJob<AiGenerateResponse>("/api/question-sets/ai/generate", data);
   },
 
   /** Review draft questions for quality issues via AI. */
   aiReview(data: { questions: { order: number; text: string }[]; focus?: string }) {
-    return httpClient.post<AiReviewResponse>("/api/question-sets/ai/review", data);
+    return runAiJob<AiReviewResponse>("/api/question-sets/ai/review", data);
   },
 
   /** Refine/improve a single question via AI. */
   aiRefine(data: { question_text: string }) {
-    return httpClient.post<AiRefineResponse>("/api/question-sets/ai/refine", data);
+    return runAiJob<AiRefineResponse>("/api/question-sets/ai/refine", data);
   },
 };

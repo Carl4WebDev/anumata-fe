@@ -8,7 +8,7 @@
 // ============================================================
 
 import { memo } from "react";
-import { FileText, BookOpen, Tag, MessageCircle, HelpCircle, TrendingUp, Loader2, AlertCircle } from "lucide-react";
+import { FileText, BookOpen, Tag, HelpCircle, Loader2, AlertCircle } from "lucide-react";
 import CollapsibleSection from "../../../shared/components/CollapsibleSection";
 
 interface QwenReportSectionProps {

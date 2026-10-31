@@ -57,7 +57,7 @@ function buildModelEvidence(
   confidence: number,
   emotion: string | null | undefined,
   probabilities: Record<string, number> | null | undefined,
-  details: Record<string, unknown> | null | undefined,
+  details: object | null | undefined,
   languageDetected?: string | null,
 ): ModelEvidence {
   const available = confidence > 0;
@@ -67,7 +67,7 @@ function buildModelEvidence(
     emotion: available ? (emotion ?? null) : null,
     confidence: available ? confidence : 0,
     probabilities: available ? (probabilities ?? null) : null,
-    details: available ? (details ?? null) : null,
+    details: available ? ((details ?? null) as Record<string, unknown> | null) : null,
     ...(model === "LER" ? { languageDetected: languageDetected ?? null } : {}),
   };
 }

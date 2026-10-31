@@ -54,7 +54,7 @@ export default function FusionResultCard({ question }: FusionResultCardProps) {
         <EmotionTag emotion={fusionEmotion} size="md" />
         <div className="space-y-0.5">
           <span className="text-[10px] text-slate-500">Fusion Confidence</span>
-          <ConfidenceBadge value={fusionConfidence} size="md" />
+          <ConfidenceBadge value={fusionConfidence} />
         </div>
       </div>
 

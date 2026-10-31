@@ -1,5 +1,6 @@
 import { Eye, Mic, MessageSquare, Languages } from "lucide-react";
 import type { FacialDetails, AudioDetails } from "../../../shared/types/session";
+import type { TextAnalysis } from "../../../shared/api/sessionsApi";
 import ProgressiveImage from "../../../shared/components/ProgressiveImage";
 
 interface EvidencePanelProps {
@@ -7,7 +8,7 @@ interface EvidencePanelProps {
   frame_image?: string | null;
   facial_details?: FacialDetails | null;
   audio_details?: AudioDetails | null;
-  text_analysis?: any | null;
+  text_analysis?: TextAnalysis | null;
   fer_confidence?: number;
   ser_confidence?: number;
   ler_confidence?: number;

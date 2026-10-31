@@ -79,3 +79,19 @@ describe("parseVoiceCommand", () => {
     expect(parseVoiceCommand(text)).toBeNull();
   });
 });
+
+describe("pause — asking for a break", () => {
+  test.each(["Break.", "I need a break", "Can we take a break?", "Pahinga muna", "Pahinga muna po", "Pahulay sa", "Pause please", "Time out"])(
+    "'%s' asks for a break",
+    (text) => {
+      expect(parseVoiceCommand(text)).toBe("pause");
+    },
+  );
+
+  test.each(["I had a break at work today", "Nag-break kami sa trabaho kanina", "My heart could break"])(
+    "an answer that mentions a break is not a command: '%s'",
+    (text) => {
+      expect(parseVoiceCommand(text)).toBeNull();
+    },
+  );
+});

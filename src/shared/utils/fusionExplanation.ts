@@ -15,7 +15,7 @@ export function generateExplanation(
   ler: ModelInfo | null,
 ): string {
   const models = [fer, ser, ler];
-  const available = models.filter((m) => m?.available);
+  const available = models.filter((m): m is ModelInfo => !!m?.available);
   const names = ["facial expression", "voice tone", "language"];
   const availableNames = names.filter((_, i) => models[i]?.available);
   const unavailableNames = names.filter((_, i) => !models[i]?.available);

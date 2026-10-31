@@ -506,7 +506,6 @@ interface DraftQuestionCardProps {
 
 function DraftQuestionCard({
   question,
-  index,
   expanded,
   onToggle,
   onTextChange,

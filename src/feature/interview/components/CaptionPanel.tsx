@@ -14,6 +14,8 @@ interface CaptionPanelProps {
   getLevel: () => number;
   /** Shown before the patient has said anything this turn. */
   placeholder: string;
+  /** Patient chose "Larger text". */
+  largeText?: boolean;
 }
 
 /** Live caption of what the patient is saying in the current turn. */
@@ -25,6 +27,7 @@ export default function CaptionPanel({
   voiceActive,
   getLevel,
   placeholder,
+  largeText = false,
 }: CaptionPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const spoken = segments.filter((s) => s.status !== "failed");
@@ -50,9 +53,9 @@ export default function CaptionPanel({
 
       <div ref={scrollRef} className="min-h-32 flex-1 overflow-y-auto px-4 py-3" aria-live="polite">
         {!hasText ? (
-          <p className="text-sm italic text-slate-500">{voiceActive ? "Listening…" : placeholder}</p>
+          <p className={`${largeText ? "text-lg" : "text-sm"} italic text-slate-500`}>{voiceActive ? "Listening…" : placeholder}</p>
         ) : (
-          <p className="text-lg leading-relaxed text-white">
+          <p className={`${largeText ? "text-2xl md:text-3xl" : "text-lg"} leading-relaxed text-white`}>
             {spoken.map((s) =>
               s.status === "pending" ? (
                 <span key={s.id} className="inline-flex gap-1 align-middle" aria-label="Transcribing">

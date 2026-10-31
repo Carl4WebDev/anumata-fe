@@ -1,4 +1,5 @@
 import { httpClient } from "./httpClient";
+import { runAiJob } from "./aiJobs";
 import type { LongitudinalReport } from "../types/session";
 
 export interface Patient {
@@ -48,6 +49,6 @@ export const patientsApi = {
   },
 
   generateLongitudinalReport(id: number) {
-    return httpClient.post<LongitudinalReport>(`/api/patients/${id}/longitudinal-report`);
+    return runAiJob<LongitudinalReport>(`/api/patients/${id}/longitudinal-report`);
   },
 };

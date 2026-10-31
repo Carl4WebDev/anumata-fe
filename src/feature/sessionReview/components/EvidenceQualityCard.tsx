@@ -1,9 +1,9 @@
 import { memo, useMemo } from "react";
 import { CheckCircle, AlertCircle, XCircle, Volume2, Eye, Languages, Info } from "lucide-react";
-import type { InterviewResponse } from "../../../shared/types/session";
+import type { MappedResponse } from "../../../shared/types/session";
 
 interface EvidenceQualityCardProps {
-  responses: InterviewResponse[];
+  responses: MappedResponse[];
 }
 
 interface ModalityStats {
@@ -16,12 +16,12 @@ interface ModalityStats {
   inFusion: boolean;
 }
 
-function computeModalityStats(responses: InterviewResponse[]): ModalityStats[] {
+function computeModalityStats(responses: MappedResponse[]): ModalityStats[] {
   const total = responses.length || 1;
 
-  const ferAvailable = responses.filter((r) => r.fer_emotion && r.fer_emotion !== "Unknown").length;
-  const serAvailable = responses.filter((r) => r.ser_emotion && r.ser_emotion !== "Unknown").length;
-  const lerAvailable = responses.filter((r) => r.ler_emotion && r.ler_emotion !== "Unknown").length;
+  const ferAvailable = responses.filter((r) => r.fer_emotion && String(r.fer_emotion) !== "Unknown").length;
+  const serAvailable = responses.filter((r) => r.ser_emotion && String(r.ser_emotion) !== "Unknown").length;
+  const lerAvailable = responses.filter((r) => r.ler_emotion && String(r.ler_emotion) !== "Unknown").length;
 
   const ferConfs = responses.filter((r) => r.fer_confidence > 0).map((r) => r.fer_confidence);
   const serConfs = responses.filter((r) => r.ser_confidence > 0).map((r) => r.ser_confidence);
@@ -58,7 +58,7 @@ function computeModalityStats(responses: InterviewResponse[]): ModalityStats[] {
   ];
 }
 
-function computeRecordingQuality(responses: InterviewResponse[]) {
+function computeRecordingQuality(responses: MappedResponse[]) {
   const hasQualityData = responses.some((r) => r.audio_duration !== undefined && r.audio_duration !== null);
   const durations = responses.filter((r) => (r.audio_duration ?? 0) > 0).map((r) => r.audio_duration!);
   const silenceCount = responses.filter((r) => r.is_silence === true).length;

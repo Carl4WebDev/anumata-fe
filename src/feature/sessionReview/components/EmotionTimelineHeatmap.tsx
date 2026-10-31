@@ -32,7 +32,7 @@ const spikeTypeStyles: Record<string, { bg: string; text: string; border: string
   disagreement: { bg: "bg-slate-100", text: "text-slate-600", border: "border-slate-300", short: "Disagree" },
 };
 
-export default function EmotionTimelineHeatmap({ points, onSpikeClick, showModelBars = false }: EmotionTimelineHeatmapProps) {
+export default function EmotionTimelineHeatmap({ points, onSpikeClick }: EmotionTimelineHeatmapProps) {
   if (points.length === 0) return null;
 
   // Compute baseline: average confidence across all non-spike points

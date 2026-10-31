@@ -13,8 +13,8 @@ import { TextBlockSkeleton } from "../../../shared/components/Skeleton";
 const FOLLOW_UP_TIMES = timeOptions("06:00", "21:00", 30);
 
 interface SessionFollowUpCardProps {
-  sessionId: string;
-  patientId: string;
+  sessionId: number;
+  patientId: number;
 }
 
 function formatDate(dateStr: string): string {

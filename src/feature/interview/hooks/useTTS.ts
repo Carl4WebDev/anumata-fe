@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { NORMAL_VOICE_RATE } from "./comfortSettings";
 
 const PREFERRED_VOICES = [
   "Microsoft Zira",
@@ -9,14 +10,28 @@ const PREFERRED_VOICES = [
   "Victoria",
 ];
 
+// Devices label Filipino voices either way ("fil-PH", "tl-PH", Android: "tl_PH").
+const LANGUAGE_ALIASES: Record<string, string[]> = { fil: ["fil", "tl"], tl: ["tl", "fil"] };
+
+const normalizeLang = (lang: string) => lang.toLowerCase().replace("_", "-");
+
+/** A voice for this locale: exact match first, then the same language (with aliases). */
+function findVoiceForLocale(voices: SpeechSynthesisVoice[], locale: string): SpeechSynthesisVoice | null {
+  const wanted = normalizeLang(locale);
+  const base = wanted.split("-")[0];
+  const bases = LANGUAGE_ALIASES[base] ?? [base];
+  return (
+    voices.find((v) => normalizeLang(v.lang) === wanted) ??
+    voices.find((v) => bases.includes(normalizeLang(v.lang).split("-")[0])) ??
+    null
+  );
+}
+
 function pickVoice(locale?: string): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis.getVoices();
   // Prefer a voice matching the requested locale (e.g. fil-PH for Tagalog).
   if (locale) {
-    const base = locale.split("-")[0].toLowerCase();
-    const match =
-      voices.find((v) => v.lang.toLowerCase() === locale.toLowerCase()) ??
-      voices.find((v) => v.lang.toLowerCase().startsWith(base));
+    const match = findVoiceForLocale(voices, locale);
     if (match) return match;
   }
   // Try preferred names first
@@ -33,7 +48,8 @@ function pickVoice(locale?: string): SpeechSynthesisVoice | null {
   return voices[0] ?? null;
 }
 
-export function useTTS() {
+/** `rate`: speaking speed (slower for patients who asked for it). */
+export function useTTS({ rate = NORMAL_VOICE_RATE }: { rate?: number } = {}) {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [voicesLoaded, setVoicesLoaded] = useState(false);
@@ -72,7 +88,7 @@ export function useTTS() {
         const voice = pickVoice(locale);
         if (voice) utterance.voice = voice;
         if (locale) utterance.lang = locale;
-        utterance.rate = 0.9;
+        utterance.rate = rate;
         utterance.pitch = 1.1;
 
         activeUtterance.current = utterance;
@@ -95,7 +111,7 @@ export function useTTS() {
         synth.speak(utterance);
       });
     },
-    [isMuted]
+    [isMuted, rate]
   );
 
   const stop = useCallback(() => {
@@ -135,6 +151,21 @@ export function useTTS() {
     };
   }, []);
 
+  /**
+   * Can this device speak `locale` properly? Many have no Filipino voice, and an
+   * English voice reading Tagalog sounds wrong. True while voices are still
+   * loading (can't tell yet — don't switch to English too early).
+   */
+  const hasVoiceFor = useCallback(
+    (locale: string): boolean => {
+      const voices = window.speechSynthesis?.getVoices() ?? [];
+      return voices.length === 0 || findVoiceForLocale(voices, locale) !== null;
+    },
+    // Re-evaluated once the voice list has loaded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [voicesLoaded],
+  );
+
   return {
     speak,
     stop,
@@ -143,5 +174,6 @@ export function useTTS() {
     toggleMute,
     isSupported: typeof window !== "undefined" && "speechSynthesis" in window,
     voicesLoaded,
+    hasVoiceFor,
   };
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Users, CalendarDays } from "lucide-react";
+import { Plus, Search, Users } from "lucide-react";
 import { usePatients } from "../../context/patients/usePatients";
 import AddPatientModal from "../modals/AddPatientModal";
 import { ListPageSkeleton } from "../../../shared/components/Skeleton";

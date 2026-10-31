@@ -9,8 +9,8 @@ import type { MappedSession } from "../../../shared/types/session";
 
 function session(partial: Partial<MappedSession>): MappedSession {
   return {
-    id: "1",
-    patientId: "10",
+    id: 1,
+    patientId: 10,
     patientName: "Juan",
     templateName: "Wellness Check",
     date: "Oct 26, 2026",
@@ -50,14 +50,14 @@ describe("countCompletedThisWeek", () => {
   test("counts sessions from Monday 00:00 local through today only", () => {
     const sessions = [
       session({ date: "Oct 24, 2026" }), // before the week
-      session({ id: "2", date: "Oct 26, 2026" }), // Monday boundary — included
-      session({ id: "3", date: "Oct 28, 2026" }), // today
+      session({ id: 2, date: "Oct 26, 2026" }), // Monday boundary — included
+      session({ id: 3, date: "Oct 28, 2026" }), // today
     ];
     expect(countCompletedThisWeek(sessions, now)).toBe(2);
   });
 
   test("excludes future-dated and unparseable dates", () => {
-    const sessions = [session({ date: "Oct 30, 2026" }), session({ id: "2", date: "N/A" })];
+    const sessions = [session({ date: "Oct 30, 2026" }), session({ id: 2, date: "N/A" })];
     expect(countCompletedThisWeek(sessions, now)).toBe(0);
   });
 
@@ -69,13 +69,13 @@ describe("countCompletedThisWeek", () => {
 describe("sessionsNeedingAttention", () => {
   test("flags missing and non-LLM reports with distinct reasons", () => {
     const sessions = [
-      session({ id: "1", date: "Oct 1, 2026", report: null }),
-      session({ id: "2", date: "Oct 5, 2026", report: { report_source: "fallback" } }),
-      session({ id: "3", date: "Oct 6, 2026", report: { report_source: "deterministic" } }),
-      session({ id: "4", date: "Oct 7, 2026", report: { report_source: "llm" } }),
+      session({ id: 1, date: "Oct 1, 2026", report: null }),
+      session({ id: 2, date: "Oct 5, 2026", report: { report_source: "fallback" } }),
+      session({ id: 3, date: "Oct 6, 2026", report: { report_source: "deterministic" } }),
+      session({ id: 4, date: "Oct 7, 2026", report: { report_source: "llm" } }),
     ];
     const attention = sessionsNeedingAttention(sessions);
-    expect(attention.map((a) => a.session.id)).toEqual(["3", "2", "1"]);
+    expect(attention.map((a) => a.session.id)).toEqual([3, 2, 1]);
     expect(attention[2].reason).toBe("Missing AI report");
     expect(attention[1].reason).toBe("Fallback AI report (LLM unavailable)");
     expect(attention[0].reason).toBe("Deterministic report (LLM unavailable)");
@@ -89,10 +89,10 @@ describe("sessionsNeedingAttention", () => {
 describe("recentInterviews", () => {
   test("returns newest first, capped at limit", () => {
     const sessions = [
-      session({ id: "1", date: "Oct 1, 2026" }),
-      session({ id: "2", date: "Oct 20, 2026" }),
-      session({ id: "3", date: "Oct 10, 2026" }),
+      session({ id: 1, date: "Oct 1, 2026" }),
+      session({ id: 2, date: "Oct 20, 2026" }),
+      session({ id: 3, date: "Oct 10, 2026" }),
     ];
-    expect(recentInterviews(sessions, 2).map((s) => s.id)).toEqual(["2", "3"]);
+    expect(recentInterviews(sessions, 2).map((s) => s.id)).toEqual([2, 3]);
   });
 });

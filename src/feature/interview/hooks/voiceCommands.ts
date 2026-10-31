@@ -7,7 +7,7 @@
  * must be a clear command word.
  */
 
-export type VoiceCommand = "yes" | "no" | "repeat";
+export type VoiceCommand = "yes" | "no" | "repeat" | "pause";
 
 const MAX_COMMAND_WORDS = 6;
 
@@ -24,6 +24,7 @@ const PHRASES: Record<VoiceCommand, string[]> = {
     "ano ulit", "ano yun", "unsa to", "unsa man to", "what was the question", "come again", "say that again",
     "say again", "one more time", "isa pa",
   ],
+  pause: ["time out", "timeout"],
 };
 
 // Polite / filler words ignored by the word rules.
@@ -49,6 +50,11 @@ const WORDS: Record<VoiceCommand, WordRule> = {
   repeat: {
     strong: ["repeat", "again", "ulit", "ulitin", "pakiulit", "usba", "balika", "pardon"],
     vocab: ["say", "the", "question", "that", "please", "can", "you", "what", "sorry", "isa", "pa", "ang", "tanong", "pangutana"],
+  },
+  // "I need a break", "pahinga muna", "pahulay sa".
+  pause: {
+    strong: ["break", "pause", "pahinga", "magpahinga", "pahulay", "mopahulay"],
+    vocab: ["i", "need", "a", "take", "can", "we", "lets", "let", "me", "short", "quick", "muna", "sa", "usa", "mag", "kog"],
   },
 };
 
@@ -102,14 +108,14 @@ export function parseVoiceCommand(text: string): VoiceCommand | null {
     withoutTrailingFillers.pop();
   }
   for (const candidate of [normalized, withoutTrailingFillers.join(" ")]) {
-    for (const command of ["no", "repeat", "yes"] as VoiceCommand[]) {
+    for (const command of ["no", "repeat", "pause", "yes"] as VoiceCommand[]) {
       if (PHRASES[command].includes(candidate)) return command;
     }
   }
 
   const words = tokens.filter((t) => !FILLERS.has(t));
   // "No" first: "not yet done" / "hindi pa tapos" means keep going.
-  for (const command of ["no", "repeat", "yes"] as VoiceCommand[]) {
+  for (const command of ["no", "repeat", "pause", "yes"] as VoiceCommand[]) {
     if (matchesWords(words, WORDS[command])) return command;
   }
   return null;

@@ -1,6 +1,7 @@
 import { httpClient } from "./httpClient";
 
-export type NotificationType = "interview_finished" | "results_ready" | "analysis_failed";
+/** crisis_flag = urgent: the patient may be at risk of self-harm (raised live from the interview). */
+export type NotificationType = "interview_finished" | "results_ready" | "analysis_failed" | "crisis_flag";
 
 export interface AppNotification {
   notification_id: number;

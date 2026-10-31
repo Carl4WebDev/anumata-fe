@@ -153,7 +153,6 @@ export default function AIModelGuide() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
-  const categories = useMemo(() => guideSections.map((s) => s.id), []);
 
   const filteredSections = useMemo(() => {
     let sections = guideSections;

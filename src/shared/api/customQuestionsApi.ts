@@ -10,6 +10,8 @@ export interface CustomQuestion {
   updated_at: string;
 }
 
+// httpClient already unwraps the { status, message, data } envelope: res.data is the payload.
+
 export async function getCustomQuestions(): Promise<CustomQuestion[]> {
   const res = await httpClient.get<CustomQuestion[]>("/api/custom-questions");
   const payload = res.data;
@@ -19,32 +21,32 @@ export async function getCustomQuestions(): Promise<CustomQuestion[]> {
 }
 
 export async function getCustomQuestion(id: number): Promise<CustomQuestion> {
-  const res = await httpClient.get(`/api/custom-questions/${id}`);
-  return res.data.data;
+  const res = await httpClient.get<CustomQuestion>(`/api/custom-questions/${id}`);
+  return res.data;
 }
 
 export async function createCustomQuestion(data: {
   text: string;
   category?: string;
 }): Promise<CustomQuestion> {
-  const res = await httpClient.post("/api/custom-questions", data);
-  return res.data.data;
+  const res = await httpClient.post<CustomQuestion>("/api/custom-questions", data);
+  return res.data;
 }
 
 export async function updateCustomQuestion(
   id: number,
   data: { text?: string; category?: string },
 ): Promise<CustomQuestion> {
-  const res = await httpClient.patch(`/api/custom-questions/${id}`, data);
-  return res.data.data;
+  const res = await httpClient.patch<CustomQuestion>(`/api/custom-questions/${id}`, data);
+  return res.data;
 }
 
 export async function deactivateCustomQuestion(id: number): Promise<CustomQuestion> {
-  const res = await httpClient.patch(`/api/custom-questions/${id}/deactivate`);
-  return res.data.data;
+  const res = await httpClient.patch<CustomQuestion>(`/api/custom-questions/${id}/deactivate`);
+  return res.data;
 }
 
 export async function deleteCustomQuestion(id: number): Promise<{ deleted: boolean }> {
-  const res = await httpClient.delete(`/api/custom-questions/${id}`);
-  return res.data.data;
+  const res = await httpClient.delete<{ deleted: boolean }>(`/api/custom-questions/${id}`);
+  return res.data;
 }

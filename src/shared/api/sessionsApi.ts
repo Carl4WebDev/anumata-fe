@@ -1,4 +1,5 @@
 import { httpClient } from "./httpClient";
+import { runAiJob } from "./aiJobs";
 
 export interface EmotionalEvent {
   event_number: number;
@@ -73,6 +74,11 @@ export interface TranscriptEntry {
     fer_emotion: string | null;
     fer_confidence: number;
   }[] | null;
+  fusion_confidence?: number;
+  fusion_agreement?: number;
+  audio_duration?: number;
+  rms_level?: number;
+  is_silence?: boolean;
 }
 
 export interface SessionData {
@@ -85,7 +91,16 @@ export interface SessionData {
   transcript: TranscriptEntry[];
   emotion_summary: { distribution?: Record<string, number>; indicators?: string[]; happy?: number; sad?: number; angry?: number; neutral?: number };
   risk_level: string;
-  emotional_spikes: { questionIndex?: number; question_index?: number; label: string; emotion: string; intensity: number }[];
+  emotional_spikes: {
+    questionIndex?: number;
+    question_index?: number;
+    label: string;
+    emotion: string;
+    intensity: number;
+    type?: "transition" | "high_confidence" | "flip" | "intensification" | "modality_alert" | "disagreement";
+  }[];
+  /** Not stored yet; shown as "N/A". */
+  duration?: string;
   emotional_events?: EmotionalEvent[];
   session_highlights?: SessionHighlights;
   report?: {
@@ -141,7 +156,7 @@ export const sessionsApi = {
   },
 
   regenerateReport(id: number) {
-    return httpClient.post<{
+    return runAiJob<{
       session_summary: string;
       topics_discussed: string[];
       keywords: string[];
@@ -153,7 +168,7 @@ export const sessionsApi = {
       areas_for_attention: string[];
       evidence_quality: { fer: string; ser: string; ler: string; overall: string };
       limitations: string[];
-      report_source?: string;
+      report_source?: "llm" | "fallback" | "deterministic";
     }>(`/api/sessions/${id}/regenerate-report`);
   },
 

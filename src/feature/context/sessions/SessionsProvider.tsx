@@ -27,9 +27,9 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { INTERVIEW_UPDATE_EVENT } from "../../../shared/hooks/useNotifications";
 import { SessionsContext } from "./SessionsContext";
-import { sessionsApi } from "../../../shared/api/sessionsApi";
+import { sessionsApi, type SessionData } from "../../../shared/api/sessionsApi";
 import { ApiError } from "../../../shared/api/httpClient";
-import type { Session, MappedSession } from "../../../shared/types/session";
+import type { MappedSession } from "../../../shared/types/session";
 import { optimistic, patchItems } from "../../../shared/utils/optimistic";
 
 /**
@@ -55,7 +55,15 @@ import { optimistic, patchItems } from "../../../shared/utils/optimistic";
  *   emotional_events → emotionalEvents
  *   session_highlights → sessionHighlights
  */
-function mapSession(s: Session): MappedSession {
+/** Older sessions may store a question as { text }; current ones store the text itself. */
+function questionText(question: unknown): string {
+  if (question && typeof question === "object") {
+    return (question as { text?: string }).text ?? JSON.stringify(question);
+  }
+  return typeof question === "string" ? question : "";
+}
+
+function mapSession(s: SessionData): MappedSession {
   const dist = s.emotion_summary?.distribution ?? {};
   return {
     id: s.session_id,
@@ -73,14 +81,14 @@ function mapSession(s: Session): MappedSession {
       neutral: dist.Neutral ?? dist.neutral ?? 0,
     },
     spikes: (s.emotional_spikes || []).map((sp) => ({
-      questionIndex: sp.question_index ?? 0,
+      questionIndex: sp.question_index ?? sp.questionIndex ?? 0,
       label: sp.label ?? "Emotional spike",
       emotion: sp.emotion ?? "sad",
       intensity: sp.intensity ?? 0,
       type: sp.type,
     })),
     responses: (s.transcript || []).map((t) => ({
-      question: typeof t.question === "object" ? t.question?.text ?? JSON.stringify(t.question) : t.question ?? "",
+      question: questionText(t.question),
       answer: t.answer || "[Audio response recorded]",
       emotion: (t.combined_emotion ?? "neutral").toLowerCase(),
       emotionPct: Math.round((t.fusion_confidence ?? Math.max(t.fer_confidence ?? 0, t.ser_confidence ?? 0, t.ler_confidence ?? 0)) * 100),
@@ -105,8 +113,9 @@ function mapSession(s: Session): MappedSession {
       frame_image: t.frame_image ?? null,
       evidence_frames: t.evidence_frames ?? null,
     })),
-    emotionalEvents: s.emotional_events || [],
-    sessionHighlights: s.session_highlights || null,
+    // Same data; the UI's types name the exact emotions the backend sends.
+    emotionalEvents: (s.emotional_events || []) as MappedSession["emotionalEvents"],
+    sessionHighlights: (s.session_highlights || null) as MappedSession["sessionHighlights"],
     report: s.report ?? null,
     notes: s.notes || "",
   };

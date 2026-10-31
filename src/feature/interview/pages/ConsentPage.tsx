@@ -1,14 +1,39 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Shield, Camera, Mic, FileText, AlertTriangle, Captions } from "lucide-react";
 import { browserCaptionsAllowed } from "../hooks/browserSpeech";
+import { interviewLinksApi } from "../../../shared/api/interviewLinksApi";
+
+/** "12 questions" / "1 question" / "a few questions" (count unknown). */
+function questionCountText(count: number | null): string {
+  if (!count) return "a few questions";
+  return `${count} ${count === 1 ? "question" : "questions"}`;
+}
 
 export default function ConsentPage() {
   const { token } = useParams();
   const navigate = useNavigate();
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
+  const [questionCount, setQuestionCount] = useState<number | null>(null);
   const usesBrowserCaptions = browserCaptionsAllowed();
+
+  // How many questions this interview has (general wording until / unless known).
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    interviewLinksApi
+      .getByToken(token)
+      .then((res) => {
+        if (!cancelled) setQuestionCount(res.data.questions?.length || null);
+      })
+      .catch(() => {
+        /* keep the general wording */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const handleProceed = () => {
     if (!agreed) {
@@ -86,7 +111,8 @@ export default function ConsentPage() {
             <div>
               <p className="text-sm font-medium text-slate-900">Structured Interview</p>
               <p className="text-xs text-slate-500">
-                You will be asked 6 standardized questions. Answer naturally and take your time.
+                You will be asked {questionCountText(questionCount)} prepared by your therapist. Answer naturally and take
+                your time.
               </p>
             </div>
           </div>

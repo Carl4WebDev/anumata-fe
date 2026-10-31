@@ -39,7 +39,7 @@ export default function SessionOverviewCard({ data }: SessionOverviewCardProps) 
             <BarChart3 size={12} />
             <span>Overall Confidence</span>
           </div>
-          <ConfidenceBadge value={data.overallConfidence} size="md" />
+          <ConfidenceBadge value={data.overallConfidence} />
         </div>
 
         {/* Overall Agreement */}

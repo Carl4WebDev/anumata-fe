@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Bell, BellRing, CheckCheck, ClipboardCheck, UserCheck } from "lucide-react";
+import { AlertTriangle, Bell, BellRing, CheckCheck, ClipboardCheck, Siren, UserCheck } from "lucide-react";
 import type { AppNotification, NotificationType } from "../api/notificationsApi";
 import { useNotifications, timeAgo } from "../hooks/useNotifications";
 import { useToast } from "../context/ToastContext";
@@ -9,7 +9,11 @@ const TYPE_STYLE: Record<NotificationType, { icon: typeof Bell; className: strin
   interview_finished: { icon: UserCheck, className: "bg-teal-50 text-teal-600" },
   results_ready: { icon: ClipboardCheck, className: "bg-emerald-50 text-emerald-600" },
   analysis_failed: { icon: AlertTriangle, className: "bg-rose-50 text-rose-600" },
+  crisis_flag: { icon: Siren, className: "bg-red-600 text-white" },
 };
+
+/** Needs the therapist's attention: shown as an error, and kept on screen. */
+const isUrgent = (type: NotificationType) => type === "analysis_failed" || type === "crisis_flag";
 
 function canUseDesktopAlerts(): boolean {
   return typeof window !== "undefined" && "Notification" in window;
@@ -27,11 +31,16 @@ export default function NotificationBell() {
 
   const { items, unreadCount, markRead, markAllRead } = useNotifications({
     onNew: (n) => {
-      if (n.type === "analysis_failed") toast.error(n.title);
+      if (isUrgent(n.type)) toast.error(n.title);
       else toast.info(n.title);
       // Background tab: also show a system notification, if allowed.
       if (document.hidden && canUseDesktopAlerts() && Notification.permission === "granted") {
-        const alert = new Notification(n.title, { body: n.message ?? undefined, tag: `amumata-${n.notification_id}` });
+        const alert = new Notification(n.title, {
+          body: n.message ?? undefined,
+          tag: `amumata-${n.notification_id}`,
+          // A patient who may be at risk: don't let it fade away unseen.
+          requireInteraction: n.type === "crisis_flag",
+        });
         alert.onclick = () => {
           window.focus();
           if (n.link) navigate(n.link);

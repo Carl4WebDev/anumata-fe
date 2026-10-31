@@ -247,4 +247,42 @@ describe("useTTS", () => {
     expect(result.current.speak).toBe(speakFirst);
     expect(result.current.stop).toBe(stopFirst);
   });
+
+  it("speaks at the normal pace by default and slower when asked", () => {
+    const { result, rerender } = renderHook(({ rate }) => useTTS({ rate }), {
+      initialProps: { rate: undefined as number | undefined },
+    });
+    act(() => void result.current.speak("Hello"));
+    expect(mockSynthesis.speak.mock.calls[0][0].rate).toBe(0.9);
+
+    rerender({ rate: 0.7 });
+    act(() => void result.current.speak("Hello again"));
+    expect(mockSynthesis.speak.mock.calls[1][0].rate).toBe(0.7);
+  });
+
+  it("knows whether the device has a Filipino voice (fil-PH or tl-PH)", () => {
+    const { result } = renderHook(() => useTTS());
+    expect(result.current.hasVoiceFor("en-US")).toBe(true);
+    expect(result.current.hasVoiceFor("fil-PH")).toBe(false); // only English voices installed
+
+    mockSynthesis.getVoices.mockReturnValue([
+      ...mockSynthesis.getVoices(),
+      { name: "Google Filipino", lang: "tl_PH", default: false, localService: false, voiceURI: "google-tl" },
+    ]);
+    expect(result.current.hasVoiceFor("fil-PH")).toBe(true);
+  });
+
+  it("assumes a voice exists while the voice list is still loading", () => {
+    mockSynthesis.getVoices.mockReturnValue([]);
+    const { result } = renderHook(() => useTTS());
+    expect(result.current.hasVoiceFor("fil-PH")).toBe(true);
+  });
+
+  it("uses a Tagalog-labelled voice for Filipino speech", () => {
+    const tagalog = { name: "Google Filipino", lang: "tl-PH", default: false, localService: false, voiceURI: "google-tl" };
+    mockSynthesis.getVoices.mockReturnValue([...mockSynthesis.getVoices(), tagalog]);
+    const { result } = renderHook(() => useTTS());
+    act(() => void result.current.speak("Kumusta ka?", "fil-PH"));
+    expect(mockSynthesis.speak.mock.calls[0][0].voice).toBe(tagalog);
+  });
 });

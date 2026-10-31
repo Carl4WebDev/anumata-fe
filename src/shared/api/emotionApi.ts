@@ -132,6 +132,22 @@ export const emotionApi = {
    * Early upload: send one finished answer's recordings while the patient
    * carries on, so the final upload is small.
    */
+  /**
+   * Urgently alert the therapist that the patient may be at risk (words of
+   * self-harm heard during the interview). Resolves true once the therapist
+   * has been notified; never throws — the help card shows either way.
+   */
+  async reportCrisis(token: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_BASE}/api/emotion/token/${token}/crisis-alert`, { method: "POST" });
+      if (!response.ok) return false;
+      const body = await response.json();
+      return body?.data?.notified === true;
+    } catch {
+      return false;
+    }
+  },
+
   async stageFiles(token: string, files: File[]): Promise<void> {
     const formData = new FormData();
     for (const file of files) formData.append("files", file);

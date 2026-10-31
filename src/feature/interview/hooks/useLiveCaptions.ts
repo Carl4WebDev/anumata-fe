@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { transcribeAudio } from "../../../shared/api/sttApi";
 import { createPhraseSegmenter } from "./phraseSegmenter";
+import { readRms } from "./useMicCheck";
 import type { ResponseLanguage } from "./rapportUtils";
 import {
   browserCaptionsAllowed,
@@ -306,18 +307,7 @@ export function useLiveCaptions(stream: MediaStream | null, options: UseLiveCapt
 
   // ─── Lifecycle ───
 
-  const readLevel = (): number => {
-    const analyser = analyserRef.current;
-    if (!analyser) return 0;
-    const data = new Uint8Array(analyser.fftSize);
-    analyser.getByteTimeDomainData(data);
-    let sum = 0;
-    for (let i = 0; i < data.length; i++) {
-      const sample = (data[i] - 128) / 128;
-      sum += sample * sample;
-    }
-    return Math.sqrt(sum / data.length);
-  };
+  const readLevel = (): number => (analyserRef.current ? readRms(analyserRef.current) : 0);
 
   /** Voice-activity analyser on the mic. Optional for the browser engine. */
   const setUpAnalyser = (): boolean => {

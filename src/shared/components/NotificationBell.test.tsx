@@ -97,6 +97,35 @@ describe("NotificationBell", () => {
     expect(toast.error).toHaveBeenCalledWith("Analysis didn't finish for MARIA SANTOS");
   });
 
+  test("an urgent crisis alert stands out: error toast and a desktop alert that stays until clicked", async () => {
+    const shown: { title: string; options: NotificationOptions }[] = [];
+    class FakeDesktopNotification {
+      static permission = "granted";
+      onclick: (() => void) | null = null;
+      constructor(title: string, options: NotificationOptions) {
+        shown.push({ title, options });
+      }
+    }
+    vi.stubGlobal("Notification", FakeDesktopNotification);
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+
+    api.inbox.mockResolvedValue(inbox([]));
+    renderBell();
+    await flush();
+    const crisis = note({ notification_id: 3, type: "crisis_flag", title: "Urgent: please check on MARIA SANTOS" });
+    api.inbox.mockResolvedValue(inbox([crisis]));
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await vi.advanceTimersByTimeAsync(10);
+    });
+
+    expect(toast.error).toHaveBeenCalledWith("Urgent: please check on MARIA SANTOS");
+    expect(shown[0]).toMatchObject({ title: "Urgent: please check on MARIA SANTOS", options: { requireInteraction: true } });
+
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    vi.unstubAllGlobals();
+  });
+
   test("clicking a notification marks it read and opens its page", async () => {
     api.inbox.mockResolvedValue(inbox([note({ notification_id: 5, type: "results_ready", title: "Results ready for MARIA SANTOS", link: "/sessions/42" })]));
     renderBell();

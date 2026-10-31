@@ -35,6 +35,27 @@ export async function storeFiles(token: string, files: { name: string; type: str
 }
 
 /**
+ * Add files to an interview's stored files (same name → replaced), in one
+ * transaction. Used after every answer, so a refreshed interview still has
+ * the earlier answers' recordings.
+ */
+export async function addFiles(token: string, files: { name: string; type: string; blob: Blob }[]): Promise<void> {
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, "readwrite");
+  const store = tx.objectStore(STORE_NAME);
+  const request = store.get(token);
+  request.onsuccess = () => {
+    const incoming = new Set(files.map((f) => f.name));
+    const existing: { name: string; type: string; blob: Blob }[] = request.result || [];
+    store.put([...existing.filter((f) => !incoming.has(f.name)), ...files], token);
+  };
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+
+/**
  * Retrieve files for an interview token.
  * Returns array of { name, type, blob } or null if not found.
  */

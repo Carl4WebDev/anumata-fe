@@ -113,7 +113,7 @@ export function sessionEmotionCounts(session: MappedSession): SessionEmotionCoun
 }
 
 export interface TimelineRow {
-  sessionId: string;
+  sessionId: number;
   patientName: string;
   templateName: string;
   date: string;
@@ -212,7 +212,7 @@ export function computeEvidenceQuality(sessions: MappedSession[]): EvidenceQuali
 }
 
 export interface ReviewSegment {
-  sessionId: string;
+  sessionId: number;
   patientName: string;
   templateName: string;
   date: string;

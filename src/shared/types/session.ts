@@ -99,39 +99,10 @@ export interface EmotionSummary {
   indicators: string[];
 }
 
-export interface Session {
-  session_id: string;
-  patient_id: string;
-  therapist_id: string;
-  transcript: InterviewResponse[];
-  emotion_summary: EmotionSummary;
-  risk_level: 'Low' | 'Moderate' | 'High';
-  emotional_spikes: EmotionalSpike[];
-  emotional_events: EmotionalEvent[];
-  session_highlights: SessionHighlights | null;
-  report: {
-    session_summary?: string;
-    topics_discussed?: string[];
-    keywords?: string[];
-    therapist_explanation?: string;
-    therapist_evaluation?: string;
-    suggested_follow_ups?: string[];
-    suggested_therapist_focus?: string[];
-    key_emotional_findings?: string[];
-    areas_for_attention?: string[];
-    evidence_quality?: { fer?: string; ser?: string; ler?: string; overall?: string };
-    limitations?: string[];
-    report_source?: "llm" | "fallback" | "deterministic";
-  } | null;
-  notes: string;
-  created_at: string;
-  patient_name?: string;
-  template_name?: string;
-}
-
+/** A session as the UI uses it (mapped from the API's SessionData in SessionsProvider). */
 export interface MappedSession {
-  id: string;
-  patientId: string;
+  id: number;
+  patientId: number;
   patientName: string;
   templateName: string;
   date: string;
@@ -196,6 +167,9 @@ export interface MappedSession {
     report_source?: "llm" | "fallback" | "deterministic";
   } | null;
 }
+
+/** One answer as the session review shows it. */
+export type MappedResponse = MappedSession["responses"][number];
 
 /**
  * Longitudinal AI report — summarizes emotional patterns across

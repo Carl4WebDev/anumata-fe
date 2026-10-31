@@ -49,8 +49,8 @@ function response(partial: Partial<Response>): Response {
 
 function session(partial: Partial<MappedSession>): MappedSession {
   return {
-    id: "1",
-    patientId: "10",
+    id: 1,
+    patientId: 10,
     patientName: "Juan",
     templateName: "Wellness Check",
     date: "Jan 5, 2026",
@@ -75,19 +75,19 @@ const filters = (partial: Partial<ReportFilters>): ReportFilters => ({
 
 describe("filterSessions", () => {
   test("returns all sessions with empty filters", () => {
-    const sessions = [session({}), session({ id: "2" })];
+    const sessions = [session({}), session({ id: 2 })];
     expect(filterSessions(sessions, filters({}))).toHaveLength(2);
   });
 
   test("filters by patient id as string", () => {
-    const sessions = [session({ patientId: "10" }), session({ id: "2", patientId: "20" })];
-    expect(filterSessions(sessions, filters({ patientId: "20" })).map((s) => s.id)).toEqual(["2"]);
+    const sessions = [session({ patientId: 10 }), session({ id: 2, patientId: 20 })];
+    expect(filterSessions(sessions, filters({ patientId: "20" })).map((s) => s.id)).toEqual([2]);
   });
 
   test("date range is inclusive and uses raw date-input strings", () => {
-    const sessions = [session({ date: "Jan 5, 2026" }), session({ id: "2", date: "Jan 10, 2026" }), session({ id: "3", date: "Feb 2, 2026" })];
+    const sessions = [session({ date: "Jan 5, 2026" }), session({ id: 2, date: "Jan 10, 2026" }), session({ id: 3, date: "Feb 2, 2026" })];
     const result = filterSessions(sessions, filters({ dateFrom: "2026-01-05", dateTo: "2026-01-10" }));
-    expect(result.map((s) => s.id)).toEqual(["1", "2"]);
+    expect(result.map((s) => s.id)).toEqual([1, 2]);
   });
 
   test("excludes sessions with unparseable dates when a bound is set", () => {
@@ -107,7 +107,7 @@ describe("tallyQuestionPredictions", () => {
   test("counts one vote per question-level fused label", () => {
     const sessions = [
       session({ responses: [response({ emotion: "sad" }), response({ emotion: "happy" })] }),
-      session({ id: "2", responses: [response({ emotion: "sad" })] }),
+      session({ id: 2, responses: [response({ emotion: "sad" })] }),
     ];
     const tally = tallyQuestionPredictions(sessions);
     expect(tally.counts).toEqual({ happy: 1, sad: 2, angry: 0, neutral: 0 });
@@ -139,9 +139,9 @@ describe("sessionEmotionCounts and buildTimeline", () => {
   });
 
   test("timeline sorts sessions chronologically", () => {
-    const sessions = [session({ id: "1", date: "Mar 5, 2026" }), session({ id: "2", date: "Jan 1, 2026" })];
+    const sessions = [session({ id: 1, date: "Mar 5, 2026" }), session({ id: 2, date: "Jan 1, 2026" })];
     const timeline = buildTimeline(sessions);
-    expect(timeline.map((row) => row.sessionId)).toEqual(["2", "1"]);
+    expect(timeline.map((row) => row.sessionId)).toEqual([2, 1]);
   });
 });
 
@@ -188,9 +188,9 @@ describe("computeEvidenceQuality", () => {
   test("counts fallback and missing reports, treating any non-LLM source as fallback", () => {
     const sessions = [
       session({ report: { report_source: "fallback" } }),
-      session({ id: "2", report: { report_source: "deterministic" } }),
-      session({ id: "3", report: { report_source: "llm" } }),
-      session({ id: "4", report: null }),
+      session({ id: 2, report: { report_source: "deterministic" } }),
+      session({ id: 3, report: { report_source: "llm" } }),
+      session({ id: 4, report: null }),
     ];
     const eq = computeEvidenceQuality(sessions);
     expect(eq.fallbackReports).toBe(2);
@@ -210,20 +210,20 @@ describe("buildReviewSegments", () => {
   test("maps spikes to question text, date, and score; sorts newest first", () => {
     const sessions = [
       session({
-        id: "1",
+        id: 1,
         date: "Jan 5, 2026",
         responses: [response({ question: "Q1?" })],
         spikes: [{ questionIndex: 0, label: "Confidence high", emotion: "sad", intensity: 88, type: "modality_alert" }],
       }),
       session({
-        id: "2",
+        id: 2,
         date: "Feb 5, 2026",
         responses: [response({ question: "Q2?" })],
         spikes: [{ questionIndex: 0, label: "Transition", emotion: "angry", intensity: 70 }],
       }),
     ];
     const segments = buildReviewSegments(sessions);
-    expect(segments.map((seg) => seg.sessionId)).toEqual(["2", "1"]);
+    expect(segments.map((seg) => seg.sessionId)).toEqual([2, 1]);
     expect(segments[1].question).toBe("Q1?");
     expect(segments[1].score).toBe(88);
     expect(segments[1].type).toBe("modality_alert");

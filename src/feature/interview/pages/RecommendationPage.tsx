@@ -19,7 +19,7 @@ interface ResultData {
 }
 
 // Simulated recommendation based on risk level
-const RISK_LEVEL = "Moderate";
+const RISK_LEVEL: string = "Moderate";
 const INDICATORS = ["Sadness", "Mild anxiety"];
 
 const RECOMMENDATIONS: Record<string, { heading: string; color: string; steps: { icon: typeof Heart; title: string; desc: string }[] }> = {
