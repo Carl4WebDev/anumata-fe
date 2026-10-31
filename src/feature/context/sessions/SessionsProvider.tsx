@@ -25,10 +25,12 @@
  * - Consumer: sessionReview/pages/SessionReviewPage.tsx
  */
 import { useState, useCallback, useMemo, useEffect } from "react";
+import { INTERVIEW_UPDATE_EVENT } from "../../../shared/hooks/useNotifications";
 import { SessionsContext } from "./SessionsContext";
 import { sessionsApi } from "../../../shared/api/sessionsApi";
 import { ApiError } from "../../../shared/api/httpClient";
 import type { Session, MappedSession } from "../../../shared/types/session";
+import { optimistic, patchItems } from "../../../shared/utils/optimistic";
 
 /**
  * CRITICAL TRANSFORMATION: Session → MappedSession
@@ -95,6 +97,11 @@ function mapSession(s: Session): MappedSession {
       facial_details: t.facial_details ?? null,
       audio_details: t.audio_details ?? null,
       text_analysis: t.text_analysis ?? null,
+      fusion_confidence: t.fusion_confidence ?? null,
+      fusion_agreement: t.fusion_agreement ?? null,
+      audio_duration: t.audio_duration ?? null,
+      rms_level: t.rms_level ?? null,
+      is_silence: t.is_silence ?? null,
       frame_image: t.frame_image ?? null,
       evidence_frames: t.evidence_frames ?? null,
     })),
@@ -105,17 +112,23 @@ function mapSession(s: Session): MappedSession {
   };
 }
 
+/** All of the therapist's sessions, mapped for the UI. */
+async function loadAllSessions(): Promise<MappedSession[]> {
+  const res = await sessionsApi.getAll();
+  return res.data.map(mapSession);
+}
+
 export const SessionsProvider = ({ children }: { children: React.ReactNode }) => {
   const [sessions, setSessions] = useState<MappedSession[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Start as loading: the first fetch begins on mount, so never flash an empty list.
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchSessions = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await sessionsApi.getAll();
-      setSessions(res.data.map(mapSession));
+      setSessions(await loadAllSessions());
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Failed to load sessions";
       setError(message);
@@ -127,6 +140,15 @@ export const SessionsProvider = ({ children }: { children: React.ReactNode }) =>
   useEffect(() => {
     fetchSessions();
   }, [fetchSessions]);
+
+  // New interview results arrived (see NotificationBell): quietly refresh.
+  useEffect(() => {
+    const onUpdate = () => {
+      loadAllSessions().then(setSessions, () => {});
+    };
+    window.addEventListener(INTERVIEW_UPDATE_EVENT, onUpdate);
+    return () => window.removeEventListener(INTERVIEW_UPDATE_EVENT, onUpdate);
+  }, []);
 
   const getSessionById = useCallback((id: number) => {
     return sessions.find((s) => s.id === id) ?? null;
@@ -146,13 +168,12 @@ export const SessionsProvider = ({ children }: { children: React.ReactNode }) =>
 
   const updateNotes = useCallback(async (sessionId: number, notes: string) => {
     try {
-      await sessionsApi.updateNotes(sessionId, notes);
-      setSessions((prev) =>
-        prev.map((s) => (s.id === sessionId ? { ...s, notes } : s))
+      await optimistic(setSessions, patchItems((s: MappedSession) => s.id === sessionId, { notes }), () =>
+        sessionsApi.updateNotes(sessionId, notes),
       );
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Failed to update notes";
-      setError(message);
+      setError(`${message} — your last saved notes were restored.`);
     }
   }, []);
 

@@ -9,6 +9,9 @@ export interface FollowUp {
   appointment_time: string | null;
   reason: string | null;
   status: "recommended" | "scheduled" | "completed" | "cancelled" | "missed";
+  /** Scheduled appointment booked from this follow-up; it then drives status/date/time. */
+  appointment_id: number | null;
+  appointment_start_at: string | null;
   patient_name?: string;
   created_at: string;
   updated_at: string;
@@ -18,6 +21,8 @@ export interface FollowUpCounts {
   upcoming: number;
   due_today: number;
   overdue: number;
+  completed: number;
+  cancelled_or_missed: number;
 }
 
 export const followUpsApi = {

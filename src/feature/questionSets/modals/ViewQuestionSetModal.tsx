@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { questionSetsApi } from "../../../shared/api/questionSetsApi";
+import { Skeleton } from "../../../shared/components/Skeleton";
 
 interface Props {
   isOpen: boolean;
@@ -70,7 +71,14 @@ export default function ViewQuestionSetModal({ isOpen, onClose, questionSet }: P
         </div>
 
         {loading ? (
-          <div className="py-8 text-center text-sm text-slate-400">Loading questions...</div>
+          <div className="space-y-3" role="status">
+            <span className="sr-only">Loading questions…</span>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="rounded-xl border-l-4 border-slate-200 bg-slate-50 p-4">
+                <Skeleton className="h-4 w-5/6" />
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="space-y-3">
             {displayQuestions.map((q, i) => (

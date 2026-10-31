@@ -17,6 +17,21 @@ export interface AudioDetails {
   speech_rate: string;
   pitch_variability: string;
   description: string;
+  // Measured from the answer's recording (sessions analysed after voice measurement was added).
+  pitch_min_hz?: number;
+  pitch_max_hz?: number;
+  pitch_std_semitones?: number;
+  loudness_db?: number;
+  words_per_minute?: number | null;
+  pause_count?: number;
+  longest_pause_s?: number;
+  response_delay_s?: number;
+  speaking_time_s?: number;
+  /** The patient's usual voice this session (medians across answers). */
+  baseline?: { pitch_mean_hz: number | null; loudness_db: number | null; words_per_minute: number | null };
+  pitch_vs_usual_pct?: number | null;
+  loudness_vs_usual_db?: number | null;
+  pace_vs_usual_pct?: number | null;
 }
 
 export interface InterviewResponse {
@@ -106,7 +121,7 @@ export interface Session {
     areas_for_attention?: string[];
     evidence_quality?: { fer?: string; ser?: string; ler?: string; overall?: string };
     limitations?: string[];
-    report_source?: "llm" | "fallback";
+    report_source?: "llm" | "fallback" | "deterministic";
   } | null;
   notes: string;
   created_at: string;
@@ -149,6 +164,13 @@ export interface MappedSession {
     facial_details: FacialDetails | null;
     audio_details: AudioDetails | null;
     text_analysis: any | null;
+    /** Fused prediction confidence (0-1). Null when the pipeline stored no fusion score. */
+    fusion_confidence: number | null;
+    /** Modality agreement percentage (100 / 66.67 / 33.33). Null when fusion did not run. */
+    fusion_agreement: number | null;
+    audio_duration: number | null;
+    rms_level: number | null;
+    is_silence: boolean | null;
     frame_image: string | null;
     evidence_frames: {
       frame_image: string;
@@ -171,7 +193,7 @@ export interface MappedSession {
     areas_for_attention?: string[];
     evidence_quality?: { fer?: string; ser?: string; ler?: string; overall?: string };
     limitations?: string[];
-    report_source?: "llm" | "fallback";
+    report_source?: "llm" | "fallback" | "deterministic";
   } | null;
 }
 

@@ -77,7 +77,7 @@ export default function LandingPage() {
               A
             </div>
             <div>
-              <h1 className="text-lg font-bold text-slate-900">Anumata</h1>
+              <h1 className="text-lg font-bold text-slate-900">Amumata</h1>
               <p className="hidden text-xs text-slate-500 sm:block">AI-assisted emotional pre-evaluation</p>
             </div>
           </Link>
@@ -111,7 +111,7 @@ export default function LandingPage() {
               <span className="text-teal-600">for therapists</span>.
             </h1>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-slate-600 md:text-lg">
-              Anumata guides clients through standardized therapist-informed questions, records their
+              Amumata guides clients through standardized therapist-informed questions, records their
               responses, analyzes facial expressions, speech emotion, and language-based emotional cues,
               and generates structured pre-evaluation insights for therapist review.
             </p>
@@ -182,7 +182,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl px-4 py-16 md:px-8 md:py-24">
           <div className="mb-12 text-center">
             <h2 className="text-2xl font-bold text-slate-900 md:text-3xl">Core Flow</h2>
-            <p className="mt-3 text-slate-500">How Anumata works from interview setup to therapist review.</p>
+            <p className="mt-3 text-slate-500">How Amumata works from interview setup to therapist review.</p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -232,7 +232,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* What Anumata Outputs */}
+      {/* What Amumata Outputs */}
       <section className="border-y border-slate-200 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-16 md:px-8 md:py-24">
           <div className="grid items-center gap-12 lg:grid-cols-2">
@@ -241,7 +241,7 @@ export default function LandingPage() {
                 Not a diagnosis. A head start.
               </h2>
               <p className="mt-4 text-base leading-relaxed text-slate-600">
-                Anumata does not provide clinical diagnoses. It detects emotional indicators,
+                Amumata does not provide clinical diagnoses. It detects emotional indicators,
                 flags spikes, and generates AI-assisted guidance for the therapist to review — so
                 the first real session starts with structured data, not cold questions.
               </p>
@@ -328,7 +328,7 @@ export default function LandingPage() {
           <div className="rounded-2xl border border-orange-200 bg-orange-50 p-6 md:p-8">
             <h3 className="mb-2 font-semibold text-orange-800">Important Disclaimer</h3>
             <p className="text-sm leading-relaxed text-orange-700">
-              Anumata is an AI-assisted emotional pre-evaluation tool designed to support — not replace
+              Amumata is an AI-assisted emotional pre-evaluation tool designed to support — not replace
               — qualified mental health professionals. It does not provide clinical diagnosis. Results
               are preliminary emotional indicators intended for professional review and interpretation.
               This system was designed with RA 10173 (Data Privacy Act of 2012) in mind. Client data is
@@ -345,7 +345,7 @@ export default function LandingPage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500 text-sm font-bold text-white">
               A
             </div>
-            <span className="text-sm font-medium text-slate-700">Anumata</span>
+            <span className="text-sm font-medium text-slate-700">Amumata</span>
           </div>
           <p className="text-center text-xs text-slate-400">
             AI-Assisted Emotional State Pre-Evaluation System &bull; Davao City &bull; 2026

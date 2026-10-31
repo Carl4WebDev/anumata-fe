@@ -5,7 +5,7 @@ import AddQuestionSetModal from "../modals/AddQuestionSetModal";
 import EditQuestionSetModal from "../modals/EditQuestionSetModal";
 import ViewQuestionSetModal from "../modals/ViewQuestionSetModal";
 import AiQuestionSetBuilderModal from "../modals/AiQuestionSetBuilderModal";
-import LoadingSpinner from "../../../shared/components/LoadingSpinner";
+import { ListPageSkeleton, RowsSkeleton } from "../../../shared/components/Skeleton";
 import EmptyState from "../../../shared/components/EmptyState";
 import { useToast } from "../../../shared/context/ToastContext";
 import { questionSetsApi } from "../../../shared/api/questionSetsApi";
@@ -200,8 +200,7 @@ export default function QuestionSetsPage() {
 
   // Question set handlers
   const handleDeleteSet = async (id: number, name: string) => {
-    await removeQuestionSet(id);
-    success(`"${name}" deleted.`);
+    if (await removeQuestionSet(id)) success(`"${name}" deleted.`);
   };
 
   const handleSave = async (data: Parameters<typeof addQuestionSet>[0]) => {
@@ -218,7 +217,7 @@ export default function QuestionSetsPage() {
   };
 
   if (loading) {
-    return <LoadingSpinner message="Loading templates..." />;
+    return <ListPageSkeleton label="Loading templates…" />;
   }
 
   return (
@@ -508,7 +507,7 @@ function StandardizedQuestionsTab({
   onToggle: (q: SelectedQuestion) => void;
   onToggleCategory: (category: string, questions: StandardizedQuestion[]) => void;
 }) {
-  if (loading) return <LoadingSpinner message="Loading standardized questions..." />;
+  if (loading) return <RowsSkeleton rows={5} />;
 
   const grouped = questions.reduce<Record<string, StandardizedQuestion[]>>((acc, q) => {
     if (!acc[q.category]) acc[q.category] = [];
@@ -645,7 +644,7 @@ function CustomQuestionsTab({
   onDeactivate: (id: number) => void;
   onDelete: (id: number) => void;
 }) {
-  if (loading) return <LoadingSpinner message="Loading custom questions..." />;
+  if (loading) return <RowsSkeleton rows={4} />;
 
   return (
     <div className="space-y-4">

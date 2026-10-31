@@ -6,6 +6,7 @@ import { useToast } from "../../../shared/context/ToastContext";
 import { fetchSystemHealth, type SystemHealth } from "../../../shared/api/healthApi";
 import Avatar from "../../../shared/components/Avatar";
 import AIModelGuide from "../components/AIModelGuide";
+import ChangePasswordModal from "../components/ChangePasswordModal";
 
 type ComponentStatus = "ready" | "not_ready" | "checking";
 
@@ -147,6 +148,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   // Health state
   const [health, setHealth] = useState<SystemHealth | null>(null);
@@ -476,7 +478,10 @@ export default function SettingsPage() {
               <h2 className="text-base font-semibold text-slate-900">Security</h2>
             </div>
             <div className="space-y-3">
-              <button className="flex w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+              <button
+                onClick={() => setShowChangePassword(true)}
+                className="flex w-full items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
                 <Lock size={16} className="text-slate-400" />
                 Change Password
               </button>
@@ -525,7 +530,7 @@ export default function SettingsPage() {
             <h2 className="mb-4 text-base font-semibold text-slate-900">System Info</h2>
             <div className="space-y-3 text-sm">
               {[
-                { label: "System", value: "Anumata v1.0" },
+                { label: "System", value: "Amumata v1.0" },
                 { label: "FER", value: "EfficientNet-B0 (4-class)" },
                 { label: "SER", value: "Wav2Vec2 (4-class)" },
                 { label: "LER", value: "XLM-RoBERTa (4-class)" },
@@ -546,7 +551,7 @@ export default function SettingsPage() {
           <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 md:p-5">
             <h3 className="mb-2 text-sm font-semibold text-orange-800">Disclaimer</h3>
             <p className="text-xs leading-relaxed text-orange-700">
-              Anumata is an AI-assisted pre-evaluation tool. It does not provide clinical
+              Amumata is an AI-assisted pre-evaluation tool. It does not provide clinical
               diagnoses. All outputs require interpretation by a licensed mental health
               professional.
             </p>
@@ -571,6 +576,17 @@ export default function SettingsPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
         <AIModelGuide />
       </section>
+
+      {showChangePassword && (
+        <ChangePasswordModal
+          context={{ email: profile?.email, names: [profile?.f_name, profile?.m_name, profile?.l_name] }}
+          onClose={() => setShowChangePassword(false)}
+          onChanged={() => {
+            setShowChangePassword(false);
+            success("Password changed. Use your new password next time you log in.");
+          }}
+        />
+      )}
     </div>
   );
 }

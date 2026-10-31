@@ -100,7 +100,7 @@ export interface SessionData {
     areas_for_attention?: string[];
     evidence_quality?: { fer?: string; ser?: string; ler?: string; overall?: string };
     limitations?: string[];
-    report_source?: "llm" | "fallback";
+    report_source?: "llm" | "fallback" | "deterministic";
   } | null;
   notes: string | null;
   created_at: string;

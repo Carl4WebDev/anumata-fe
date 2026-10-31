@@ -44,7 +44,16 @@ export const authApi = {
     return httpClient.post<LoginResponse>("/api/auth/login", { email, password });
   },
 
-  register(data: { email: string; password: string; f_name: string; m_name?: string; l_name: string }) {
+  register(data: {
+    email: string;
+    password: string;
+    f_name: string;
+    m_name?: string;
+    l_name: string;
+    /** User Consent and Agreement Validation — required by the server. */
+    accepted_terms: boolean;
+    terms_version: string;
+  }) {
     return httpClient.post<RegisterResponse>("/api/auth/register", data);
   },
 

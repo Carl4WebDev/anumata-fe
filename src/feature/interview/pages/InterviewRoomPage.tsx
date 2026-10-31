@@ -7,23 +7,28 @@ import {
   MicOff,
   SkipForward,
   StopCircle,
-  Loader2,
   Volume2,
   VolumeX,
   RotateCcw,
   MessageCircle,
+  Check,
+  Hand,
+  Send,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
 } from "lucide-react";
 import { interviewLinksApi } from "../../../shared/api/interviewLinksApi";
-import { translateQuestion } from "../../../shared/api/translateApi";
+import { translateQuestion, type QuestionLanguage } from "../../../shared/api/translateApi";
 import { storeFiles } from "../../../shared/utils/fileStorage";
-import WaveVisualizer from "../components/WaveVisualizer";
+import { emotionApi } from "../../../shared/api/emotionApi";
+import { addStagedNames, clearStagedNames } from "../../../shared/utils/earlyUpload";
 import { useTTS } from "../hooks/useTTS";
 import {
   detectRapportCategory,
   detectResponseLanguage,
   pickAcknowledgment,
   fillName,
-  languageLabel,
   TTS_LOCALE,
   INTRO_LINES,
   RAPPORT_QUESTIONS,
@@ -31,7 +36,11 @@ import {
   type LocalizedLine,
   type ResponseLanguage,
 } from "../hooks/rapportUtils";
-import { useAutoProceed } from "../hooks/useAutoProceed";
+import { useLiveCaptions, type CaptionPhrase } from "../hooks/useLiveCaptions";
+import { isExplicitDone, parseVoiceCommand } from "../hooks/voiceCommands";
+import { decideTurn, QUESTION_TIMING, WARMUP_TIMING } from "../hooks/handsFree";
+import { CONVERSATION_LINES, VOICE_TIPS, type ConversationLine } from "../hooks/conversationLines";
+import CaptionPanel from "../components/CaptionPanel";
 
 // Hardcoded fallback questions if token not found
 const FALLBACK_QUESTIONS = [
@@ -52,34 +61,59 @@ type InterviewState =
   | "recording"
   | "finished";
 
+/** Within a voice turn: Amumata talking, listening to the patient, or waiting for a reply to a check-in. */
+type TurnPhase = "preparing" | "speaking" | "listening" | "confirming" | "busy";
+
+// Longest the patient waits for a question's translation before it's asked in English.
+const TRANSLATION_WAIT_MS = 2500;
+
+/** What Amumata is currently saying, for the prompt card. */
+type AiPrompt =
+  | { kind: "localized"; line: LocalizedLine; primary: ResponseLanguage | "all" }
+  | { kind: "text"; main: string; sub?: string };
+
+const TICK_MS = 500;
+
+// Face photos are shrunk to this size before upload (keeps the database small).
+const FRAME_MAX_SIDE = 640;
+const FRAME_JPEG_QUALITY = 0.7;
+
 /**
- * Prompt bubble text. Before the patient's language is known, show all three
- * so the patient can read theirs; after, lead with their language + English.
+ * Prompt text. Before the patient's language is known, show all three so the
+ * patient can read theirs; after, lead with their language + English.
  */
-function LocalizedBubble({
-  line,
-  primary,
-}: {
-  line: LocalizedLine;
-  primary: ResponseLanguage | "all";
-}) {
+function LocalizedBubble({ line, primary }: { line: LocalizedLine; primary: ResponseLanguage | "all" }) {
   const [main, ...rest] =
-    primary === "all"
-      ? [line.en, line.tl, line.ceb]
-      : primary === "en"
-        ? [line.en]
-        : [line[primary], line.en];
+    primary === "all" ? [line.en, line.tl, line.ceb] : primary === "en" ? [line.en] : [line[primary], line.en];
   return (
     <>
       <span>{main}</span>
       {rest.map((text) => (
-        <span key={text} className="mt-2 block text-sm font-normal text-slate-300">
+        <span key={text} className="mt-2 block text-sm font-normal text-slate-400">
           {text}
         </span>
       ))}
     </>
   );
 }
+
+/** "Moving on in 3…" — ticks down to the automatic next question. */
+function MoveOnCountdown({ until }: { until: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, []);
+  const seconds = Math.max(0, Math.ceil((until - now) / 1000));
+  return (
+    <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-center text-sm font-medium text-amber-200" role="timer">
+      {seconds > 0 ? `Moving on in ${seconds}… keep talking to continue your answer` : "Moving on…"}
+    </p>
+  );
+}
+
+const formatTime = (seconds: number) =>
+  `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 
 export default function InterviewRoom() {
   const { token } = useParams();
@@ -95,89 +129,97 @@ export default function InterviewRoom() {
   const capturedAudioRef = useRef<Map<number, Blob>>(new Map());
   const frameIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const [questions, setQuestions] = useState<string[]>([]);
   const [patientName, setPatientName] = useState("");
   const [templateName, setTemplateName] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [state, setState] = useState<InterviewState>("idle");
+  const [phase, setPhase] = useState<TurnPhase>("speaking");
+  const [moveOnAt, setMoveOnAt] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [cameraError, setCameraError] = useState("");
   const [linkValid, setLinkValid] = useState(true);
-  const [responses, setResponses] = useState<{ question: string; answer: string }[]>([]);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [rapportResponses, setRapportResponses] = useState<
-    { question: string; answer: string; acknowledgment: string }[]
-  >([]);
-  const [rapportQuestionIndex, setRapportQuestionIndex] = useState(0);
-  const [rapportInput, setRapportInput] = useState("");
-  // "waiting" = Amumata speaking (or not yet done), "ready" = patient may speak,
-  // "reviewing" = transcript captured, patient confirms/edits before submit.
-  const [voicePhase, setVoicePhase] = useState<"waiting" | "ready" | "reviewing">("waiting");
-  const [autoProceedEnabled, setAutoProceedEnabled] = useState(true);
-  // Patient's base language — learned from their first response, then used for
-  // question wording, acknowledgments, and TTS voice.
+  const [rapportResponses, setRapportResponses] = useState<{ question: string; answer: string; acknowledgment: string }[]>([]);
+  const [typedAnswer, setTypedAnswer] = useState("");
+  const [handsFree, setHandsFree] = useState(true);
+  const [controlsOpen, setControlsOpen] = useState(true);
+  const [aiPrompt, setAiPrompt] = useState<AiPrompt | null>(null);
+  // A short line Amumata says between prompts (check-in, "take your time"…).
+  const [spokenLine, setSpokenLine] = useState<ConversationLine | null>(null);
+  // Patient's base language — learned from their first answer, then used for
+  // question wording, check-ins, acknowledgments, and the TTS voice.
   const [detectedLang, setDetectedLang] = useState<ResponseLanguage>("en");
   const [langDetected, setLangDetected] = useState(false);
-  // What the question card shows: translation first, English underneath.
-  const [questionDisplay, setQuestionDisplay] = useState<{ main: string; sub?: string } | null>(null);
 
-  const tts = useTTS();
-
-  // Ask the question in the patient's language once known; before that, speak
-  // English and show all three languages so the patient can pick theirs.
-  const questionText = (q: LocalizedLine, lang: ResponseLanguage) =>
-    lang === "en" ? q.en : q[lang];
-
-  // Submit a rapport answer and speak the acknowledgment next (rapport_chat).
-  const submitRapportAnswer = (text: string, lang: ResponseLanguage) => {
-    const acknowledgment = pickAcknowledgment(
-      detectRapportCategory(text),
-      lang,
-      rapportResponses.length
-    );
-    setRapportResponses((prev) => [
-      ...prev,
-      { question: questionText(RAPPORT_QUESTIONS[rapportQuestionIndex], lang), answer: text, acknowledgment },
-    ]);
-    setRapportInput("");
-    setVoicePhase("waiting");
-    setState("rapport_chat");
-  };
-
-  // Whisper capture for both modes. Auto = submit when transcription lands.
-  // Manual = show the transcript for review before sending.
-  const autoProceed = useAutoProceed({
-    stream: streamRef.current,
-    onTranscript: (text: string, whisperLang: string) => {
-      const lang = detectResponseLanguage(text, whisperLang);
-      setDetectedLang(lang);
-      setLangDetected(true);
-      if (autoProceedEnabled) {
-        submitRapportAnswer(text, lang);
-      } else {
-        setRapportInput(text);
-        setVoicePhase("reviewing");
-      }
-    },
-    onError: () => {
-      setVoicePhase("ready");
-    },
-    enabled: true,
+  // Latest values for the async conversation flow (which outlives renders).
+  const stateRef = useRef(state);
+  const phaseRef = useRef<TurnPhase>("speaking");
+  const langRef = useRef<ResponseLanguage>("en");
+  const handsFreeRef = useRef(handsFree);
+  const currentIndexRef = useRef(0);
+  const rapportIndexRef = useRef(0);
+  const elapsedRef = useRef(0);
+  const listenSinceRef = useRef(0);
+  const confirmAskedAtRef = useRef<number | null>(null);
+  const turnTextRef = useRef<string[]>([]);
+  const turnLangRef = useRef("");
+  const answersRef = useRef<Map<number, string>>(new Map());
+  const nudgedRef = useRef(false);
+  const flowBusyRef = useRef(false);
+  const questionTransCacheRef = useRef<Map<string, Promise<string | null>>>(new Map());
+  const translationQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const questionsRef = useRef<string[]>([]);
+  const sessionInfoRef = useRef({ patientName, templateName, rapportResponses });
+  useEffect(() => {
+    stateRef.current = state;
+    handsFreeRef.current = handsFree;
+    elapsedRef.current = elapsed;
+    questionsRef.current = questions;
+    sessionInfoRef.current = { patientName, templateName, rapportResponses };
   });
 
-  // Load interview data from API by token
+  const tts = useTTS();
+  const ttsRef = useRef(tts);
+  useEffect(() => {
+    ttsRef.current = tts;
+  });
+
+  const setTurnPhase = (next: TurnPhase) => {
+    phaseRef.current = next;
+    setPhase(next);
+  };
+
+  const updateLanguage = (lang: ResponseLanguage) => {
+    langRef.current = lang;
+    setDetectedLang(lang);
+    setLangDetected(true);
+  };
+
+  // ─── Live captions: every phrase the patient says, steering the turn ───
+  const handlePhraseRef = useRef<(p: CaptionPhrase) => void>(() => {});
+  const captions = useLiveCaptions(stream, {
+    languageHint: langDetected ? detectedLang : undefined,
+    onPhrase: (p) => handlePhraseRef.current(p),
+  });
+  const captionsRef = useRef(captions);
+  useEffect(() => {
+    captionsRef.current = captions;
+  });
+
+  // ─── Interview data ───
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
-
     interviewLinksApi
       .getByToken(token)
       .then((res) => {
         if (cancelled) return;
         const link = res.data;
         const qs = link.questions || [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const questionTexts = qs.map((q: any) => (typeof q === "string" ? q : q.text));
         if (questionTexts.length > 0) {
           setQuestions(questionTexts);
@@ -197,20 +239,18 @@ export default function InterviewRoom() {
         setTemplateName("Demo Template");
         setLinkValid(false);
       });
-
     return () => {
       cancelled = true;
     };
   }, [token]);
 
-  // Start camera/mic
+  // ─── Camera / mic ───
   const startMedia = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+      const media = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      streamRef.current = media;
+      setStream(media);
+      if (videoRef.current) videoRef.current.srcObject = media;
       setCameraError("");
     } catch (err) {
       console.error("Media access error:", err);
@@ -219,54 +259,122 @@ export default function InterviewRoom() {
   }, []);
 
   const stopMedia = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
   }, []);
 
-  // Capture a single frame from the video as a JPEG blob
+  useEffect(() => {
+    startMedia();
+    return () => {
+      stopMedia();
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [startMedia, stopMedia]);
+
+  // Timer runs during the formal interview.
+  useEffect(() => {
+    if (state !== "recording") return;
+    timerRef.current = setInterval(() => setElapsed((prev) => prev + 1), 1000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [state]);
+
+  // Re-attach the stream when the video element remounts (idle → conversation),
+  // only if not already bound — rebinding makes the preview flicker.
+  useEffect(() => {
+    if (streamRef.current && videoRef.current && videoRef.current.srcObject !== streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [state]);
+
+  const toggleCamera = () => {
+    const videoTrack = streamRef.current?.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !cameraOn;
+      setCameraOn(!cameraOn);
+    }
+  };
+
+  const toggleMic = () => {
+    const audioTrack = streamRef.current?.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !micOn;
+      setMicOn(!micOn);
+    }
+  };
+
+  const micOnRef = useRef(micOn);
+  useEffect(() => {
+    micOnRef.current = micOn;
+  });
+
+  // The mic is muted while Amumata speaks so her voice is never captioned or
+  // analysed as the patient's; it returns to the patient's own mute choice after.
+  const setMicTrack = useCallback((enabled: boolean) => {
+    const audioTrack = streamRef.current?.getAudioTracks()[0];
+    if (audioTrack) audioTrack.enabled = enabled && micOnRef.current;
+  }, []);
+
+  const speakWithMicControl = useCallback(
+    async (text: string, lang?: ResponseLanguage) => {
+      setMicTrack(false);
+      captionsRef.current.suspend(true);
+      try {
+        await ttsRef.current.speak(text, lang ? TTS_LOCALE[lang] : undefined);
+      } finally {
+        setMicTrack(true);
+        captionsRef.current.suspend(false);
+      }
+    },
+    [setMicTrack],
+  );
+
+  // ─── Media capture for analysis (unchanged behaviour) ───
   const captureFrame = useCallback((): Blob | null => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return null;
-
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    // Shrink before saving: the face detector needs far less than full camera resolution.
+    const width = video.videoWidth || 640;
+    const height = video.videoHeight || 480;
+    const scale = Math.min(1, FRAME_MAX_SIDE / Math.max(width, height));
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
-
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    const dataUrl = canvas.toDataURL("image/jpeg", FRAME_JPEG_QUALITY);
     const byteString = atob(dataUrl.split(",")[1]);
     const ab = new ArrayBuffer(byteString.length);
     const ia = new Uint8Array(ab);
-    for (let i = 0; i < byteString.length; i++) {
-      ia[i] = byteString.charCodeAt(i);
-    }
+    for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
     return new Blob([ab], { type: "image/jpeg" });
   }, []);
 
-  // Start audio recording for the current question
+  const keepFrame = useCallback(
+    (index: number) => {
+      const frame = captureFrame();
+      if (!frame) return;
+      const existing = capturedFramesRef.current.get(index) || [];
+      existing.push(frame);
+      capturedFramesRef.current.set(index, existing);
+    },
+    [captureFrame],
+  );
+
   const startAudioRecording = useCallback(() => {
-    if (!streamRef.current || !micOn) return;
-
-    const audioTracks = streamRef.current.getAudioTracks();
+    const audioTracks = streamRef.current?.getAudioTracks() ?? [];
     if (audioTracks.length === 0) return;
-
-    const audioStream = new MediaStream(audioTracks);
-    const recorder = new MediaRecorder(audioStream, { mimeType: "audio/webm" });
+    const recorder = new MediaRecorder(new MediaStream(audioTracks), { mimeType: "audio/webm" });
     audioChunksRef.current = [];
-
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) audioChunksRef.current.push(e.data);
     };
-
     recorder.start();
     mediaRecorderRef.current = recorder;
-  }, [micOn]);
+  }, []);
 
-  // Stop audio recording and return blob
   const stopAudioRecording = useCallback((): Promise<Blob | null> => {
     return new Promise((resolve) => {
       const recorder = mediaRecorderRef.current;
@@ -274,7 +382,6 @@ export default function InterviewRoom() {
         resolve(null);
         return;
       }
-
       recorder.onstop = () => {
         if (audioChunksRef.current.length === 0) {
           resolve(null);
@@ -284,269 +391,17 @@ export default function InterviewRoom() {
         audioChunksRef.current = [];
         resolve(blob);
       };
-
       recorder.stop();
       mediaRecorderRef.current = null;
     });
   }, []);
 
-  // Initialize camera on mount
-  useEffect(() => {
-    startMedia();
-    return () => {
-      stopMedia();
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [startMedia, stopMedia]);
-
-  // Timer
-  useEffect(() => {
-    if (state === "recording") {
-      timerRef.current = setInterval(() => {
-        setElapsed((prev) => prev + 1);
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [state]);
-
-  // Re-attach the stream to the (re-mounted) video element when the screen
-  // changes, but only if it isn't already bound — reassigning the same stream on
-  // every state flip forces the preview to reinitialize and flicker.
-  useEffect(() => {
-    if (streamRef.current && videoRef.current && videoRef.current.srcObject !== streamRef.current) {
-      videoRef.current.srcObject = streamRef.current;
-    }
-  }, [state]);
-
-  // Toggle camera
-  const toggleCamera = () => {
-    if (streamRef.current) {
-      const videoTrack = streamRef.current.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !cameraOn;
-        setCameraOn(!cameraOn);
-      }
-    }
-  };
-
-  // Toggle mic
-  const toggleMic = () => {
-    if (streamRef.current) {
-      const audioTrack = streamRef.current.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !micOn;
-        setMicOn(!micOn);
-      }
-    }
-  };
-
-  // Disable mic audio track (for TTS playback)
-  const disableMicTrack = useCallback(() => {
-    if (streamRef.current) {
-      const audioTrack = streamRef.current.getAudioTracks()[0];
-      if (audioTrack) audioTrack.enabled = false;
-    }
-  }, []);
-
-  // Enable mic audio track
-  const enableMicTrack = useCallback(() => {
-    if (streamRef.current) {
-      const audioTrack = streamRef.current.getAudioTracks()[0];
-      if (audioTrack) audioTrack.enabled = true;
-    }
-  }, []);
-
-  // Speak with mic control — disables mic during TTS, re-enables after
-  // Hold the latest tts in a ref so speakWithMicControl keeps a stable identity.
-  // useTTS() returns a fresh object every render; depending on it directly would
-  // recreate this callback each render, re-firing every effect that advances the
-  // interview (the flicker + repeated synth.cancel that silenced the first question).
-  const ttsRef = useRef(tts);
-  useEffect(() => {
-    ttsRef.current = tts;
-  });
-
-  const speakWithMicControl = useCallback(
-    async (text: string, lang?: ResponseLanguage) => {
-      disableMicTrack();
-      try {
-        await ttsRef.current.speak(text, lang ? TTS_LOCALE[lang] : undefined);
-      } finally {
-        enableMicTrack();
-      }
-    },
-    [disableMicTrack, enableMicTrack]
-  );
-
-  // Guards so each prompt advances the interview exactly once. Keyed refs (not
-  // reset-on-change) stay correct under React Strict Mode, which double-invokes
-  // effects: without these a stale .then() runs setRapportQuestionIndex twice.
-  const ranIntroRef = useRef(false);
-  const ackedCountRef = useRef(0);
-
-  // Latest values for the flow effects below. Language can change while an
-  // effect is waiting on TTS (manual review), so read it through the ref —
-  // putting it in deps would re-speak the question mid-answer.
-  const autoProceedRef = useRef(autoProceed);
-  const detectedLangRef = useRef(detectedLang);
-  useEffect(() => {
-    autoProceedRef.current = autoProceed;
-    detectedLangRef.current = detectedLang;
-  });
-
-  // Rapport flow state machine
-  useEffect(() => {
-    if (state === "rapport_intro" && !ranIntroRef.current) {
-      ranIntroRef.current = true;
-      speakWithMicControl(fillName(INTRO_LINES.en, patientName)).then(() => {
-        setState("rapport_wait");
-      });
-    }
-  }, [state, patientName, speakWithMicControl]);
-
-  useEffect(() => {
-    if (state === "rapport_wait") {
-      // Never listen while Amumata is speaking. Reset clears stale transcript.
-      autoProceedRef.current.cancel();
-      setVoicePhase("waiting");
-      const lang = detectedLangRef.current;
-      speakWithMicControl(questionText(RAPPORT_QUESTIONS[rapportQuestionIndex], lang), lang).then(() => {
-        autoProceedRef.current.startListening();
-        setVoicePhase("ready");
-      });
-    }
-  }, [state, rapportQuestionIndex, speakWithMicControl]);
-
-  useEffect(() => {
-    if (state === "rapport_chat" && rapportResponses.length > ackedCountRef.current) {
-      ackedCountRef.current = rapportResponses.length;
-      const lastResponse = rapportResponses[rapportResponses.length - 1];
-      if (lastResponse) {
-        speakWithMicControl(lastResponse.acknowledgment, detectedLangRef.current).then(() => {
-          if (rapportQuestionIndex < RAPPORT_QUESTIONS.length - 1) {
-            setRapportQuestionIndex((i) => i + 1);
-            setState("rapport_wait");
-          } else {
-            setState("permission_wait");
-          }
-        });
-      }
-    }
-  }, [state, rapportResponses, rapportQuestionIndex, speakWithMicControl]);
-
-  useEffect(() => {
-    if (state === "permission_wait") {
-      const lang = detectedLangRef.current;
-      speakWithMicControl(PERMISSION_LINES[lang], lang);
-    }
-  }, [state, speakWithMicControl]);
-
-  // Patient clicks mic to speak again (overrides auto-proceed)
-  const handleStartListening = () => {
-    if (tts.isSpeaking) return;
-    autoProceed.cancel();
-    tts.stop();
-    setRapportInput("");
-    setVoicePhase("ready");
-    autoProceed.startListening();
-  };
-
-  // Patient stops recording manually — audio so far is still transcribed
-  const handleStopListening = () => {
-    autoProceed.stopListening();
-  };
-
-  // Retry: clear transcript and listen again
-  const handleRetryVoice = () => {
-    autoProceed.cancel();
-    setRapportInput("");
-    setVoicePhase("ready");
-    autoProceed.startListening();
-  };
-
-  // Submit rapport response (typed, or edited transcript — overrides auto-proceed)
-  const handleRapportSubmit = () => {
-    const text = rapportInput.trim();
-    if (!text) return;
-    autoProceed.cancel();
-    const lang = detectResponseLanguage(text);
-    setDetectedLang(lang);
-    setLangDetected(true);
-    submitRapportAnswer(text, lang);
-  };
-
-  // Skip rapport, go straight to formal interview
-  const handleSkipRapport = () => {
-    autoProceed.cancel();
-    tts.stop();
-    setVoicePhase("waiting");
-    setState("permission_wait");
-  };
-
-  // Ask a formal question in the patient's language. Translation is an
-  // enhancement via the AI service — on any failure the English original is
-  // shown and spoken, so the interview never depends on the translator.
-  const questionTransCacheRef = useRef<Map<string, string>>(new Map());
-  const askQuestion = async (index: number) => {
-    const original = questions[index];
-    if (!original) return;
-    const lang = detectedLangRef.current;
-    setQuestionDisplay({ main: original });
-    if (lang === "en") {
-      await speakWithMicControl(original);
-      return;
-    }
-    const cacheKey = `${lang}|${original}`;
-    let translated = questionTransCacheRef.current.get(cacheKey) ?? null;
-    if (!translated) {
-      translated = await translateQuestion(original, lang);
-      if (translated) questionTransCacheRef.current.set(cacheKey, translated);
-    }
-    if (translated) {
-      setQuestionDisplay({ main: translated, sub: original });
-      await speakWithMicControl(translated, lang);
-    } else {
-      await speakWithMicControl(original);
-    }
-  };
-
-  // Start formal interview from permission_wait or idle
-  const handleStartInterview = () => {
-    autoProceed.cancel();
-    tts.stop();
-    setState("recording");
-    setElapsed(0);
-    setResponses([]);
-    capturedFramesRef.current.clear();
-    capturedAudioRef.current.clear();
-    setTimeout(() => {
-      startAudioRecording();
-      startFrameCapture();
-      // Ask the first question in the patient's language
-      askQuestion(0);
-    }, 200);
-  };
-
-  // Start frame capture interval
   const startFrameCapture = useCallback(() => {
     if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
-    const doCapture = () => {
-      const frame = captureFrame();
-      if (frame) {
-        const existing = capturedFramesRef.current.get(currentIndex) || [];
-        existing.push(frame);
-        capturedFramesRef.current.set(currentIndex, existing);
-      }
-    };
-    doCapture();
-    frameIntervalRef.current = setInterval(doCapture, 3000);
-  }, [currentIndex, captureFrame]);
+    keepFrame(currentIndexRef.current);
+    frameIntervalRef.current = setInterval(() => keepFrame(currentIndexRef.current), 3000);
+  }, [keepFrame]);
 
-  // Stop frame capture interval
   const stopFrameCapture = useCallback(() => {
     if (frameIntervalRef.current) {
       clearInterval(frameIntervalRef.current);
@@ -554,135 +409,456 @@ export default function InterviewRoom() {
     }
   }, []);
 
-  // Next question
-  const handleNext = async () => {
-    if (analyzing) return;
-    setAnalyzing(true);
+  useEffect(() => () => stopFrameCapture(), [stopFrameCapture]);
 
+  // ─── Conversation building blocks ───
+
+  /** Amumata says something; the patient is not listened to meanwhile. */
+  const say = async (text: string, lang?: ResponseLanguage) => {
+    setTurnPhase("speaking");
+    await speakWithMicControl(text, lang);
+  };
+
+  const sayLine = (line: ConversationLine) => {
+    const lang = langRef.current;
+    setSpokenLine(line);
+    return say(CONVERSATION_LINES[line][lang], lang);
+  };
+
+  /** Start a new turn: fresh captions and answer for the next prompt. */
+  const newTurn = () => {
+    captionsRef.current.newTurn();
+    turnTextRef.current = [];
+    turnLangRef.current = "";
+    confirmAskedAtRef.current = null;
+  };
+
+  /** Listen to the patient (again); silence is counted from now. */
+  const listen = () => {
+    listenSinceRef.current = Date.now();
+    confirmAskedAtRef.current = null;
+    setSpokenLine(null);
+    setTurnPhase("listening");
+    captionsRef.current.start();
+  };
+
+  /** Ask a check-in question, then wait for the reply. */
+  const checkIn = async (line: ConversationLine) => {
+    await sayLine(line);
+    listenSinceRef.current = Date.now();
+    confirmAskedAtRef.current = Date.now();
+    // "Moving on…" notices get a visible countdown; questions wait for a reply.
+    const isNotice = line === "confirmDone" || line === "confirmDoneLast";
+    setMoveOnAt(isNotice ? confirmAskedAtRef.current + QUESTION_TIMING.confirmTimeoutMs : null);
+    setTurnPhase("confirming");
+  };
+
+  /** Run one flow step at a time — ticks and phrases must not overlap. */
+  const runFlow = async (step: () => Promise<void>) => {
+    if (flowBusyRef.current) return;
+    flowBusyRef.current = true;
     try {
-      // Stop TTS if speaking
-      tts.stop();
-
-      stopFrameCapture();
-
-      const frame = captureFrame();
-      if (frame) {
-        const existing = capturedFramesRef.current.get(currentIndex) || [];
-        existing.push(frame);
-        capturedFramesRef.current.set(currentIndex, existing);
-      }
-
-      const audio = await stopAudioRecording();
-      if (audio) {
-        capturedAudioRef.current.set(currentIndex, audio);
-      }
-
-      setResponses((prev) => [
-        ...prev,
-        { question: questions[currentIndex], answer: "[Audio response recorded]" },
-      ]);
-
-      if (currentIndex < questions.length - 1) {
-        const nextIndex = currentIndex + 1;
-        setCurrentIndex(nextIndex);
-        setTimeout(() => {
-          startAudioRecording();
-          startFrameCapture();
-          // Ask next question in the patient's language
-          askQuestion(nextIndex);
-        }, 100);
-      } else {
-        handleFinish();
-      }
+      await step();
     } finally {
-      setAnalyzing(false);
+      flowBusyRef.current = false;
     }
   };
 
-  // Finish interview
-  const handleFinish = async () => {
+  /** For buttons: cut Amumata off, let the current step settle, then act. */
+  const runNow = async (step: () => Promise<void>) => {
+    ttsRef.current.stop();
+    const started = Date.now();
+    while (flowBusyRef.current && Date.now() - started < 15000) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      ttsRef.current.stop();
+    }
+    await runFlow(step);
+  };
+
+  // ─── Warm-up (rapport) ───
+
+  const questionText = (q: LocalizedLine, lang: ResponseLanguage) => (lang === "en" ? q.en : q[lang]);
+
+  const askRapport = async (index: number) => {
+    rapportIndexRef.current = index;
+    setState("rapport_wait");
+    newTurn();
+    const lang = langRef.current;
+    setSpokenLine(null);
+    setAiPrompt({ kind: "localized", line: RAPPORT_QUESTIONS[index], primary: "all" });
+    await say(questionText(RAPPORT_QUESTIONS[index], lang), lang);
+    listen();
+  };
+
+  const askPermission = async () => {
+    setState("permission_wait");
+    newTurn();
+    nudgedRef.current = false;
+    const lang = langRef.current;
+    setSpokenLine(null);
+    setAiPrompt({ kind: "localized", line: PERMISSION_LINES, primary: "all" });
+    await say(PERMISSION_LINES[lang], lang);
+    listen();
+  };
+
+  const submitRapport = async (answer: string) => {
+    const index = rapportIndexRef.current;
+    let lang = langRef.current;
+    if (answer) {
+      lang = detectResponseLanguage(answer, turnLangRef.current);
+      updateLanguage(lang);
+      // Language known: translate the questions now, while the warm-up continues.
+      prefetchTranslations(lang);
+    }
+    const acknowledgment = pickAcknowledgment(detectRapportCategory(answer), lang, index);
+    setRapportResponses((prev) => [
+      ...prev,
+      { question: questionText(RAPPORT_QUESTIONS[index], lang), answer: answer || "(no answer)", acknowledgment },
+    ]);
+    setTypedAnswer("");
+    setState("rapport_chat");
+    newTurn();
+    setSpokenLine(null);
+    setAiPrompt({ kind: "text", main: acknowledgment });
+    await say(acknowledgment, lang);
+    if (index < RAPPORT_QUESTIONS.length - 1) await askRapport(index + 1);
+    else await askPermission();
+  };
+
+  const startConversation = () => {
+    // This click unlocks audio playback and the mic analyser in the browser,
+    // so captions start here (the mic stays muted while Amumata speaks).
+    setState("rapport_intro");
+    captionsRef.current.start();
+    void runFlow(async () => {
+      newTurn();
+      const name = sessionInfoRef.current.patientName;
+      const intro: LocalizedLine = {
+        en: fillName(INTRO_LINES.en, name),
+        tl: fillName(INTRO_LINES.tl, name),
+        ceb: fillName(INTRO_LINES.ceb, name),
+      };
+      setAiPrompt({ kind: "localized", line: intro, primary: "all" });
+      await say(intro.en);
+      await askRapport(0);
+    });
+  };
+
+  // ─── Formal interview ───
+
+  /** Translation of a question, started once and shared (null = use English). */
+  const translationFor = (original: string, lang: QuestionLanguage): Promise<string | null> => {
+    const key = `${lang}|${original}`;
+    let pending = questionTransCacheRef.current.get(key);
+    if (!pending) {
+      // Queue behind earlier translations: the local AI handles one at a time.
+      pending = translationQueueRef.current
+        .then(() => translateQuestion(original, lang))
+        .catch(() => null)
+        .then((text) => {
+          // A failed translation is retried the next time it's needed.
+          if (!text) questionTransCacheRef.current.delete(key);
+          return text;
+        });
+      translationQueueRef.current = pending;
+      questionTransCacheRef.current.set(key, pending);
+    }
+    return pending;
+  };
+
+  /**
+   * Translate every question in the background as soon as the patient's
+   * language is known, so each one is ready before it's asked.
+   */
+  const prefetchTranslations = (lang: ResponseLanguage) => {
+    if (lang === "en") return;
+    questionsRef.current.forEach((q) => void translationFor(q, lang));
+  };
+
+  /** The question in the patient's language (via the AI translator), English underneath. */
+  const prepareQuestion = async (index: number) => {
+    const original = questionsRef.current[index];
+    const lang = langRef.current;
+    if (lang === "en") return { main: original, speak: original, speakLang: undefined };
+    // Never keep the patient waiting on the translator: if it isn't ready
+    // shortly, ask in English.
+    const translated = await Promise.race([
+      translationFor(original, lang),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), TRANSLATION_WAIT_MS)),
+    ]);
+    return translated
+      ? { main: translated, sub: original, speak: translated, speakLang: lang }
+      : { main: original, speak: original, speakLang: undefined };
+  };
+
+  const askFormal = async (index: number, fresh = true) => {
+    currentIndexRef.current = index;
+    setCurrentIndex(index);
+    if (fresh) newTurn();
+    setTurnPhase("preparing");
+    const q = await prepareQuestion(index);
+    setSpokenLine(null);
+    setAiPrompt({ kind: "text", main: q.main, sub: q.sub });
+    await say(q.speak, q.speakLang);
+    listen();
+  };
+
+  const startFormal = async () => {
+    ttsRef.current.stop();
+    setState("recording");
+    setElapsed(0);
+    answersRef.current.clear();
+    capturedFramesRef.current.clear();
+    capturedAudioRef.current.clear();
+    if (token) clearStagedNames(token);
+    currentIndexRef.current = 0;
+    startAudioRecording();
+    startFrameCapture();
+    await askFormal(0);
+  };
+
+  /** One answer's recordings, named the way the analysis expects. */
+  const filesForQuestion = (index: number): File[] => [
+    ...(capturedFramesRef.current.get(index) ?? []).map(
+      (blob, frameIdx) => new File([blob], `frame_${index}_${frameIdx}.jpg`, { type: "image/jpeg" }),
+    ),
+    ...[capturedAudioRef.current.get(index)]
+      .filter((blob): blob is Blob => Boolean(blob))
+      .map((blob) => new File([blob], `audio_${index}.webm`, { type: "audio/webm" })),
+  ];
+
+  /**
+   * Early upload: send a finished answer while the patient answers the next
+   * one, so the final upload is tiny. Best effort — anything that didn't make
+   * it is uploaded from the browser's copy at the end.
+   */
+  const uploadAnswerEarly = (index: number) => {
     if (!token) return;
+    const files = filesForQuestion(index);
+    if (files.length === 0) return;
+    emotionApi.stageFiles(token, files).then(
+      () => addStagedNames(token, files.map((f) => f.name)),
+      () => {},
+    );
+  };
+
+  const finishInterview = async () => {
+    if (!token || stateRef.current === "finished") return;
+    const index = currentIndexRef.current;
     setState("finished");
-    tts.stop();
+    ttsRef.current.stop();
+    captionsRef.current.stop();
     stopFrameCapture();
 
     const lastAudio = await stopAudioRecording();
-    if (lastAudio) {
-      capturedAudioRef.current.set(currentIndex, lastAudio);
-    }
-
-    const lastFrame = captureFrame();
-    if (lastFrame) {
-      const existing = capturedFramesRef.current.get(currentIndex) || [];
-      existing.push(lastFrame);
-      capturedFramesRef.current.set(currentIndex, existing);
-    }
-
+    if (lastAudio) capturedAudioRef.current.set(index, lastAudio);
+    keepFrame(index);
     stopMedia();
 
-    const finalResponses = [
-      ...responses,
-      { question: questions[currentIndex], answer: "[Audio response recorded]" },
-    ];
+    const qs = questionsRef.current;
+    const answered = Math.min(qs.length, index + 1);
+    const finalResponses = qs.slice(0, answered).map((question, i) => ({
+      question,
+      answer: answersRef.current.get(i) || "[Audio response recorded]",
+    }));
 
-    // Build File arrays for upload
-    const files: File[] = [];
-    capturedFramesRef.current.forEach((frames, questionIdx) => {
-      frames.forEach((blob, frameIdx) => {
-        files.push(new File([blob], `frame_${questionIdx}_${frameIdx}.jpg`, { type: "image/jpeg" }));
-      });
-    });
-    capturedAudioRef.current.forEach((blob, idx) => {
-      files.push(new File([blob], `audio_${idx}.webm`, { type: "audio/webm" }));
-    });
+    const files = Array.from({ length: answered }, (_, i) => filesForQuestion(i)).flat();
 
-    // Store interview metadata (rapport NOT included in formal data)
-    const resultData = {
-      token,
-      patientName,
-      templateName,
-      questions,
-      responses: finalResponses,
-      duration: elapsed,
-      completedAt: new Date().toISOString(),
-    };
-    sessionStorage.setItem(`amumata_result_${token}`, JSON.stringify(resultData));
-
-    // Store rapport responses separately (sessionStorage only, not sent to analysis)
-    if (rapportResponses.length > 0) {
-      sessionStorage.setItem(
-        `amumata_rapport_${token}`,
-        JSON.stringify(rapportResponses)
-      );
+    // Interview metadata (rapport is NOT part of the formal data).
+    const info = sessionInfoRef.current;
+    sessionStorage.setItem(
+      `amumata_result_${token}`,
+      JSON.stringify({
+        token,
+        patientName: info.patientName,
+        templateName: info.templateName,
+        questions: qs,
+        responses: finalResponses,
+        duration: elapsedRef.current,
+        completedAt: new Date().toISOString(),
+      }),
+    );
+    if (info.rapportResponses.length > 0) {
+      sessionStorage.setItem(`amumata_rapport_${token}`, JSON.stringify(info.rapportResponses));
     }
 
-    const fileEntries = files.map((file) => ({ name: file.name, type: file.type, blob: file }));
-    await storeFiles(token, fileEntries);
-
+    await storeFiles(token, files.map((file) => ({ name: file.name, type: file.type, blob: file })));
     navigate(`/interview/${token}/processing`);
   };
 
-  // Replay current question TTS
-  const handleReplayQuestion = () => {
-    if (tts.isSpeaking) {
-      tts.stop();
-    } else if (questions[currentIndex]) {
-      askQuestion(currentIndex);
+  /** Close the current answer and ask the next question (or finish). */
+  const proceedFormal = async () => {
+    const index = currentIndexRef.current;
+    setTurnPhase("busy");
+    ttsRef.current.stop();
+    answersRef.current.set(index, turnTextRef.current.join(" ").trim());
+
+    if (index >= questionsRef.current.length - 1) {
+      await finishInterview();
+      return;
+    }
+    stopFrameCapture();
+    keepFrame(index);
+    const audio = await stopAudioRecording();
+    if (audio) capturedAudioRef.current.set(index, audio);
+    uploadAnswerEarly(index);
+
+    currentIndexRef.current = index + 1;
+    startAudioRecording();
+    startFrameCapture();
+    await askFormal(index + 1);
+  };
+
+  const repeatQuestion = async () => {
+    await askFormal(currentIndexRef.current, false);
+  };
+
+  // ─── What the patient says steers the conversation ───
+  const handlePhrase = (p: CaptionPhrase) => {
+    // Late phrases from an earlier prompt don't belong to this one.
+    if (p.turn !== captionsRef.current.getTurn()) return;
+    const current = stateRef.current;
+    const confirming = phaseRef.current === "confirming";
+    const parsed = parseVoiceCommand(p.text);
+    // While answering, "oo" / "okay lang" / "hindi" are real answers, not
+    // commands — only "repeat" and an explicit "I'm done / next / tapos na"
+    // act. Casual yes / no count once Amumata has asked "are you done?".
+    // In the warm-up every reply is an answer ("okay lang" to "how are you?").
+    let command: typeof parsed = null;
+    if (parsed === "repeat") command = "repeat";
+    else if (current === "permission_wait") command = parsed;
+    else if (current === "recording") command = confirming ? parsed : isExplicitDone(p.text) ? "yes" : null;
+    const isAnswer = !command;
+    if (isAnswer) {
+      turnTextRef.current.push(p.text);
+      if (!turnLangRef.current) turnLangRef.current = p.language;
+    }
+
+    if (current === "permission_wait") {
+      if (command === "yes") void runFlow(startFormal);
+      else if (command === "no") void runFlow(async () => {
+        await sayLine("notReady");
+        listen();
+      });
+      return;
+    }
+
+    if (current === "rapport_wait") {
+      if (command === "repeat") void runFlow(() => askRapport(rapportIndexRef.current));
+      // Speech after a nudge is the answer — keep listening for it to finish.
+      else if (phaseRef.current === "confirming") listen();
+      return;
+    }
+
+    if (current !== "recording") return;
+    if (command === "repeat") {
+      void runFlow(repeatQuestion);
+    } else if (command === "yes") {
+      // "Yes" to the check-in, or an explicit "I'm done / next" while answering.
+      void runFlow(proceedFormal);
+    } else if (command === "no") {
+      // "Not yet / wait" to the check-in.
+      void runFlow(async () => {
+        await sayLine("keepGoing");
+        listen();
+      });
+    } else if (confirming) {
+      // They kept talking instead of answering the check-in: it's more answer.
+      listen();
     }
   };
 
-  // Format timer
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  // ─── Hands-free: check in after long silences, move on when confirmed ───
+  // The interval always runs the latest tick (refreshed after every render).
+  const tickRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const interval = setInterval(() => tickRef.current(), TICK_MS);
+    return () => clearInterval(interval);
+  }, []);
+
+  const tick = () => {
+      const current = stateRef.current;
+      if (!handsFreeRef.current || flowBusyRef.current) return;
+      if (current !== "recording" && current !== "rapport_wait" && current !== "permission_wait") return;
+      const turnPhase = phaseRef.current;
+      if (turnPhase !== "listening" && turnPhase !== "confirming") return;
+
+      const activity = captionsRef.current.getActivity();
+      const lastVoice = activity.lastVoiceAt ?? 0;
+      const now = Date.now();
+
+      if (current === "permission_wait") {
+        // Starting the interview always needs an explicit "yes" — only remind.
+        if (!nudgedRef.current && !activity.voiceActive && now - Math.max(listenSinceRef.current, lastVoice) >= 25000) {
+          nudgedRef.current = true;
+          void runFlow(async () => {
+            await sayLine("readyNudge");
+            listen();
+          });
+        }
+        return;
+      }
+
+      const action = decideTurn(
+        {
+          now,
+          silenceSince: Math.max(listenSinceRef.current, lastVoice),
+          hasAnswer: activity.lastVoiceAt !== null || turnTextRef.current.length > 0,
+          voiceActive: activity.voiceActive,
+          pendingTranscripts: activity.pending,
+          confirmAskedAt: confirmAskedAtRef.current,
+        },
+        current === "recording" ? QUESTION_TIMING : WARMUP_TIMING,
+      );
+      if (action === "wait") return;
+
+      if (current === "rapport_wait") {
+        if (action === "proceed") void runFlow(() => submitRapport(turnTextRef.current.join(" ").trim()));
+        else if (action === "ask_confirm") void runFlow(() => checkIn("warmupNudge"));
+        else void runFlow(() => submitRapport(""));
+        return;
+      }
+
+      // Formal question.
+      if (action === "ask_confirm") {
+        const answered = activity.lastVoiceAt !== null || turnTextRef.current.length > 0;
+        const isLast = currentIndexRef.current >= questionsRef.current.length - 1;
+        void runFlow(() => checkIn(!answered ? "confirmSilent" : isLast ? "confirmDoneLast" : "confirmDone"));
+      } else if (action === "auto_proceed") {
+        const answered = activity.lastVoiceAt !== null || turnTextRef.current.length > 0;
+        void runFlow(async () => {
+          // After an answer the notice already said "moving on" — don't repeat it.
+          if (!answered) await sayLine("movingOn");
+          await proceedFormal();
+        });
+      }
   };
 
-  // ─── Idle screen ───
+  useEffect(() => {
+    handlePhraseRef.current = handlePhrase;
+    tickRef.current = tick;
+  });
+
+  // ─── Optional buttons (same actions as the voice commands) ───
+  const handleNextButton = () => void runNow(proceedFormal);
+  const handleRepeatButton = () => void runNow(repeatQuestion);
+  const handleKeepTalking = () => void runNow(async () => listen());
+  const handleStartButton = () => void runNow(startFormal);
+  const handleSkipWarmup = () => void runNow(askPermission);
+  const handleTypedAnswer = () => {
+    const text = typedAnswer.trim();
+    if (!text) return;
+    void runNow(() => submitRapport(text));
+  };
+  const handleEnd = () => {
+    if (window.confirm("End the interview now? Your answers so far will be saved.")) void finishInterview();
+  };
+
+  // ─── Idle screen (one click to begin — browsers require it for audio) ───
   if (state === "idle") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F1F5F9] px-4">
-        <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-md border border-slate-200 md:p-8">
+        <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-md md:p-8">
           <div className="mb-6 text-center">
             <h1 className="text-2xl font-bold text-slate-900">Interview Room</h1>
             <p className="mt-1 text-sm text-slate-500">
@@ -690,28 +866,18 @@ export default function InterviewRoom() {
             </p>
           </div>
 
-          {/* Camera preview */}
           <div className="mb-6 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-6">
             <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-xl bg-slate-900">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="aspect-video w-full object-cover"
-              />
+              <video ref={videoRef} autoPlay playsInline muted className="aspect-video w-full object-cover" />
               {!cameraOn && (
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80">
                   <VideoOff size={48} className="text-slate-400" />
                 </div>
               )}
             </div>
-            {cameraError && (
-              <p className="mt-3 text-center text-sm text-red-500">{cameraError}</p>
-            )}
+            {cameraError && <p className="mt-3 text-center text-sm text-red-500">{cameraError}</p>}
           </div>
 
-          {/* Controls */}
           <div className="mb-4 flex items-center justify-center gap-4">
             <button
               onClick={toggleCamera}
@@ -729,37 +895,36 @@ export default function InterviewRoom() {
             </button>
           </div>
 
-          {/* Preparation guide */}
           <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
             <h3 className="mb-2 text-sm font-semibold text-blue-900">Before You Begin</h3>
             <ul className="space-y-1.5 text-sm text-blue-800">
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 text-blue-500">•</span>
-                Sit in a well-lit area — face the light source so your expressions are clearly visible
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 text-blue-500">•</span>
-                Position your full face in the camera frame — keep a steady distance from the screen
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 text-blue-500">•</span>
-                Speak clearly and at a normal volume — let your voice reflect how you truly feel
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 text-blue-500">•</span>
-                Express yourself freely — this is a safe space. Your video is only reviewed by your therapist for better consultation
-              </li>
+              {[
+                "This is a voice conversation — Amumata asks, you answer out loud. No clicking needed.",
+                "Speak in English, Tagalog, Bisaya, or a mix — whatever feels natural.",
+                "When you finish an answer, Amumata will ask if you're done. Just say “yes”, or keep talking.",
+                "Sit in a well-lit area facing the light, with your full face in the camera frame.",
+                "Express yourself freely — this is a safe space. Your video is only reviewed by your therapist.",
+              ].map((tip) => (
+                <li key={tip} className="flex items-start gap-2">
+                  <span className="mt-0.5 text-blue-500">•</span>
+                  {tip}
+                </li>
+              ))}
             </ul>
           </div>
 
           {!linkValid && (
-            <p className="mb-4 text-center text-sm text-yellow-600">
-              Interview link not recognized. Using demo questions.
+            <p className="mb-4 text-center text-sm text-yellow-600">Interview link not recognized. Using demo questions.</p>
+          )}
+          {captions.engine === "whisper" && (
+            <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-center text-sm text-amber-800">
+              This browser doesn't support live word-by-word captions. For the best experience, open this link in
+              Microsoft Edge or Google Chrome.
             </p>
           )}
 
           <button
-            onClick={() => setState("rapport_intro")}
+            onClick={startConversation}
             disabled={!!cameraError}
             className="w-full rounded-lg bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
           >
@@ -774,465 +939,258 @@ export default function InterviewRoom() {
   if (state === "finished") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F1F5F9] px-4">
-        <div className="w-full max-w-xl rounded-xl bg-white p-8 shadow-md border border-slate-200 text-center">
+        <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-8 text-center shadow-md">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-            <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
+            <Check className="h-8 w-8 text-green-600" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900">Interview Complete</h1>
-          <p className="mt-2 text-slate-500">
-            Thank you, {patientName}. Your responses have been recorded.
-          </p>
+          <p className="mt-2 text-slate-500">Thank you, {patientName}. Your responses have been recorded.</p>
           <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            <p>Questions answered: {questions.length}</p>
+            <p>Questions answered: {Math.min(questions.length, currentIndex + 1)}</p>
             <p>Duration: {formatTime(elapsed)}</p>
           </div>
+          <p className="mt-4 flex items-center justify-center gap-2 text-sm text-slate-500">
+            <Loader2 size={16} className="animate-spin" /> Saving your interview…
+          </p>
           <p className="mt-4 text-xs text-slate-400">
             Your therapist will review the results. This system does not provide a clinical diagnosis.
           </p>
-          <button
-            onClick={() => navigate(`/interview/${token}/processing`)}
-            className="mt-6 w-full rounded-lg bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-700"
-          >
-            View Processing
-          </button>
         </div>
       </div>
     );
   }
 
-  // ─── Rapport screens (intro, wait, chat, permission_wait) ───
-  if (
-    state === "rapport_intro" ||
-    state === "rapport_wait" ||
-    state === "rapport_chat" ||
-    state === "permission_wait"
-  ) {
-    return (
-      <div className="relative min-h-screen overflow-hidden bg-black">
-        {/* Full-screen camera background */}
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="fixed inset-0 z-0 h-full w-full object-cover"
-          style={{ height: "100dvh" }}
-        />
-        {!cameraOn && (
-          <div className="fixed inset-0 z-10 flex items-center justify-center bg-slate-900/90">
-            <VideoOff size={64} className="text-slate-500" />
-          </div>
-        )}
-        <canvas ref={canvasRef} className="hidden" />
+  // ─── Conversation screen: face on the left, conversation on the right ───
+  const isFormal = state === "recording";
+  const listening = phase === "listening" || phase === "confirming";
+  const working = phase === "busy" || phase === "preparing";
+  const statusLabel =
+    phase === "speaking"
+      ? "Amumata is speaking"
+      : phase === "busy"
+        ? "Saving your answer…"
+        : phase === "preparing"
+          ? "Preparing the next question…"
+          : phase === "confirming"
+            ? "Waiting for your reply"
+            : captions.voiceActive
+              ? "Hearing you…"
+              : "Listening";
+  const statusColor =
+    phase === "speaking" ? "bg-teal-500" : working ? "bg-slate-400" : phase === "confirming" ? "bg-amber-400" : "bg-red-500";
+  const isLastQuestion = currentIndex >= questions.length - 1;
+  const roundBtn =
+    "flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:opacity-40";
 
-        {/* Overlay container */}
-        <div className="relative z-20 flex min-h-screen flex-col" style={{ minHeight: "100dvh" }}>
-          {/* Top: branding left, audio settings right */}
-          <div className="flex items-center justify-between px-4 py-3 md:px-6">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500 text-sm font-bold text-white shadow-lg">
-                A
-              </div>
-              <span className="text-sm font-semibold text-white drop-shadow-lg">Amumata</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {/* Auto-proceed toggle */}
-              <button
-                onClick={() => {
-                  if (autoProceedEnabled) autoProceed.cancel();
-                  setAutoProceedEnabled(!autoProceedEnabled);
-                }}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition ${
-                  autoProceedEnabled
-                    ? "bg-teal-600/80 text-white"
-                    : "bg-black/40 text-slate-300 hover:bg-black/60"
-                }`}
-                title={autoProceedEnabled ? "Auto-proceed: ON (answers send automatically)" : "Auto-proceed: OFF (you confirm before sending)"}
-              >
-                {autoProceedEnabled ? "Auto" : "Manual"}
-              </button>
-              <button
-                onClick={tts.toggleMute}
-                className={`rounded-full p-2 backdrop-blur-sm transition ${
-                  tts.isMuted
-                    ? "bg-red-600/80 text-white"
-                    : "bg-black/40 text-white hover:bg-black/60"
-                }`}
-                title={tts.isMuted ? "Unmute voice" : "Mute voice"}
-              >
-                {tts.isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-              </button>
-            </div>
-          </div>
-
-          {/* Middle: conversation content */}
-          <div className="flex flex-1 flex-col justify-center px-4 pb-32 md:px-8 lg:w-1/2">
-            {/* Amumata message */}
-            <div className="mb-6 max-w-lg rounded-2xl border border-white/10 bg-black/50 p-5 backdrop-blur-md md:p-6">
-              <div className="mb-2 flex items-center gap-2">
-                <MessageCircle size={14} className="text-teal-400" />
-                <span className="text-xs font-medium text-teal-400">Amumata</span>
-                {tts.isSpeaking && (
-                  <span className="ml-2 animate-pulse text-xs text-slate-400">Speaking...</span>
-                )}
-              </div>
-              <p className="text-base font-medium leading-relaxed text-white md:text-lg">
-                {state === "rapport_intro" && (
-                  <LocalizedBubble
-                    line={{
-                      en: fillName(INTRO_LINES.en, patientName),
-                      tl: fillName(INTRO_LINES.tl, patientName),
-                      ceb: fillName(INTRO_LINES.ceb, patientName),
-                    }}
-                    primary="all"
-                  />
-                )}
-                {state === "rapport_wait" && (
-                  <LocalizedBubble
-                    line={RAPPORT_QUESTIONS[rapportQuestionIndex]}
-                    primary={langDetected ? detectedLang : "all"}
-                  />
-                )}
-                {state === "rapport_chat" &&
-                  rapportResponses[rapportResponses.length - 1]?.acknowledgment}
-                {state === "permission_wait" && (
-                  <LocalizedBubble line={PERMISSION_LINES} primary={langDetected ? detectedLang : "all"} />
-                )}
-              </p>
-            </div>
-
-            {/* Input area */}
-            {(state === "rapport_wait" || state === "permission_wait") && (
-              <div className="mb-6 max-w-lg">
-                {state === "rapport_wait" && (
-                  <>
-                    {/* Voice input status */}
-                    <div className="mb-4 rounded-xl border border-white/10 bg-black/40 p-4 backdrop-blur-md">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-                            autoProceed.isListening
-                              ? "bg-red-600 text-white animate-pulse"
-                              : tts.isSpeaking || voicePhase === "waiting"
-                                ? "bg-slate-700/80 text-slate-300"
-                                : "bg-teal-600 text-white"
-                          }`}
-                        >
-                          {tts.isSpeaking ? (
-                            <Volume2 size={18} />
-                          ) : (
-                            <Mic size={18} />
-                          )}
-                        </div>
-                        <div className="flex-1 text-sm">
-                          {tts.isSpeaking ? (
-                            <p className="animate-pulse text-slate-300">Amumata is speaking...</p>
-                          ) : autoProceed.isProcessing ? (
-                            <p className="animate-pulse text-slate-300">Processing your response...</p>
-                          ) : autoProceed.isListening ? (
-                            <p className="font-medium text-white">Listening... speak now</p>
-                          ) : voicePhase === "reviewing" ? (
-                            <p className="font-medium text-teal-300">Here's what we heard</p>
-                          ) : (
-                            <p className="font-medium text-white">Your turn to speak</p>
-                          )}
-                          {/* Show detected language */}
-                          {autoProceed.whisperLanguage && voicePhase === "reviewing" && (
-                            <p className="mt-1 text-xs text-slate-500">
-                              Language detected: {languageLabel(autoProceed.whisperLanguage)}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Show errors from Whisper capture */}
-                      {autoProceed.whisperError && (
-                        <p className="mt-3 rounded-lg bg-red-900/30 px-3 py-2 text-sm text-red-200">
-                          {autoProceed.whisperError}
-                        </p>
-                      )}
-                      {!autoProceed.isSupported && (
-                        <p className="mt-3 rounded-lg bg-yellow-900/30 px-3 py-2 text-sm text-yellow-200">
-                          Voice input isn't available right now. Please type your response below.
-                        </p>
-                      )}
-
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {/* Capture controls — Whisper in both modes */}
-                        {autoProceed.isListening ? (
-                          <button
-                            onClick={handleStopListening}
-                            className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
-                          >
-                            <StopCircle size={16} />
-                            Stop
-                          </button>
-                        ) : (
-                          <button
-                            onClick={handleStartListening}
-                            disabled={tts.isSpeaking || voicePhase === "waiting" || !autoProceed.isSupported}
-                            className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
-                          >
-                            <Mic size={16} />
-                            {voicePhase === "reviewing" ? "Speak again" : "Speak your answer"}
-                          </button>
-                        )}
-                        {/* Retry — during reviewing */}
-                        {voicePhase === "reviewing" && (
-                          <button
-                            onClick={handleRetryVoice}
-                            className="flex items-center gap-2 rounded-lg bg-slate-700/80 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
-                          >
-                            <RotateCcw size={16} />
-                            Retry
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Text input fallback */}
-                    <div className="flex gap-3">
-                      <input
-                        type="text"
-                        value={rapportInput}
-                        onChange={(e) => {
-                          setRapportInput(e.target.value);
-                          if (voicePhase === "reviewing") setVoicePhase("ready");
-                        }}
-                        onKeyDown={(e) => e.key === "Enter" && handleRapportSubmit()}
-                        placeholder={
-                          voicePhase === "reviewing"
-                            ? "Edit if needed, then send..."
-                            : "Or type your response..."
-                        }
-                        className="flex-1 rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-white placeholder:text-slate-400 focus:border-teal-500 focus:outline-none backdrop-blur-md"
-                      />
-                      <button
-                        onClick={handleRapportSubmit}
-                        disabled={!rapportInput.trim()}
-                        className="rounded-xl bg-teal-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
-                      >
-                        Send
-                      </button>
-                    </div>
-                    <button
-                      onClick={handleSkipRapport}
-                      className="mt-3 w-full text-center text-sm text-slate-400 transition hover:text-slate-200"
-                    >
-                      Skip introduction and start interview
-                    </button>
-                  </>
-                )}
-                {state === "permission_wait" && (
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleStartInterview}
-                      className="flex-1 rounded-lg bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-700"
-                    >
-                      Start Interview
-                    </button>
-                    <button
-                      onClick={handleSkipRapport}
-                      className="rounded-xl bg-slate-700/80 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-600 backdrop-blur-sm"
-                    >
-                      Back
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Rapport history */}
-            {rapportResponses.length > 0 && (
-              <div className="max-w-lg space-y-3">
-                {rapportResponses.map((r, i) => (
-                  <div key={i} className="rounded-xl bg-black/40 p-4 backdrop-blur-md">
-                    <p className="text-xs text-slate-400">{r.question}</p>
-                    <p className="mt-1 text-sm text-slate-200">{r.answer}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Recording screen — main interview ───
   return (
-    <div className="relative min-h-screen overflow-hidden bg-black">
-      {/* Full-screen camera background */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="fixed inset-0 z-0 h-full w-full object-cover"
-        style={{ height: "100dvh" }}
-      />
-      {!cameraOn && (
-        <div className="fixed inset-0 z-10 flex items-center justify-center bg-slate-900/90">
-          <VideoOff size={64} className="text-slate-500" />
-        </div>
-      )}
+    <div className="flex h-dvh flex-col overflow-hidden bg-slate-950 text-white lg:flex-row">
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Overlay container */}
-      <div className="relative z-20 flex min-h-screen flex-col" style={{ minHeight: "100dvh" }}>
-        {/* Top: branding left, status + audio right */}
-        <div className="flex items-center justify-between px-4 py-3 md:px-6">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500 text-sm font-bold text-white shadow-lg">
-              A
-            </div>
-            <span className="text-sm font-semibold text-white drop-shadow-lg">Amumata</span>
+      {/* Left: the patient's face */}
+      <section className="relative h-[40dvh] shrink-0 bg-black lg:h-full lg:w-1/2">
+        <video ref={videoRef} autoPlay playsInline muted className="h-full w-full -scale-x-100 object-cover" />
+        {!cameraOn && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+            <VideoOff size={56} className="text-slate-600" />
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-full bg-black/40 px-3 py-1.5 backdrop-blur-sm">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-              <span className="text-xs font-medium text-white">Recording</span>
-              <span className="font-mono text-xs text-slate-300">{formatTime(elapsed)}</span>
-            </div>
+        )}
+        <div className="absolute left-3 top-3 flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500 text-sm font-bold shadow-lg">A</div>
+          <span className="text-sm font-semibold drop-shadow-lg">Amumata</span>
+        </div>
+        {isFormal && (
+          <div className="absolute right-3 top-3 flex items-center gap-2 rounded-full bg-black/50 px-3 py-1.5 backdrop-blur-sm">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+            <span className="text-xs font-medium">Recording</span>
+            <span className="font-mono text-xs text-slate-300">{formatTime(elapsed)}</span>
+          </div>
+        )}
+        <div className="absolute bottom-3 left-3 flex gap-2">
+          <button
+            onClick={toggleCamera}
+            className={`rounded-full p-2.5 backdrop-blur-sm transition ${cameraOn ? "bg-black/50 hover:bg-black/70" : "bg-red-600/90"}`}
+            title={cameraOn ? "Turn off camera" : "Turn on camera"}
+          >
+            {cameraOn ? <Video size={18} /> : <VideoOff size={18} />}
+          </button>
+          <button
+            onClick={toggleMic}
+            className={`rounded-full p-2.5 backdrop-blur-sm transition ${micOn ? "bg-black/50 hover:bg-black/70" : "bg-red-600/90"}`}
+            title={micOn ? "Mute microphone" : "Unmute microphone"}
+          >
+            {micOn ? <Mic size={18} /> : <MicOff size={18} />}
+          </button>
+        </div>
+      </section>
+
+      {/* Right: conversation, live caption, optional buttons */}
+      <section className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 lg:w-1/2 lg:gap-4 lg:p-6">
+        {/* Progress + status */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            {isFormal ? (
+              <div className="flex items-center gap-3">
+                <span className="shrink-0 text-xs font-medium text-teal-400">
+                  Question {currentIndex + 1} of {questions.length}
+                </span>
+                <div className="h-1.5 flex-1 rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-linear-to-r from-teal-500 to-teal-400 transition-all duration-300"
+                    style={{ width: `${((currentIndex + 1) / Math.max(1, questions.length)) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <span className="text-xs font-medium text-teal-400">{state === "permission_wait" ? "Ready to begin" : "Getting to know you"}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs" role="status">
+              <span className={`h-2 w-2 rounded-full ${statusColor} ${working ? "" : "animate-pulse"}`} />
+              {statusLabel}
+            </span>
+            <button
+              onClick={() => setHandsFree((v) => !v)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${handsFree ? "bg-teal-600" : "bg-white/10 text-slate-300"}`}
+              title={handsFree ? "Hands-free on: Amumata moves on after confirming with you" : "Hands-free off: use voice commands or buttons to move on"}
+            >
+              Hands-free {handsFree ? "on" : "off"}
+            </button>
             <button
               onClick={tts.toggleMute}
-              className={`rounded-full p-2 backdrop-blur-sm transition ${
-                tts.isMuted
-                  ? "bg-red-600/80 text-white"
-                  : "bg-black/40 text-white hover:bg-black/60"
-              }`}
-              title={tts.isMuted ? "Unmute voice" : "Mute voice"}
+              className={`rounded-full p-1.5 transition ${tts.isMuted ? "bg-red-600" : "bg-white/10 hover:bg-white/20"}`}
+              title={tts.isMuted ? "Unmute Amumata's voice" : "Mute Amumata's voice"}
             >
-              {tts.isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              {tts.isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
             </button>
           </div>
         </div>
 
-        {/* Question card — upper left */}
-        <div className="px-4 md:px-6">
-          <div className="max-w-md rounded-2xl border border-white/10 bg-black/50 p-4 backdrop-blur-md md:p-5">
-            {/* Progress bar */}
-            <div className="mb-3 flex items-center gap-3">
-              <span className="text-xs font-medium text-teal-400">
-                Question {currentIndex + 1} of {questions.length}
-              </span>
-              <div className="h-1.5 flex-1 rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-teal-500 to-teal-400 transition-all duration-300"
-                  style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
-                />
-              </div>
-            </div>
-            {/* Question text — translated for the patient, English underneath */}
-            <p className="text-base font-medium leading-relaxed text-white md:text-lg">
-              {questionDisplay?.main ?? questions[currentIndex]}
-            </p>
-            {questionDisplay?.sub && (
-              <p className="mt-2 text-sm font-normal text-slate-300">{questionDisplay.sub}</p>
-            )}
-            {tts.isSpeaking && (
-              <p className="mt-2 animate-pulse text-xs text-teal-400">Speaking question...</p>
-            )}
-            <p className="mt-2 text-xs text-slate-400">
-              Take your time. Speak naturally when you&apos;re ready.
-            </p>
+        {/* What Amumata is asking */}
+        <div className="rounded-2xl border border-teal-500/20 bg-teal-500/5 p-4 md:p-5">
+          <div className="mb-2 flex items-center gap-2">
+            <MessageCircle size={14} className="text-teal-400" />
+            <span className="text-xs font-medium text-teal-400">Amumata</span>
+            {tts.isSpeaking && <span className="animate-pulse text-xs text-slate-400">speaking…</span>}
           </div>
-          {/* Wave visualizer */}
-          <div className="mt-3 w-48">
-            <WaveVisualizer isActive={state === "recording" && micOn} />
-          </div>
+          <p className="text-lg font-medium leading-relaxed md:text-xl">
+            {spokenLine ? (
+              CONVERSATION_LINES[spokenLine][detectedLang]
+            ) : aiPrompt?.kind === "localized" ? (
+              <LocalizedBubble line={aiPrompt.line} primary={langDetected ? detectedLang : aiPrompt.primary} />
+            ) : aiPrompt ? (
+              <>
+                <span>{aiPrompt.main}</span>
+                {aiPrompt.sub && <span className="mt-2 block text-sm font-normal text-slate-400">{aiPrompt.sub}</span>}
+              </>
+            ) : null}
+          </p>
         </div>
 
-        {/* Spacer */}
-        <div className="flex-1" />
+        {/* What the patient is saying */}
+        <CaptionPanel
+          segments={captions.turnSegments}
+          interim={phase === "speaking" ? "" : captions.interim}
+          engine={captions.engine}
+          listening={listening}
+          voiceActive={captions.voiceActive}
+          getLevel={captions.getLevel}
+          placeholder={phase === "speaking" ? "Your words will appear here as you speak." : "Go ahead — I'm listening."}
+        />
+        {phase === "confirming" && moveOnAt !== null && !captions.voiceActive && <MoveOnCountdown until={moveOnAt} />}
+        {captions.error && <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200">{captions.error}</p>}
+        <p className="text-center text-xs text-slate-500">{VOICE_TIPS[detectedLang]}</p>
 
-        {/* Bottom control bar */}
-        <div className="flex justify-center px-4 pb-6 pt-2" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
-          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-4 py-2.5 backdrop-blur-md md:gap-3 md:px-5 md:py-3">
-            {/* Camera toggle */}
-            <button
-              onClick={toggleCamera}
-              className={`flex flex-col items-center gap-0.5 rounded-full p-2.5 transition md:p-3 ${
-                cameraOn
-                  ? "bg-white/10 text-white hover:bg-white/20"
-                  : "bg-red-600/80 text-white"
-              }`}
-              title={cameraOn ? "Turn off camera" : "Turn on camera"}
-            >
-              {cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
-              <span className="text-[10px]">{cameraOn ? "Camera" : "Off"}</span>
-            </button>
+        {/* Optional buttons — everything here can also be done by voice */}
+        <div className="rounded-2xl border border-white/10 bg-white/5">
+          <button
+            onClick={() => setControlsOpen((v) => !v)}
+            className="flex w-full items-center justify-between px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-slate-400"
+          >
+            Buttons (optional)
+            {controlsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+          {controlsOpen && (
+            <div className="space-y-3 border-t border-white/10 p-4">
+              {isFormal && (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {phase === "confirming" ? (
+                    <button onClick={handleKeepTalking} className={`${roundBtn} bg-white/10 hover:bg-white/20`}>
+                      <Hand size={16} /> Keep talking
+                    </button>
+                  ) : (
+                    <button onClick={handleRepeatButton} disabled={working} className={`${roundBtn} bg-white/10 hover:bg-white/20`}>
+                      <RotateCcw size={16} /> Repeat
+                    </button>
+                  )}
+                  <button
+                    onClick={handleNextButton}
+                    disabled={working}
+                    className={`${roundBtn} col-span-1 bg-teal-600 hover:bg-teal-700 sm:col-span-2`}
+                  >
+                    {isLastQuestion ? (
+                      <>
+                        <StopCircle size={16} /> Done — finish
+                      </>
+                    ) : (
+                      <>
+                        Done — next question <SkipForward size={16} />
+                      </>
+                    )}
+                  </button>
+                  <button onClick={handleEnd} className={`${roundBtn} bg-red-600/80 hover:bg-red-600`}>
+                    <StopCircle size={16} /> End
+                  </button>
+                </div>
+              )}
 
-            {/* Mic toggle */}
-            <button
-              onClick={toggleMic}
-              className={`flex flex-col items-center gap-0.5 rounded-full p-2.5 transition md:p-3 ${
-                micOn
-                  ? "bg-white/10 text-white hover:bg-white/20"
-                  : "bg-red-600/80 text-white"
-              }`}
-              title={micOn ? "Mute microphone" : "Unmute microphone"}
-            >
-              {micOn ? <Mic size={20} /> : <MicOff size={20} />}
-              <span className="text-[10px]">{micOn ? "Mic" : "Off"}</span>
-            </button>
+              {state === "permission_wait" && (
+                <button onClick={handleStartButton} className={`${roundBtn} w-full bg-teal-600 hover:bg-teal-700`}>
+                  Start the interview
+                </button>
+              )}
 
-            {/* Replay question */}
-            <button
-              onClick={handleReplayQuestion}
-              disabled={analyzing}
-              className="flex flex-col items-center gap-0.5 rounded-full bg-white/10 p-2.5 text-white transition hover:bg-white/20 disabled:opacity-50 md:p-3"
-              title="Replay question"
-            >
-              <RotateCcw size={20} />
-              <span className="text-[10px]">Replay</span>
-            </button>
-
-            {/* Divider */}
-            <div className="mx-1 h-8 w-px bg-white/20" />
-
-            {/* Next / Finish */}
-            <button
-              onClick={handleNext}
-              disabled={analyzing}
-              className={`flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition md:px-6 md:py-3 ${
-                analyzing
-                  ? "cursor-wait bg-teal-500/60"
-                  : "bg-teal-600 hover:bg-teal-700"
-              }`}
-            >
-              {analyzing ? (
+              {(state === "rapport_wait" || state === "rapport_chat" || state === "rapport_intro") && (
                 <>
-                  <Loader2 size={16} className="animate-spin" />
-                  <span className="hidden sm:inline">Analyzing...</span>
-                </>
-              ) : currentIndex < questions.length - 1 ? (
-                <>
-                  <span className="hidden sm:inline">Next</span>
-                  <SkipForward size={16} />
-                </>
-              ) : (
-                <>
-                  <span className="hidden sm:inline">Finish</span>
-                  <StopCircle size={16} />
+                  <div className="flex gap-2">
+                    <input
+                      value={typedAnswer}
+                      onChange={(e) => setTypedAnswer(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleTypedAnswer()}
+                      disabled={state !== "rapport_wait"}
+                      placeholder="Or type your answer…"
+                      className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-4 py-2.5 text-sm placeholder:text-slate-500 focus:border-teal-500 focus:outline-none disabled:opacity-40"
+                    />
+                    <button
+                      onClick={handleTypedAnswer}
+                      disabled={!typedAnswer.trim() || state !== "rapport_wait"}
+                      className={`${roundBtn} bg-teal-600 hover:bg-teal-700`}
+                      aria-label="Send typed answer"
+                    >
+                      <Send size={16} />
+                    </button>
+                  </div>
+                  <button onClick={handleSkipWarmup} className="w-full text-center text-sm text-slate-400 transition hover:text-slate-200">
+                    Skip introduction and start interview
+                  </button>
                 </>
               )}
-            </button>
-
-            {/* End interview */}
-            <button
-              onClick={handleFinish}
-              className="flex flex-col items-center gap-0.5 rounded-full bg-red-600/80 p-2.5 text-white transition hover:bg-red-600 md:p-3"
-              title="End interview"
-            >
-              <StopCircle size={20} />
-              <span className="text-[10px]">End</span>
-            </button>
-          </div>
+            </div>
+          )}
         </div>
-      </div>
+
+        {/* Warm-up answers so far */}
+        {!isFormal && rapportResponses.length > 0 && (
+          <div className="space-y-2">
+            {rapportResponses.map((r, i) => (
+              <div key={i} className="rounded-xl bg-white/5 p-3">
+                <p className="text-xs text-slate-500">{r.question}</p>
+                <p className="mt-1 text-sm text-slate-200">{r.answer}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

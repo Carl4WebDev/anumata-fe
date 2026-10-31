@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import { QuestionSetsContext } from "./QuestionSetsContext";
 import { questionSetsApi } from "../../../shared/api/questionSetsApi";
 import { ApiError } from "../../../shared/api/httpClient";
+import { optimistic, removeItems } from "../../../shared/utils/optimistic";
 
 function mapQuestionSet(qs: any) {
   const legacyQuestions = Array.isArray(qs.questions)
@@ -21,7 +22,8 @@ function mapQuestionSet(qs: any) {
 
 export const QuestionSetsProvider = ({ children }: { children: React.ReactNode }) => {
   const [questionSets, setQuestionSets] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Start as loading: the first fetch begins on mount, so never flash an empty list.
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchSets = useCallback(async () => {
@@ -78,11 +80,12 @@ export const QuestionSetsProvider = ({ children }: { children: React.ReactNode }
 
   const removeQuestionSet = useCallback(async (id: number) => {
     try {
-      await questionSetsApi.remove(id);
-      setQuestionSets((prev) => prev.filter((qs) => qs.id !== id));
+      await optimistic(setQuestionSets, removeItems((qs: { id: number }) => qs.id === id), () => questionSetsApi.remove(id));
+      return true;
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Failed to remove question set";
-      setError(message);
+      setError(`${message} — the question set was put back.`);
+      return false;
     }
   }, []);
 

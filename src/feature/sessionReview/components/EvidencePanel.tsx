@@ -1,5 +1,6 @@
 import { Eye, Mic, MessageSquare, Languages } from "lucide-react";
 import type { FacialDetails, AudioDetails } from "../../../shared/types/session";
+import ProgressiveImage from "../../../shared/components/ProgressiveImage";
 
 interface EvidencePanelProps {
   questionIndex: number;
@@ -45,7 +46,7 @@ export default function EvidencePanel({
           <div className="flex gap-4">
             {frame_image && (
               <div className="flex-shrink-0">
-                <img
+                <ProgressiveImage
                   src={frame_image}
                   alt={`Face capture at Q{questionIndex + 1}`}
                   className="w-[140px] h-[105px] object-cover rounded-lg border border-slate-200"

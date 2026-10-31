@@ -64,6 +64,13 @@ export const httpClient = {
     });
   },
 
+  put<T>(endpoint: string, body?: unknown) {
+    return request<T>(endpoint, {
+      method: "PUT",
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  },
+
   patch<T>(endpoint: string, body?: unknown) {
     return request<T>(endpoint, {
       method: "PATCH",

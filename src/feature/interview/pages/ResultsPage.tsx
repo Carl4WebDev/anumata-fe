@@ -221,7 +221,7 @@ export default function ResultsPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-400">
-          Anumata — AI-Assisted Emotional Pre-Evaluation System &bull; Davao City, 2026
+          Amumata — AI-Assisted Emotional Pre-Evaluation System &bull; Davao City, 2026
         </p>
       </div>
     </div>

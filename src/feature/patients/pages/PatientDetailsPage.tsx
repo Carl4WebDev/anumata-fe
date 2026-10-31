@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Link2, ExternalLink, Brain, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Sparkles, BarChart3, CalendarDays, Camera, Trash2, Pencil, Archive, ArchiveRestore, Search, SlidersHorizontal } from "lucide-react";
 import { usePatients } from "../../context/patients/usePatients";
+import { DetailPageSkeleton } from "../../../shared/components/Skeleton";
 import { useSessions } from "../../context/sessions/useSessions";
 import { patientsApi } from "../../../shared/api/patientsApi";
 import { followUpsApi } from "../../../shared/api/followUpsApi";
@@ -13,6 +14,7 @@ import CollapsibleSection from "../../../shared/components/CollapsibleSection";
 import Avatar from "../../../shared/components/Avatar";
 import EmotionTransitionHeatmap from "../components/EmotionTransitionHeatmap";
 import FollowUpSection from "../components/FollowUpSection";
+import PatientAppointmentsSection from "../../appointments/components/PatientAppointmentsSection";
 import GenerateLinkModal from "../../interviewLinks/modals/GenerateLinkModal";
 import EditPatientModal from "../modals/EditPatientModal";
 import {
@@ -57,7 +59,7 @@ function resizeImage(file: File, size: number): Promise<string> {
 export default function PatientDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { patients, updatePatient, setArchived, setProfileImage } = usePatients();
+  const { patients, loading: patientsLoading, updatePatient, setArchived, setProfileImage } = usePatients();
   const { sessions } = useSessions();
   const { generateLink } = useInterviewLinks();
   const { success: toastSuccess, error: toastError } = useToast();
@@ -72,6 +74,8 @@ export default function PatientDetailsPage() {
   // Profile image state
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imageSaving, setImageSaving] = useState(false);
+  // Optimistic photo: shown at once while it saves; dropped again if saving fails.
+  const [photoOverride, setPhotoOverride] = useState<{ src: string | null } | null>(null);
 
   // Full patient details from API (includes longitudinal_report)
   const [fullPatient, setFullPatient] = useState<Patient | null>(null);
@@ -95,6 +99,14 @@ export default function PatientDetailsPage() {
   }, [id]);
 
   useEffect(() => {
+    fetchFollowUps();
+  }, [fetchFollowUps]);
+
+  // Follow-ups and appointments affect each other; any change refreshes both
+  // sections plus the follow-up data used by the interview history.
+  const [scheduleVersion, setScheduleVersion] = useState(0);
+  const handleScheduleChanged = useCallback(() => {
+    setScheduleVersion((v) => v + 1);
     fetchFollowUps();
   }, [fetchFollowUps]);
 
@@ -175,16 +187,18 @@ export default function PatientDetailsPage() {
     setImageSaving(true);
     try {
       const dataUrl = await resizeImage(file, 256);
+      setPhotoOverride({ src: dataUrl });
       const res = await setProfileImage(Number(id), dataUrl);
       if (res.ok) {
         toastSuccess("Profile photo updated.");
         fetchPatientDetails();
       } else if (res.error) {
-        toastError(res.error);
+        toastError(`${res.error} The previous photo was kept.`);
       }
     } catch {
       toastError("Failed to process image.");
     } finally {
+      setPhotoOverride(null);
       setImageSaving(false);
     }
   }, [id, setProfileImage, toastSuccess, toastError, fetchPatientDetails]);
@@ -192,15 +206,17 @@ export default function PatientDetailsPage() {
   const handleImageRemove = useCallback(async () => {
     if (!id) return;
     setImageSaving(true);
+    setPhotoOverride({ src: null });
     try {
       const res = await setProfileImage(Number(id), null);
       if (res.ok) {
         toastSuccess("Profile photo removed.");
         fetchPatientDetails();
       } else if (res.error) {
-        toastError(res.error);
+        toastError(`${res.error} The photo was kept.`);
       }
     } finally {
+      setPhotoOverride(null);
       setImageSaving(false);
     }
   }, [id, setProfileImage, toastSuccess, toastError, fetchPatientDetails]);
@@ -235,6 +251,10 @@ export default function PatientDetailsPage() {
       toastError(res.error);
     }
   }, [id, patient, setArchived, toastSuccess, toastError, fetchPatientDetails]);
+
+  if (!patient && patientsLoading) {
+    return <DetailPageSkeleton label="Loading patient…" />;
+  }
 
   if (!patient) {
     return (
@@ -321,11 +341,14 @@ export default function PatientDetailsPage() {
           <div className="flex items-center gap-4">
             {/* Profile image with hover controls */}
             <div className="group relative">
-              <Avatar name={patient.name} src={patient.profileImage} size="xl" />
+              <Avatar name={patient.name} src={photoOverride ? photoOverride.src : patient.profileImage} size="xl" />
               {imageSaving && (
-                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-white/70">
-                  <RefreshCw size={20} className="animate-spin text-teal-600" />
-                </div>
+                <span
+                  className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white shadow"
+                  title="Saving photo…"
+                >
+                  <RefreshCw size={14} className="animate-spin text-teal-600" />
+                </span>
               )}
               <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
                 <button
@@ -683,8 +706,11 @@ export default function PatientDetailsPage() {
         </div>
       </section>
 
-      {/* Follow-up Appointments — managed per interview record; tracked here */}
-      <FollowUpSection patientId={patient.id} />
+      {/* Follow-up recommendations — booking one creates an appointment below */}
+      <FollowUpSection patientId={patient.id} refreshKey={scheduleVersion} onChanged={handleScheduleChanged} />
+
+      {/* Appointments — closing one also updates the follow-up it was booked from */}
+      <PatientAppointmentsSection patientId={patient.id} refreshKey={scheduleVersion} onChanged={handleScheduleChanged} />
 
       {/* Emotion Transition Heatmap */}
       <EmotionTransitionHeatmap

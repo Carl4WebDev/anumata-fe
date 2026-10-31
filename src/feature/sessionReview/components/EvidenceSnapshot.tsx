@@ -1,6 +1,9 @@
 import { useState, useCallback } from "react";
 import { Camera, Brain, Eye, Mic, Languages, Zap, Maximize2, Images } from "lucide-react";
 import FullscreenImageViewer from "../../../shared/components/FullscreenImageViewer";
+import EmotionCues from "../../../shared/components/EmotionCues";
+import { emotionCues } from "../../../shared/utils/emotionCues";
+import ProgressiveImage from "../../../shared/components/ProgressiveImage";
 
 interface EvidenceFrame {
   frame_image: string;
@@ -49,9 +52,17 @@ export default function EvidenceSnapshot({
       ? [frameImage]
       : [];
 
+  // Fullscreen labels name each frame's expression and its main signs to look for.
+  const frameLabel = (emotion: string | null, confidence: number, prefix: string) => {
+    const cues = emotionCues(emotion, "face").slice(0, 4);
+    const pct = confidence > 0 ? ` (${fmtPct(confidence)})` : "";
+    return `${prefix}${emotion || "?"}${pct}${cues.length ? ` · look for: ${cues.join(", ")}` : ""}`;
+  };
   const frameLabels = evidenceFrames && evidenceFrames.length > 0
-    ? evidenceFrames.map((f, i) => `Frame ${i + 1} — ${f.fer_emotion || "?"} ${f.fer_confidence > 0 ? `(${fmtPct(f.fer_confidence)})` : ""}`)
-    : undefined;
+    ? evidenceFrames.map((f, i) => frameLabel(f.fer_emotion, f.fer_confidence, `Frame ${i + 1} — `))
+    : frameImage
+      ? [frameLabel(ferEmotion, ferConfidence, "")]
+      : undefined;
 
   const handleOpenViewer = useCallback((index: number) => {
     setViewerIndex(index);
@@ -86,7 +97,7 @@ export default function EvidenceSnapshot({
                 className="group relative cursor-pointer"
                 aria-label="View captured frame fullscreen"
               >
-                <img
+                <ProgressiveImage
                   src={toSrc(frameImage)}
                   alt={`Captured frame at Q${questionNumber}`}
                   className="h-[105px] w-[140px] rounded-lg border border-slate-200 object-cover transition group-hover:brightness-90"
@@ -115,7 +126,7 @@ export default function EvidenceSnapshot({
                     className="group relative shrink-0 cursor-pointer"
                     aria-label={`View frame ${i + 1}`}
                   >
-                    <img
+                    <ProgressiveImage
                       src={toSrc(frame.frame_image)}
                       alt={`Frame ${i + 1}`}
                       className="h-[52px] w-[70px] rounded border border-slate-200 object-cover transition group-hover:brightness-90"
@@ -171,6 +182,13 @@ export default function EvidenceSnapshot({
                 </div>
               </div>
             </div>
+
+            {/* What the detected facial expression usually looks like */}
+            {ferEmotion && (
+              <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <EmotionCues emotion={ferEmotion} kind="face" compact />
+              </div>
+            )}
 
             {/* Fusion result */}
             <div className="flex items-start gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2.5">

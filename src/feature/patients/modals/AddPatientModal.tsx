@@ -1,15 +1,6 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-
-const CONCERNS = [
-  "Family Concerns",
-  "Romantic Relationship",
-  "Academic Stress",
-  "Self Worth",
-  "Anxiety",
-  "Depression",
-  "Other",
-];
+import { PATIENT_CONCERNS as CONCERNS } from "../../../shared/constants/choices";
 
 interface Props {
   isOpen: boolean;

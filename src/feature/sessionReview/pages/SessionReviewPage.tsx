@@ -38,7 +38,7 @@ import EvidenceQualityCard from "../components/EvidenceQualityCard";
 import QuestionCard from "../components/QuestionCard";
 import AiReportSection from "../components/AiReportSection";
 import SessionFollowUpCard from "../components/SessionFollowUpCard";
-import LoadingSpinner from "../../../shared/components/LoadingSpinner";
+import { DetailPageSkeleton, TextBlockSkeleton } from "../../../shared/components/Skeleton";
 import { useToast } from "../../../shared/context/ToastContext";
 
 export default function SessionReviewPage() {
@@ -87,8 +87,9 @@ export default function SessionReviewPage() {
     return () => { cancelled = true; };
   }, [id, fetchSessionById]);
 
-  if (loading || fetching) {
-    return <LoadingSpinner message="Loading session data..." />;
+  // Show the cached session right away; only the parts it lacks wait.
+  if (!session && (loading || fetching)) {
+    return <DetailPageSkeleton label="Loading session data…" />;
   }
 
   if (!session || !computed) {
@@ -209,7 +210,14 @@ export default function SessionReviewPage() {
       {/* (either Ollama or fallback). So mlResult.report should        */}
       {/* never be null. If it is, the Express→DB handoff failed.       */}
       {/* ============================================================ */}
-      <AiReportSection report={session.report ?? null} reportStatus={computed?.overview.reportStatus} onRegenerate={handleRegenerateReport} />
+      {fetching && !session.report ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="mb-2 text-sm font-semibold text-slate-700">AI Session Summary</p>
+          <TextBlockSkeleton lines={5} label="Loading the AI summary…" />
+        </div>
+      ) : (
+        <AiReportSection report={session.report ?? null} reportStatus={computed?.overview.reportStatus} onRegenerate={handleRegenerateReport} />
+      )}
 
       {/* 6. Emotion Distribution */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">

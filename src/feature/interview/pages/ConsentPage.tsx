@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Shield, Camera, Mic, FileText, AlertTriangle } from "lucide-react";
+import { Shield, Camera, Mic, FileText, AlertTriangle, Captions } from "lucide-react";
+import { browserCaptionsAllowed } from "../hooks/browserSpeech";
 
 export default function ConsentPage() {
   const { token } = useParams();
   const navigate = useNavigate();
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
+  const usesBrowserCaptions = browserCaptionsAllowed();
 
   const handleProceed = () => {
     if (!agreed) {
@@ -27,7 +29,7 @@ export default function ConsentPage() {
             A
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Anumata</h1>
+            <h1 className="text-xl font-bold text-slate-900">Amumata</h1>
             <p className="text-sm text-slate-500">AI-Assisted Emotional Pre-Evaluation</p>
           </div>
         </div>
@@ -59,6 +61,20 @@ export default function ConsentPage() {
               <p className="text-sm font-medium text-slate-900">Microphone Access</p>
               <p className="text-xs text-slate-500">
                 Your voice will be recorded and analyzed for speech tone and emotional patterns.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-50">
+              <Captions size={18} className="text-teal-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-900">Live Captions</p>
+              <p className="text-xs text-slate-500">
+                {usesBrowserCaptions
+                  ? "To show your words on screen while you talk, your web browser sends your voice to Google or Microsoft, who turn it into text. Your recordings and the analysis stay on Amumata's own server."
+                  : "Your words are shown on screen using Amumata's own server. Your voice is not sent to Google or Microsoft."}
               </p>
             </div>
           </div>

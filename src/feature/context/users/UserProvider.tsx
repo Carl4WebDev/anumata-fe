@@ -111,6 +111,8 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         f_name: payload.f_name,
         m_name: payload.m_name,
         l_name: payload.l_name,
+        accepted_terms: payload.accepted_terms,
+        terms_version: payload.terms_version,
       });
 
       const loginRes = await authApi.login(payload.email, payload.password);

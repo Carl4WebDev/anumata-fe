@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Plus, Search, Users, CalendarDays } from "lucide-react";
 import { usePatients } from "../../context/patients/usePatients";
 import AddPatientModal from "../modals/AddPatientModal";
-import LoadingSpinner from "../../../shared/components/LoadingSpinner";
+import { ListPageSkeleton } from "../../../shared/components/Skeleton";
 import EmptyState from "../../../shared/components/EmptyState";
 import Avatar from "../../../shared/components/Avatar";
 import { useToast } from "../../../shared/context/ToastContext";
@@ -30,7 +30,7 @@ export default function PatientsPage() {
   };
 
   if (loading) {
-    return <LoadingSpinner message="Loading patients..." />;
+    return <ListPageSkeleton label="Loading patients…" />;
   }
 
   return (

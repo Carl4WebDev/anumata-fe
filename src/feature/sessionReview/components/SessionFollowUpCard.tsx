@@ -1,8 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
-import { CalendarClock, CalendarPlus, CheckCircle2, XCircle, Clock, AlertCircle } from "lucide-react";
+import { Link } from "react-router-dom";
+import { CalendarClock, CalendarPlus, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { followUpsApi } from "../../../shared/api/followUpsApi";
 import type { FollowUp } from "../../../shared/api/followUpsApi";
 import { useToast } from "../../../shared/context/ToastContext";
+import AppointmentFormModal from "../../appointments/components/AppointmentFormModal";
+import { formatDateTime } from "../../appointments/utils/appointmentUtils";
+import ChoiceInput from "../../../shared/components/ChoiceInput";
+import { FOLLOW_UP_REASONS, formatClock, timeOptions } from "../../../shared/constants/choices";
+import { TextBlockSkeleton } from "../../../shared/components/Skeleton";
+
+const FOLLOW_UP_TIMES = timeOptions("06:00", "21:00", 30);
 
 interface SessionFollowUpCardProps {
   sessionId: string;
@@ -45,6 +53,7 @@ export default function SessionFollowUpCard({ sessionId, patientId }: SessionFol
   const [time, setTime] = useState("");
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
+  const [booking, setBooking] = useState(false);
 
   const fetchFollowUp = useCallback(async () => {
     setLoading(true);
@@ -119,7 +128,7 @@ export default function SessionFollowUpCard({ sessionId, patientId }: SessionFol
       </div>
 
       {/* Loading */}
-      {loading && <p className="py-3 text-sm text-slate-400">Loading follow-up status...</p>}
+      {loading && <TextBlockSkeleton lines={2} label="Loading follow-up status…" />}
 
       {/* Form — no follow-up yet */}
       {!loading && showForm && (
@@ -135,22 +144,30 @@ export default function SessionFollowUpCard({ sessionId, patientId }: SessionFol
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Time (optional)</label>
-              <input
-                type="time"
+              <label className="mb-1 block text-xs font-medium text-slate-600">Preferred time (optional)</label>
+              <select
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-              />
+              >
+                <option value="">Any time</option>
+                {FOLLOW_UP_TIMES.map((t) => (
+                  <option key={t} value={t}>
+                    {formatClock(t)}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
           <div className="mt-3">
             <label className="mb-1 block text-xs font-medium text-slate-600">Reason / Note (optional)</label>
-            <input
-              type="text"
+            <ChoiceInput
               value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g., Follow up on anxiety management progress"
+              onChange={setReason}
+              options={FOLLOW_UP_REASONS}
+              placeholder="Select a reason…"
+              otherPlaceholder="e.g., Follow up on anxiety management progress"
+              ariaLabel="Follow-up reason"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
             />
           </div>
@@ -197,17 +214,28 @@ export default function SessionFollowUpCard({ sessionId, patientId }: SessionFol
             </div>
           </div>
 
-          {/* Status actions */}
+          {/* Booked: status follows the appointment */}
+          {followUp.appointment_start_at && (
+            <p className="mt-3 text-xs text-slate-500">
+              Booked for <span className="font-medium text-slate-700">{formatDateTime(followUp.appointment_start_at)}</span>.{" "}
+              <Link to="/appointments" className="text-teal-600 hover:underline">
+                Reschedule or close it in Appointments
+              </Link>
+              .
+            </p>
+          )}
+
+          {/* Status actions — only while no appointment is booked */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {followUp.status === "recommended" && (
+            {!followUp.appointment_id && (followUp.status === "recommended" || followUp.status === "missed") && (
               <button
-                onClick={() => handleStatusChange("scheduled")}
-                className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+                onClick={() => setBooking(true)}
+                className="inline-flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1.5 text-xs font-medium text-teal-700 transition hover:bg-teal-100"
               >
-                <Clock size={12} /> Mark Scheduled
+                <CalendarPlus size={12} /> {followUp.status === "missed" ? "Rebook appointment" : "Book appointment"}
               </button>
             )}
-            {(followUp.status === "recommended" || followUp.status === "scheduled") && (
+            {!followUp.appointment_id && (followUp.status === "recommended" || followUp.status === "scheduled") && (
               <>
                 <button
                   onClick={() => handleStatusChange("completed")}
@@ -223,7 +251,7 @@ export default function SessionFollowUpCard({ sessionId, patientId }: SessionFol
                 </button>
               </>
             )}
-            {followUp.status === "scheduled" && (
+            {!followUp.appointment_id && followUp.status === "scheduled" && (
               <button
                 onClick={() => handleStatusChange("missed")}
                 className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100"
@@ -258,6 +286,22 @@ export default function SessionFollowUpCard({ sessionId, patientId }: SessionFol
         <p className="py-3 text-sm text-slate-400">
           No return recommendation for this interview yet.
         </p>
+      )}
+
+      {booking && followUp && (
+        <AppointmentFormModal
+          mode={{
+            kind: "book",
+            patientId: Number(patientId),
+            followUp: { id: followUp.follow_up_id, recommendedDate: followUp.recommended_date, reason: followUp.reason },
+          }}
+          onClose={() => setBooking(false)}
+          onSaved={(message) => {
+            setBooking(false);
+            success(`${message} — follow-up is now scheduled.`);
+            fetchFollowUp();
+          }}
+        />
       )}
     </section>
   );

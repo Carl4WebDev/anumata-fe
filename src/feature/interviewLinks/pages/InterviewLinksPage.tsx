@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link2, Copy, Check, Trash2, ExternalLink } from "lucide-react";
 import { useInterviewLinks } from "../../context/interviewLinks/useInterviewLinks";
 import GenerateLinkModal from "../modals/GenerateLinkModal";
-import LoadingSpinner from "../../../shared/components/LoadingSpinner";
+import { ListPageSkeleton } from "../../../shared/components/Skeleton";
 import EmptyState from "../../../shared/components/EmptyState";
 import { useToast } from "../../../shared/context/ToastContext";
 
@@ -40,12 +40,12 @@ export default function InterviewLinksPage() {
   };
 
   const handleDelete = async (id: number) => {
-    await removeLink(id);
-    success("Interview link deleted.");
+    // The row disappears at once (optimistic); confirm once the server agrees.
+    if (await removeLink(id)) success("Interview link deleted.");
   };
 
   if (loading) {
-    return <LoadingSpinner message="Loading interview links..." />;
+    return <ListPageSkeleton label="Loading interview links…" withSearch={false} />;
   }
 
   return (

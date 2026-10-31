@@ -23,6 +23,8 @@ export interface RegisterPayload {
   m_name?: string;
   l_name: string;
   password: string;
+  accepted_terms: boolean;
+  terms_version: string;
 }
 
 export interface UserContextValue {

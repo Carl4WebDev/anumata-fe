@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useUser } from "../../context/users/useUser";
-import { LayoutDashboard, Users, FileQuestion, Link2, BarChart3, Settings, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Users, CalendarDays, FileQuestion, Link2, BarChart3, Settings, LogOut, Menu, X } from "lucide-react";
 import Avatar from "../../../shared/components/Avatar";
 
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { label: "Patients", path: "/patients", icon: Users },
+  { label: "Appointments", path: "/appointments", icon: CalendarDays },
   { label: "Question Sets", path: "/question-sets", icon: FileQuestion },
   { label: "Interview Links", path: "/interview-links", icon: Link2 },
   { label: "Reports", path: "/reports", icon: BarChart3 },
@@ -60,7 +61,7 @@ export default function Sidebar() {
               A
             </div>
             <div>
-              <h1 className="text-xl font-bold">Anumata</h1>
+              <h1 className="text-xl font-bold">Amumata</h1>
               <p className="text-sm text-slate-400">Therapist Portal</p>
             </div>
           </Link>

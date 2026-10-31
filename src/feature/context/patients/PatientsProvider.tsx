@@ -5,6 +5,7 @@ import { followUpsApi } from "../../../shared/api/followUpsApi";
 import { ApiError } from "../../../shared/api/httpClient";
 import { formatName } from "../../../shared/utils/formatName";
 import type { FollowUp } from "../../../shared/api/followUpsApi";
+import { optimistic, patchItems, removeItems } from "../../../shared/utils/optimistic";
 
 function mapPatient(p: any, followUps: FollowUp[]) {
   const patientFollowUps = followUps.filter(
@@ -34,7 +35,8 @@ function mapPatient(p: any, followUps: FollowUp[]) {
 
 export const PatientsProvider = ({ children }: { children: React.ReactNode }) => {
   const [patients, setPatients] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Start as loading: the first fetch begins on mount, so never flash an empty list.
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchPatients = useCallback(async () => {
@@ -83,11 +85,10 @@ export const PatientsProvider = ({ children }: { children: React.ReactNode }) =>
 
   const removePatient = useCallback(async (id: number) => {
     try {
-      await patientsApi.remove(id);
-      setPatients((prev) => prev.filter((p) => p.id !== id));
+      await optimistic(setPatients, removeItems((p: { id: number }) => p.id === id), () => patientsApi.remove(id));
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Failed to remove patient";
-      setError(message);
+      setError(`${message} — the patient was put back.`);
     }
   }, []);
 
@@ -114,9 +115,20 @@ export const PatientsProvider = ({ children }: { children: React.ReactNode }) =>
     }
   }, []);
 
+  // Optimistic: the patient moves to/from the archive at once.
   const setArchived = useCallback(async (id: number, isArchived: boolean) => {
-    return updatePatient(id, { is_archived: isArchived });
-  }, [updatePatient]);
+    const status = isArchived ? "Archived" : "Active";
+    try {
+      let saved: unknown;
+      await optimistic(setPatients, patchItems((p: { id: number; isArchived: boolean; status: string }) => p.id === id, { isArchived, status }), async () => {
+        saved = (await patientsApi.update(id, { is_archived: isArchived })).data;
+      });
+      return { ok: true, data: saved };
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Failed to update patient";
+      return { ok: false, error: `${message} — no change was made.` };
+    }
+  }, []);
 
   const setProfileImage = useCallback(async (id: number, profileImage: string | null) => {
     return updatePatient(id, { profile_image: profileImage });

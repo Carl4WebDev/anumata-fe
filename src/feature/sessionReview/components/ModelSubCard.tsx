@@ -2,6 +2,9 @@ import { useState } from "react";
 import { Eye, Mic, Languages, ChevronDown, AlertCircle } from "lucide-react";
 import ConfidenceBadge from "../../../shared/components/ConfidenceBadge";
 import EmotionTag from "../../../shared/components/EmotionTag";
+import EmotionCues from "../../../shared/components/EmotionCues";
+import VoiceMeasurements from "./VoiceMeasurements";
+import { hasVoiceMeasurements } from "../utils/voiceMeasurements";
 import type { ModelEvidence } from "../hooks/useSessionComputed";
 
 const MODEL_ICONS = { FER: Eye, SER: Mic, LER: Languages } as const;
@@ -43,17 +46,29 @@ export default function ModelSubCard({ evidence }: ModelSubCardProps) {
         </div>
       </div>
 
+      {/* Measured voice numbers (replace the text summary of the same data) */}
+      {evidence.model === "SER" && hasVoiceMeasurements(evidence.details) && (
+        <VoiceMeasurements details={evidence.details} />
+      )}
+
       {/* Details line */}
-      {evidence.details && typeof evidence.details === "object" && "description" in evidence.details && (
+      {evidence.details &&
+        typeof evidence.details === "object" &&
+        "description" in evidence.details &&
+        !(evidence.model === "SER" && hasVoiceMeasurements(evidence.details)) && (
         <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
           {(evidence.details as Record<string, unknown>).description as string}
         </p>
       )}
 
+      {/* What the detected emotion usually looks / sounds like */}
+      {evidence.model === "FER" && <EmotionCues emotion={evidence.emotion} kind="face" />}
+      {evidence.model === "SER" && <EmotionCues emotion={evidence.emotion} kind="voice" />}
+
       {/* Language detected for LER */}
-      {evidence.model === "LER" && "languageDetected" in evidence && (
+      {evidence.model === "LER" && evidence.languageDetected && (
         <p className="mt-1 text-[11px] text-slate-500">
-          Language: <span className="font-medium">{(evidence as Record<string, unknown>).languageDetected as string}</span>
+          Language: <span className="font-medium">{evidence.languageDetected}</span>
         </p>
       )}
 
