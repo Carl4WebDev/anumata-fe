@@ -8,7 +8,6 @@ import AiQuestionSetBuilderModal from "../modals/AiQuestionSetBuilderModal";
 import { ListPageSkeleton, RowsSkeleton } from "../../../shared/components/Skeleton";
 import EmptyState from "../../../shared/components/EmptyState";
 import { useToast } from "../../../shared/context/ToastContext";
-import { questionSetsApi } from "../../../shared/api/questionSetsApi";
 import {
   getStandardizedQuestions,
   type StandardizedQuestion,
@@ -33,8 +32,8 @@ interface SelectedQuestion {
 }
 
 export default function QuestionSetsPage() {
-  const { questionSets, addQuestionSet, updateQuestionSet, removeQuestionSet, loading, error } = useQuestionSets();
-  const { success } = useToast();
+  const { questionSets, addQuestionSet, addQuestionSetWithItems, updateQuestionSet, removeQuestionSet, loading, error } = useQuestionSets();
+  const { success, error: toastError } = useToast();
 
   const [tab, setTab] = useState<Tab>("sets");
   const [search, setSearch] = useState("");
@@ -140,29 +139,28 @@ export default function QuestionSetsPage() {
   const handleCreateSetFromSelection = async () => {
     if (!newSetName.trim() || selectedQuestions.length === 0) return;
     setCreating(true);
-    try {
-      await questionSetsApi.createWithItems({
-        name: newSetName.trim(),
-        description: newSetDescription.trim() || undefined,
-        items: selectedQuestions.map((q) => ({
-          source_type: q.source_type,
-          ...(q.source_type === "standardized"
-            ? { standardized_question_id: q.id }
-            : { custom_question_id: q.id }),
-        })),
-      });
-      success(`Interview set "${newSetName}" created with ${selectedQuestions.length} questions.`);
-      setSelectedQuestions([]);
-      setNewSetName("");
-      setNewSetDescription("");
-      setShowSetNameModal(false);
-      // Refresh the sets list
-      setTab("sets");
-    } catch (e: any) {
-      success(e?.message || "Failed to create interview set.");
-    } finally {
-      setCreating(false);
+    // Goes through the shared list, so the new set shows on the Sets tab without a refresh.
+    const result = await addQuestionSetWithItems({
+      name: newSetName.trim(),
+      description: newSetDescription.trim() || undefined,
+      items: selectedQuestions.map((q) => ({
+        source_type: q.source_type,
+        ...(q.source_type === "standardized"
+          ? { standardized_question_id: q.id }
+          : { custom_question_id: q.id }),
+      })),
+    });
+    setCreating(false);
+    if (!result.ok) {
+      toastError(result.message || "Failed to create interview set.");
+      return;
     }
+    success(`Interview set "${newSetName}" created with ${selectedQuestions.length} questions.`);
+    setSelectedQuestions([]);
+    setNewSetName("");
+    setNewSetDescription("");
+    setShowSetNameModal(false);
+    setTab("sets");
   };
 
   // Custom question handlers
