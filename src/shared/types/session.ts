@@ -1,0 +1,249 @@
+export type Emotion = 'Angry' | 'Happy' | 'Neutral' | 'Sad';
+
+export interface FacialDetails {
+  brows: string;
+  eyes: string;
+  mouth: string;
+  jaw: string;
+  description: string;
+}
+
+export interface AudioDetails {
+  pitch_mean_hz: number;
+  pitch_std_hz: number;
+  pitch_label: string;
+  energy_rms: number;
+  energy_label: string;
+  speech_rate: string;
+  pitch_variability: string;
+  description: string;
+  // Measured from the answer's recording (sessions analysed after voice measurement was added).
+  pitch_min_hz?: number;
+  pitch_max_hz?: number;
+  pitch_std_semitones?: number;
+  loudness_db?: number;
+  words_per_minute?: number | null;
+  pause_count?: number;
+  longest_pause_s?: number;
+  response_delay_s?: number;
+  speaking_time_s?: number;
+  /** The patient's usual voice this session (medians across answers). */
+  baseline?: { pitch_mean_hz: number | null; loudness_db: number | null; words_per_minute: number | null };
+  pitch_vs_usual_pct?: number | null;
+  loudness_vs_usual_db?: number | null;
+  pace_vs_usual_pct?: number | null;
+}
+
+export interface InterviewResponse {
+  question: string;
+  answer: string;
+  fer_emotion: Emotion | null;
+  fer_confidence: number;
+  fer_probabilities: Record<string, number>;
+  ser_emotion: Emotion | null;
+  ser_confidence: number;
+  ser_probabilities: Record<string, number>;
+  ler_emotion: Emotion | null;
+  ler_confidence: number;
+  ler_probabilities: Record<string, number>;
+  language_detected: string | null;
+  combined_emotion: Emotion;
+  fusion_confidence?: number;
+  fusion_agreement?: number;
+  facial_details: FacialDetails | null;
+  audio_details: AudioDetails | null;
+  text_analysis: any | null;
+  audio_duration?: number;
+  rms_level?: number;
+  is_silence?: boolean;
+  language_detected_confidence?: number | null;
+  frame_image: string | null;
+  evidence_frames: {
+    frame_image: string;
+    fer_emotion: string | null;
+    fer_confidence: number;
+  }[] | null;
+}
+
+export interface EmotionalSpike {
+  question_index: number;
+  label: string;
+  emotion: Emotion;
+  intensity: number;
+  type?: 'transition' | 'high_confidence' | 'flip' | 'intensification' | 'modality_alert' | 'disagreement';
+}
+
+export interface EmotionalEvent {
+  event_number: number;
+  dominant_emotion: Emotion;
+  emotion_confidence: number;
+  timestamp: string;
+  intensity_level: 'Low' | 'Moderate' | 'High';
+  question: string;
+  transcript: string;
+  speech_indicators: string;
+  facial_indicators: string;
+  summary: string;
+}
+
+export interface SessionHighlights {
+  total_events: number;
+  most_frequent_emotion: Emotion;
+  highest_intensity_event: number | null;
+  questions_with_responses: string[];
+  overall_summary: string;
+}
+
+export interface EmotionSummary {
+  distribution: Record<string, number>;
+  indicators: string[];
+}
+
+/** A session as the UI uses it (mapped from the API's SessionData in SessionsProvider). */
+export interface MappedSession {
+  id: number;
+  patientId: number;
+  patientName: string;
+  templateName: string;
+  date: string;
+  duration: string;
+  riskLevel: string;
+  indicators: string[];
+  emotions: Record<string, number>;
+  spikes: {
+    questionIndex: number;
+    label: string;
+    emotion: string;
+    intensity: number;
+    type?: 'transition' | 'high_confidence' | 'flip' | 'intensification' | 'modality_alert' | 'disagreement';
+  }[];
+  responses: {
+    question: string;
+    answer: string;
+    emotion: string;
+    emotionPct: number;
+    fer_confidence: number;
+    fer_emotion: string | null;
+    fer_probabilities: Record<string, number> | null;
+    ser_confidence: number;
+    ser_emotion: string | null;
+    ser_probabilities: Record<string, number> | null;
+    ler_confidence: number;
+    ler_emotion: string | null;
+    ler_probabilities: Record<string, number> | null;
+    language_detected: string | null;
+    facial_details: FacialDetails | null;
+    audio_details: AudioDetails | null;
+    text_analysis: any | null;
+    /** Fused prediction confidence (0-1). Null when the pipeline stored no fusion score. */
+    fusion_confidence: number | null;
+    /** Modality agreement percentage (100 / 66.67 / 33.33). Null when fusion did not run. */
+    fusion_agreement: number | null;
+    audio_duration: number | null;
+    rms_level: number | null;
+    is_silence: boolean | null;
+    frame_image: string | null;
+    evidence_frames: {
+      frame_image: string;
+      fer_emotion: string | null;
+      fer_confidence: number;
+    }[] | null;
+  }[];
+  emotionalEvents: EmotionalEvent[];
+  sessionHighlights: SessionHighlights | null;
+  notes: string;
+  report: {
+    session_summary?: string;
+    topics_discussed?: string[];
+    keywords?: string[];
+    therapist_explanation?: string;
+    therapist_evaluation?: string;
+    suggested_follow_ups?: string[];
+    suggested_therapist_focus?: string[];
+    key_emotional_findings?: string[];
+    areas_for_attention?: string[];
+    evidence_quality?: { fer?: string; ser?: string; ler?: string; overall?: string };
+    limitations?: string[];
+    report_source?: "llm" | "fallback" | "deterministic";
+  } | null;
+}
+
+/** One answer as the session review shows it. */
+export type MappedResponse = MappedSession["responses"][number];
+
+/**
+ * Longitudinal AI report — summarizes emotional patterns across
+ * multiple completed sessions for a single patient.
+ *
+ * Generated by Llama 3.2:3B via Ollama from aggregated session data.
+ * Stored in patients.longitudinal_report (JSONB).
+ */
+export interface LongitudinalReport {
+  overall_summary: string;
+  emotional_patterns: string[];
+  session_changes: string[];
+  recurring_indicators: string[];
+  areas_for_attention: string[];
+  therapist_focus: string[];
+  suggested_follow_up_questions: string[];
+  session_highlights: string[];
+  evidence_quality: { overall: string; notes: string; fer?: string; ser?: string; ler?: string };
+  limitations: string[];
+  report_source?: "llm" | "deterministic" | "fallback";
+  generated_at?: string;
+  /** Structured analysis data — present when report_source is "deterministic" or "llm" */
+  _deterministic_analysis?: DeterministicAnalysis;
+}
+
+/** Structured longitudinal analysis computed deterministically from session data. */
+export interface DeterministicAnalysis {
+  overall_summary: string;
+  emotional_patterns: Array<{
+    pattern: string;
+    frequency: string;
+    supporting_sessions: string[];
+    session_indices: number[];
+  }>;
+  session_changes: Array<{
+    type: string;
+    label: string;
+    detail?: string;
+    details?: Array<{
+      emotion: string;
+      early: number;
+      recent: number;
+      change: number;
+      direction: string;
+      arrow: string;
+    }>;
+    from?: string;
+    to?: string;
+  }>;
+  recurring_indicators: Array<{
+    indicator: string;
+    frequency: number;
+    supporting_sessions: string[];
+  }>;
+  areas_for_attention: Array<{
+    area: string;
+    sessions: string[];
+    severity: string;
+  }>;
+  therapist_focus: string[];
+  suggested_follow_up_questions: string[];
+  session_highlights: Array<{
+    type: string;
+    label: string;
+    session?: string;
+    date?: string;
+    detail?: string;
+    intensity?: number | string;
+    confidence?: number | string;
+    supporting_sessions?: string[];
+  }>;
+  evidence_quality: { overall: string; notes: string; fer?: string; ser?: string; ler?: string };
+  limitations: string[];
+  modality_stats: { fer: number; ser: number; ler: number };
+  session_count: number;
+  overall_dominant_emotion: string;
+}

@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import { lazy, Suspense } from "react";
 
+import { ToastProvider } from "../shared/context/ToastContext";
 import { UserProvider } from "../feature/context/users/UserProvider";
 import { DashboardProvider } from "../feature/context/dashboard/DashboardProvider";
 import { PatientsProvider } from "../feature/context/patients/PatientsProvider";
@@ -22,18 +23,18 @@ const InterviewLinksPage = lazy(() => import("../feature/interviewLinks/pages/In
 const SessionReviewPage = lazy(() => import("../feature/sessionReview/pages/SessionReviewPage"));
 const ReportsPage = lazy(() => import("../feature/reports/pages/ReportsPage"));
 const SettingsPage = lazy(() => import("../feature/settings/pages/SettingsPage"));
+const AppointmentsPage = lazy(() => import("../feature/appointments/pages/AppointmentsPage"));
 
 // Interview flow — public, no auth required
 const ConsentPage = lazy(() => import("../feature/interview/pages/ConsentPage"));
 const InterviewRoom = lazy(() => import("../feature/interview/pages/InterviewRoomPage"));
 const ProcessingPage = lazy(() => import("../feature/interview/pages/ProcessingPage"));
 const ResultsPage = lazy(() => import("../feature/interview/pages/ResultsPage"));
-const RecommendationPage = lazy(() => import("../feature/interview/pages/RecommendationPage"));
 
 function PageLoader() {
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-600 border-t-transparent" />
     </div>
   );
 }
@@ -44,37 +45,38 @@ function SuspenseWrap({ children }: { children: React.ReactNode }) {
 
 export default function AppRoutes() {
   return (
+    <ToastProvider>
     <UserProvider>
-      <PatientsProvider>
-        <SessionsProvider>
           <Routes>
-            {/* Landing — always accessible */}
-            <Route path="/" element={<SuspenseWrap><LandingPage /></SuspenseWrap>} />
-
             {/* Interview flow — public, client-facing, no auth required */}
             <Route path="/interview/:token" element={<SuspenseWrap><ConsentPage /></SuspenseWrap>} />
             <Route path="/interview/:token/room" element={<SuspenseWrap><InterviewRoom /></SuspenseWrap>} />
             <Route path="/interview/:token/processing" element={<SuspenseWrap><ProcessingPage /></SuspenseWrap>} />
             <Route path="/interview/:token/results" element={<SuspenseWrap><ResultsPage /></SuspenseWrap>} />
-            <Route path="/interview/:token/recommendation" element={<SuspenseWrap><RecommendationPage /></SuspenseWrap>} />
 
-            {/* Auth routes — redirect to dashboard if already logged in */}
+            {/* Public routes — redirect to dashboard if already logged in */}
             <Route element={<PublicRoute />}>
+              <Route path="/" element={<SuspenseWrap><LandingPage /></SuspenseWrap>} />
               <Route path="/login" element={<SuspenseWrap><LoginPage /></SuspenseWrap>} />
               <Route path="/register" element={<SuspenseWrap><RegisterPage /></SuspenseWrap>} />
             </Route>
 
             {/* Protected routes */}
             <Route element={
-              <DashboardProvider>
-                <QuestionSetsProvider>
-                  <InterviewLinksProvider>
-                    <ProtectedLayout />
-                  </InterviewLinksProvider>
-                </QuestionSetsProvider>
-              </DashboardProvider>
+              <PatientsProvider>
+                <SessionsProvider>
+                  <DashboardProvider>
+                    <QuestionSetsProvider>
+                      <InterviewLinksProvider>
+                        <ProtectedLayout />
+                      </InterviewLinksProvider>
+                    </QuestionSetsProvider>
+                  </DashboardProvider>
+                </SessionsProvider>
+              </PatientsProvider>
             }>
               <Route path="/dashboard" element={<SuspenseWrap><DashboardPage /></SuspenseWrap>} />
+              <Route path="/appointments" element={<SuspenseWrap><AppointmentsPage /></SuspenseWrap>} />
               <Route path="/patients" element={<SuspenseWrap><PatientsPage /></SuspenseWrap>} />
               <Route path="/patients/:id" element={<SuspenseWrap><PatientDetailsPage /></SuspenseWrap>} />
               <Route path="/question-sets" element={<SuspenseWrap><QuestionSetsPage /></SuspenseWrap>} />
@@ -84,8 +86,7 @@ export default function AppRoutes() {
               <Route path="/settings" element={<SuspenseWrap><SettingsPage /></SuspenseWrap>} />
             </Route>
           </Routes>
-        </SessionsProvider>
-      </PatientsProvider>
     </UserProvider>
+    </ToastProvider>
   );
 }

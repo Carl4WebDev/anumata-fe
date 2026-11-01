@@ -23,3 +23,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# MediaPipe WASM runtime, copied from node_modules on npm install (scripts/copy-mediapipe.mjs)
+public/mediapipe/wasm/

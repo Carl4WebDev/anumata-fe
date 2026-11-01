@@ -1,297 +1,487 @@
+import { useEffect, useMemo, useState } from "react";
 import { useSessions } from "../../context/sessions/useSessions";
 import { usePatients } from "../../context/patients/usePatients";
 import { Link } from "react-router-dom";
-import { TrendingDown, TrendingUp, AlertTriangle, Users, Activity } from "lucide-react";
+import { AlertTriangle, Users, Activity, BarChart3, ArrowRight, CalendarClock, RefreshCw, ShieldAlert, X } from "lucide-react";
+import { DashboardSkeleton } from "../../../shared/components/Skeleton";
+import EmptyState from "../../../shared/components/EmptyState";
+import { followUpsApi } from "../../../shared/api/followUpsApi";
+import type { FollowUp } from "../../../shared/api/followUpsApi";
+import type { MappedSession } from "../../../shared/types/session";
+import {
+  filterSessions,
+  filterFollowUps,
+  countActiveReportFilters,
+  tallyQuestionPredictions,
+  sessionEmotionCounts,
+  buildTimeline,
+  computeEvidenceQuality,
+  buildReviewSegments,
+  summarizeFollowUps,
+  EMPTY_REPORT_FILTERS,
+  EMOTION_LABELS,
+  type ReportFilters,
+} from "../utils/reportMetrics";
+
+const emotionColors: Record<string, string> = {
+  happy: "bg-green-500",
+  sad: "bg-blue-500",
+  angry: "bg-red-500",
+  neutral: "bg-slate-400",
+};
+
+function pct(part: number, whole: number): string {
+  return whole > 0 ? `${Math.round((part / whole) * 100)}%` : "0%";
+}
+
+function dominantLabel(counts: Record<string, number>, total: number): string {
+  if (total === 0) return "—";
+  return Object.entries(counts).sort(([, a], [, b]) => b - a)[0]?.[0] ?? "—";
+}
 
 export default function ReportsPage() {
-  const { sessions } = useSessions();
-  const { patients } = usePatients();
+  const { sessions: rawSessions, loading: sessionsLoading, error: sessionsError } = useSessions();
+  const { patients: rawPatients, loading: patientsLoading } = usePatients();
+  const sessions = rawSessions as MappedSession[];
+  const patients = rawPatients as { id: number; name: string }[];
 
-  // Compute stats
-  const totalSessions = sessions.length;
-  const highRisk = sessions.filter((s) => s.riskLevel === "High").length;
-  const moderateRisk = sessions.filter((s) => s.riskLevel === "Moderate").length;
-  const lowRisk = sessions.filter((s) => s.riskLevel === "Low").length;
+  const [filters, setFilters] = useState<ReportFilters>(EMPTY_REPORT_FILTERS);
+  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [followUpsError, setFollowUpsError] = useState<string | null>(null);
 
-  // Aggregate emotions across all sessions
-  const avgEmotions = totalSessions > 0
-    ? {
-        sad: Math.round(sessions.reduce((sum, s) => sum + s.emotions.sad, 0) / totalSessions),
-        happy: Math.round(sessions.reduce((sum, s) => sum + s.emotions.happy, 0) / totalSessions),
-        angry: Math.round(sessions.reduce((sum, s) => sum + s.emotions.angry, 0) / totalSessions),
-        neutral: Math.round(sessions.reduce((sum, s) => sum + s.emotions.neutral, 0) / totalSessions),
+  const updateFilters = (patch: Partial<ReportFilters>) =>
+    setFilters((prev) => ({ ...prev, ...patch }));
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await followUpsApi.getAll();
+        if (!cancelled) setFollowUps(res.data);
+      } catch {
+        if (!cancelled) setFollowUpsError("Follow-ups unavailable.");
       }
-    : { sad: 0, happy: 0, angry: 0, neutral: 0 };
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  // Per-session emotion trend (most recent first)
-  const trend = [...sessions].reverse().map((s) => ({
-    label: s.date,
-    template: s.templateName,
-    ...s.emotions,
-  }));
-
-  // Aggregate indicators
-  const indicatorCounts: Record<string, number> = {};
-  sessions.forEach((s) => {
-    s.indicators.forEach((ind) => {
-      indicatorCounts[ind] = (indicatorCounts[ind] ?? 0) + 1;
-    });
-  });
-  const topIndicators = Object.entries(indicatorCounts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 6);
-
-  // Aggregate spike question topics
-  const spikeQuestions = sessions.flatMap((s) =>
-    s.spikes.map((sp) => ({
-      question: s.responses[sp.questionIndex]?.question ?? "Unknown",
-      template: s.templateName,
-      intensity: sp.intensity,
-    }))
+  const filtered = useMemo(() => filterSessions(sessions, filters), [sessions, filters]);
+  const tally = useMemo(() => tallyQuestionPredictions(filtered), [filtered]);
+  const evidence = useMemo(() => computeEvidenceQuality(filtered), [filtered]);
+  const timeline = useMemo(() => buildTimeline(filtered), [filtered]);
+  const segments = useMemo(() => buildReviewSegments(filtered), [filtered]);
+  const filteredFollowUps = useMemo(() => filterFollowUps(followUps, filters), [followUps, filters]);
+  const followUpSummary = useMemo(() => summarizeFollowUps(filteredFollowUps), [filteredFollowUps]);
+  const recent = useMemo(
+    () =>
+      [...filtered]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 5),
+    [filtered],
   );
 
-  const emotionColors: Record<string, string> = {
-    sad: "bg-blue-500",
-    happy: "bg-green-500",
-    angry: "bg-red-500",
-    neutral: "bg-slate-400",
-  };
+  const awaitingReview = filtered.filter(
+    (s) =>
+      s.riskLevel === "High" ||
+      s.report === null ||
+      (s.report.report_source !== undefined && s.report.report_source !== "llm"),
+  ).length;
+
+  const activeFilterCount = countActiveReportFilters(filters);
+
+  if (sessionsLoading || patientsLoading) {
+    return <DashboardSkeleton label="Loading reports…" />;
+  }
 
   return (
     <div className="space-y-6 md:space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Reports</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Emotional trends, common triggers, and long-term progress across all sessions.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Reports</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Model-predicted emotional indicators and evidence quality across completed sessions.
+          </p>
+        </div>
       </div>
 
-      {/* Stat Cards */}
-      <section className="grid grid-cols-2 gap-3 md:gap-6 lg:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-500 md:text-sm">Total Sessions</p>
-              <h2 className="mt-1 text-2xl font-bold md:mt-2 md:text-3xl">{totalSessions}</h2>
-            </div>
-            <Activity size={24} className="text-blue-600" />
-          </div>
+      {/* Filters */}
+      {sessions.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <input
+            type="date"
+            value={filters.dateFrom}
+            onChange={(e) => updateFilters({ dateFrom: e.target.value })}
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+          />
+          <span className="text-xs text-slate-400">to</span>
+          <input
+            type="date"
+            value={filters.dateTo}
+            onChange={(e) => updateFilters({ dateTo: e.target.value })}
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+          />
+          <select
+            value={filters.patientId}
+            onChange={(e) => updateFilters({ patientId: e.target.value })}
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+          >
+            <option value="">All patients</option>
+            {patients.map((p) => (
+              <option key={p.id} value={String(p.id)}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          {activeFilterCount > 0 && (
+            <button
+              onClick={() => setFilters(EMPTY_REPORT_FILTERS)}
+              className="inline-flex items-center gap-1 text-xs font-medium text-teal-600 hover:text-teal-700"
+            >
+              <X size={12} />
+              Clear filters
+            </button>
+          )}
+          <span className="ml-auto text-xs text-slate-400">
+            {filtered.length} of {sessions.length} sessions
+          </span>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-500 md:text-sm">High Risk Cases</p>
-              <h2 className="mt-1 text-2xl font-bold text-red-500 md:mt-2 md:text-3xl">{highRisk}</h2>
-            </div>
-            <AlertTriangle size={24} className="text-red-500" />
-          </div>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-500 md:text-sm">Moderate Risk</p>
-              <h2 className="mt-1 text-2xl font-bold text-yellow-500 md:mt-2 md:text-3xl">{moderateRisk}</h2>
-            </div>
-            <TrendingUp size={24} className="text-yellow-500" />
-          </div>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-500 md:text-sm">Total Patients</p>
-              <h2 className="mt-1 text-2xl font-bold md:mt-2 md:text-3xl">{patients.length}</h2>
-            </div>
-            <Users size={24} className="text-blue-600" />
-          </div>
-        </div>
-      </section>
+      )}
 
-      <section className="grid gap-6 xl:grid-cols-3">
-        {/* Left column */}
-        <div className="space-y-6 xl:col-span-2">
-          {/* Overall Emotion Distribution */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Overall Emotion Distribution</h2>
-            <div className="space-y-4">
-              {Object.entries(avgEmotions)
-                .sort(([, a], [, b]) => b - a)
-                .map(([label, pct]) => (
-                  <div key={label}>
-                    <div className="mb-1 flex justify-between text-sm">
-                      <span className="capitalize text-slate-700">{label}</span>
-                      <span className="text-slate-500">{pct}%</span>
-                    </div>
-                    <div className="h-3 w-full rounded-full bg-slate-100">
-                      <div
-                        className={`h-full rounded-full ${emotionColors[label] ?? "bg-slate-400"} transition-all duration-500`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </div>
+      {sessionsError && (
+        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm text-red-700">{sessionsError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-red-700 hover:underline"
+          >
+            <RefreshCw size={14} />
+            Retry
+          </button>
+        </div>
+      )}
 
-          {/* Session-by-Session Trend */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Session-by-Session Trend</h2>
-            {trend.length > 0 ? (
-              <div className="space-y-3">
-                {trend.map((t, i) => (
-                  <div key={i} className="rounded-xl border border-slate-200 p-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm font-medium">{t.template}</span>
-                      <span className="text-xs text-slate-400">{t.label}</span>
+      {sessions.length === 0 && !sessionsError ? (
+        <EmptyState
+          icon={BarChart3}
+          title="No session data yet"
+          description="Complete your first interview to see model predictions and evidence quality across sessions."
+        />
+      ) : filtered.length === 0 ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center">
+          <p className="text-sm text-slate-500">No sessions match the current filters.</p>
+          <button
+            onClick={() => setFilters(EMPTY_REPORT_FILTERS)}
+            className="mt-2 text-sm font-medium text-teal-600 hover:text-teal-700"
+          >
+            Clear filters
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Overview */}
+          <section className="grid grid-cols-2 gap-3 md:gap-6 lg:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Completed Sessions</p>
+                  <h2 className="mt-2 text-3xl font-bold">{filtered.length}</h2>
+                  <p className="mt-1 text-xs text-slate-400">In selected range</p>
+                </div>
+                <Activity size={24} className="text-teal-600" />
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Total Patients</p>
+                  <h2 className="mt-2 text-3xl font-bold">{patients.length}</h2>
+                  <p className="mt-1 text-xs text-slate-400">Registered</p>
+                </div>
+                <Users size={24} className="text-teal-600" />
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Awaiting Review</p>
+                  <h2 className="mt-2 text-3xl font-bold text-amber-600">{awaitingReview}</h2>
+                  <p className="mt-1 text-xs text-slate-400">Proxy: risk-flagged, missing, or fallback report</p>
+                </div>
+                <ShieldAlert size={24} className="text-amber-500" />
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Question Predictions</p>
+                  <h2 className="mt-2 text-3xl font-bold">{tally.questionsTotal}</h2>
+                  <p className="mt-1 text-xs text-slate-400">Fused model outputs</p>
+                </div>
+                <BarChart3 size={24} className="text-teal-600" />
+              </div>
+            </div>
+          </section>
+
+          <section className="grid gap-6 xl:grid-cols-3">
+            {/* Left column */}
+            <div className="space-y-6 xl:col-span-2">
+              {/* Predicted emotional indicator distribution */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+                <h2 className="mb-1 text-base font-semibold text-slate-900 md:mb-2">Predicted Emotional Indicators</h2>
+                <p className="mb-4 text-xs text-slate-500">
+                  Basis: one fused prediction per interview question (confidence-weighted FER+SER vote; LER excluded
+                  from fusion). {tally.classified} questions across {filtered.length} sessions — not frame- or
+                  duration-weighted{tally.unclassified > 0 ? `; ${tally.unclassified} questions had unrecognized labels` : ""}.
+                </p>
+                <div className="space-y-4">
+                  {EMOTION_LABELS.map((label) => (
+                    <div key={label}>
+                      <div className="mb-1 flex justify-between text-sm">
+                        <span className="capitalize text-slate-700">{label}</span>
+                        <span className="text-slate-500">
+                          {tally.counts[label]} questions · {tally.pct[label]}%
+                        </span>
+                      </div>
+                      <div className="h-3 w-full rounded-full bg-slate-100">
+                        <div
+                          className={`h-full rounded-full ${emotionColors[label] ?? "bg-slate-400"} transition-all duration-500`}
+                          style={{ width: `${tally.pct[label]}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      {Object.entries({ sad: t.sad, happy: t.happy, angry: t.angry, neutral: t.neutral })
-                        .sort(([, a], [, b]) => b - a)
-                        .map(([label, pct]) => (
-                          <div key={label} className="flex flex-1 flex-col items-center gap-1">
-                            <div className="h-16 w-full rounded-md bg-slate-100 relative overflow-hidden">
-                              <div
-                                className={`absolute bottom-0 w-full rounded-md ${emotionColors[label]}`}
-                                style={{ height: `${pct}%` }}
-                              />
-                            </div>
-                            <span className="text-[10px] capitalize text-slate-400">{label}</span>
-                            <span className="text-xs font-medium text-slate-600">{pct}%</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Timeline across sessions */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+                <h2 className="mb-1 text-base font-semibold text-slate-900 md:mb-2">Predicted Indicators Across Sessions</h2>
+                <p className="mb-4 text-xs text-slate-500">
+                  Per-session share of question-level fused predictions, oldest to newest. Model output only — not
+                  verified emotional states.
+                </p>
+                <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                  {timeline.map((row) => (
+                    <Link
+                      key={row.sessionId}
+                      to={`/sessions/${row.sessionId}`}
+                      className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 transition hover:border-teal-200 hover:bg-teal-50/30"
+                    >
+                      <div className="w-28 shrink-0">
+                        <p className="text-xs font-medium text-slate-700">{row.date}</p>
+                        <p className="truncate text-xs text-slate-400">{row.templateName}</p>
+                      </div>
+                      <div className="flex h-3 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        {EMOTION_LABELS.map((label) =>
+                          row.emotion.counts[label] > 0 ? (
+                            <div
+                              key={label}
+                              className={`h-full ${emotionColors[label] ?? "bg-slate-400"}`}
+                              style={{ width: `${(row.emotion.counts[label] / Math.max(row.emotion.total, 1)) * 100}%` }}
+                              title={`${label}: ${row.emotion.counts[label]}`}
+                            />
+                          ) : null,
+                        )}
+                      </div>
+                      <div className="w-24 shrink-0 text-right">
+                        <p className="text-xs font-medium capitalize text-slate-700">
+                          {dominantLabel(row.emotion.counts, row.emotion.total)}
+                        </p>
+                        <p className="text-xs text-slate-400">{row.emotion.total} questions</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sessions & Segments for Review */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+                <h2 className="mb-1 text-base font-semibold text-slate-900 md:mb-2">Sessions &amp; Segments for Review</h2>
+                <p className="mb-4 text-xs text-slate-500">
+                  Questions flagged by the fusion rules (transition, high confidence, flip, intensification, modality
+                  alert, disagreement). Score = the model's fused confidence for that question at analysis time
+                  (capped at 95%) — it may differ from the confidence stored in the transcript. Workflow aid, not a
+                  clinical judgment.
+                </p>
+                {segments.length > 0 ? (
+                  <div className="space-y-3">
+                    {segments.map((seg, i) => (
+                      <Link
+                        key={`${seg.sessionId}-${seg.questionIndex}-${i}`}
+                        to={`/sessions/${seg.sessionId}`}
+                        className="flex items-start gap-3 rounded-xl border-l-4 border-yellow-400 bg-yellow-50 p-4 transition hover:bg-yellow-100"
+                      >
+                        <AlertTriangle size={16} className="mt-0.5 shrink-0 text-yellow-600" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium break-words text-yellow-800">{seg.question}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-yellow-700">
+                            <span>{seg.patientName}</span>
+                            <span>&middot;</span>
+                            <span>{seg.templateName}</span>
+                            <span>&middot;</span>
+                            <span>{seg.date}</span>
+                            <span>&middot;</span>
+                            <span className="capitalize">{seg.emotion}</span>
+                            <span>&middot;</span>
+                            <span>Prediction score: {seg.score}%</span>
+                            <span>&middot;</span>
+                            <span>{seg.label}</span>
+                            {seg.type && (
+                              <span className="rounded-full border border-yellow-300 bg-yellow-100 px-2 py-0.5 text-xs font-medium">
+                                {seg.type === "modality_alert" ? "Single-modality alert" : "Modality disagreement"}
+                              </span>
+                            )}
                           </div>
-                        ))}
-                    </div>
+                        </div>
+                        <ArrowRight size={14} className="mt-1 shrink-0 text-yellow-400" />
+                      </Link>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="py-8 text-center text-sm text-slate-400">No session data available.</p>
-            )}
-          </div>
-
-          {/* Common Emotional Spikes */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:mb-6 md:text-xl">Common Emotional Spike Topics</h2>
-            {spikeQuestions.length > 0 ? (
-              <div className="space-y-3">
-                {spikeQuestions.map((sq, i) => (
-                  <div
-                    key={i}
-                    className="flex items-start gap-3 rounded-xl border-l-4 border-yellow-400 bg-yellow-50 p-4"
-                  >
-                    <AlertTriangle size={16} className="mt-0.5 shrink-0 text-yellow-600" />
-                    <div>
-                      <p className="text-sm font-medium text-yellow-800">{sq.question}</p>
-                      <p className="text-xs text-yellow-600">
-                        Template: {sq.template} — Intensity: {sq.intensity}%
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="py-8 text-center text-sm text-slate-400">No emotional spikes recorded.</p>
-            )}
-          </div>
-        </div>
-
-        {/* Right column */}
-        <div className="space-y-6">
-          {/* Common Indicators */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:text-xl">Top Indicators</h2>
-            {topIndicators.length > 0 ? (
-              <div className="space-y-3">
-                {topIndicators.map(([label, count]) => (
-                  <div key={label} className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
-                    <span className="text-sm font-medium text-slate-700">{label}</span>
-                    <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-600">
-                      {count}x
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="py-8 text-center text-sm text-slate-400">No indicators recorded.</p>
-            )}
-          </div>
-
-          {/* Risk Distribution */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:text-xl">Risk Distribution</h2>
-            <div className="space-y-3">
-              {[
-                { label: "High", count: highRisk, color: "bg-red-500", textColor: "text-red-600" },
-                { label: "Moderate", count: moderateRisk, color: "bg-yellow-500", textColor: "text-yellow-600" },
-                { label: "Low", count: lowRisk, color: "bg-green-500", textColor: "text-green-600" },
-              ].map((item) => {
-                const max = totalSessions || 1;
-                return (
-                  <div key={item.label}>
-                    <div className="mb-1 flex items-center justify-between text-sm">
-                      <span className="text-slate-700">{item.label}</span>
-                      <span className={`font-semibold ${item.textColor}`}>{item.count}</span>
-                    </div>
-                    <div className="h-2.5 w-full rounded-full bg-slate-100">
-                      <div
-                        className={`h-full rounded-full ${item.color}`}
-                        style={{ width: `${(item.count / max) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Therapist Summary */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:text-xl">Therapist Summary</h2>
-            <div className="space-y-3 text-sm leading-relaxed text-slate-600">
-              <p>
-                Most emotional spikes occur during discussions about <strong>family expectations</strong>,{" "}
-                <strong>self-worth</strong>, and <strong>academic performance</strong>.
-              </p>
-              <p>
-                Recent interviews indicate a reduction in anger-related responses but continued
-                sadness indicators among moderate-risk patients.
-              </p>
-              <div className="flex items-center gap-2 text-green-600">
-                <TrendingDown size={16} />
-                <span className="text-xs font-medium">Sadness trending down from 52% to 45%</span>
+                ) : (
+                  <p className="py-6 text-center text-sm text-slate-400">
+                    No questions matched the review rules in this range.
+                  </p>
+                )}
               </div>
             </div>
-          </div>
 
-          {/* Recent Sessions Quick Links */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            <h2 className="mb-4 text-lg font-semibold md:text-xl">Recent Sessions</h2>
-            <div className="space-y-2">
-              {sessions.slice(0, 3).map((s) => (
-                <Link
-                  key={s.id}
-                  to={`/sessions/${s.id}`}
-                  className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 transition hover:border-blue-200 hover:bg-blue-50/30"
-                >
+            {/* Right column */}
+            <div className="space-y-6">
+              {/* Evidence Quality */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+                <h2 className="mb-4 text-base font-semibold text-slate-900">Evidence Quality</h2>
+                <div className="space-y-3">
                   <div>
-                    <span className="text-sm font-medium">{s.patientName}</span>
-                    <p className="text-xs text-slate-400">{s.templateName} — {s.date}</p>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-700">Usable video (FER)</span>
+                      <span className="font-semibold text-slate-900">
+                        {evidence.ferQuestions}/{evidence.questionsTotal} · {pct(evidence.ferQuestions, evidence.questionsTotal)}
+                      </span>
+                    </div>
+                    <div className="mt-1 h-2.5 w-full rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-teal-500" style={{ width: pct(evidence.ferQuestions, evidence.questionsTotal) }} />
+                    </div>
                   </div>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      s.riskLevel === "High"
-                        ? "bg-red-50 text-red-600"
-                        : s.riskLevel === "Moderate"
-                          ? "bg-yellow-50 text-yellow-600"
-                          : "bg-green-50 text-green-600"
-                    }`}
-                  >
-                    {s.riskLevel}
-                  </span>
-                </Link>
-              ))}
+                  <div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-700">Usable audio (SER)</span>
+                      <span className="font-semibold text-slate-900">
+                        {evidence.serQuestions}/{evidence.questionsTotal} · {pct(evidence.serQuestions, evidence.questionsTotal)}
+                      </span>
+                    </div>
+                    <div className="mt-1 h-2.5 w-full rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-teal-500" style={{ width: pct(evidence.serQuestions, evidence.questionsTotal) }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-700">Usable text (LER)</span>
+                      <span className="font-semibold text-slate-900">
+                        {evidence.lerQuestions}/{evidence.questionsTotal} · {pct(evidence.lerQuestions, evidence.questionsTotal)}
+                      </span>
+                    </div>
+                    <div className="mt-1 h-2.5 w-full rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-teal-500" style={{ width: pct(evidence.lerQuestions, evidence.questionsTotal) }} />
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-sm font-semibold text-amber-800">
+                      No usable modality: {evidence.noUsableModality} questions
+                    </p>
+                    <p className="mt-1 text-xs text-amber-700">
+                      Recorded as Neutral at confidence 1.0 by the pipeline default — treat as missing data, not a
+                      prediction.
+                    </p>
+                  </div>
+                  <div className="text-sm text-slate-700">
+                    Silence detected in audio: <span className="font-semibold">{evidence.silenceQuestions}</span>{" "}
+                    questions
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-sm text-slate-700">
+                      Mean fused confidence:{" "}
+                      <span className="font-semibold text-slate-900">
+                        {evidence.meanFusedConfidence !== null ? `${evidence.meanFusedConfidence}%` : "—"}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Raw model score (max softmax, uncalibrated) over {evidence.fusionScoreQuestions} questions with a
+                      stored fusion score. Not a probability of correctness. {evidence.fallbackScoreQuestions} questions
+                      have no stored fusion score — displayed scores fall back to the highest single-modality score.
+                    </p>
+                  </div>
+                  <div className="text-sm text-slate-700">
+                    Fallback reports (LLM unavailable):{" "}
+                    <span className="font-semibold">{evidence.fallbackReports}</span>
+                  </div>
+                  <div className="text-sm text-slate-700">
+                    Missing reports: <span className="font-semibold">{evidence.missingReports}</span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Processing failures are not tracked — sessions are recorded only after the full pipeline
+                    completes.
+                  </p>
+                </div>
+              </div>
+
+              {/* Follow-up Summary */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+                <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-slate-900">
+                  <CalendarClock size={16} className="text-teal-600" />
+                  Follow-up Summary
+                </h2>
+                {followUpsError ? (
+                  <p className="text-sm text-slate-400">{followUpsError}</p>
+                ) : (
+                  <div className="space-y-2">
+                    {[
+                      { label: "Upcoming", value: followUpSummary.upcoming, color: "text-teal-600" },
+                      { label: "Due today", value: followUpSummary.dueToday, color: "text-amber-600" },
+                      { label: "Overdue", value: followUpSummary.overdue, color: "text-red-600" },
+                      { label: "Completed", value: followUpSummary.completed, color: "text-emerald-600" },
+                      { label: "Cancelled / missed / no date", value: followUpSummary.other, color: "text-slate-500" },
+                    ].map((item) => (
+                      <div key={item.label} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+                        <span className="text-sm text-slate-700">{item.label}</span>
+                        <span className={`text-sm font-semibold ${item.color}`}>{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Recent Sessions */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+                <h2 className="mb-4 text-base font-semibold text-slate-900">Recent Sessions</h2>
+                <div className="space-y-2">
+                  {recent.map((s) => {
+                    const counts = sessionEmotionCounts(s);
+                    return (
+                      <Link
+                        key={s.id}
+                        to={`/sessions/${s.id}`}
+                        className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 transition hover:border-teal-200 hover:bg-teal-50/30"
+                      >
+                        <div>
+                          <span className="text-sm font-medium">{s.patientName}</span>
+                          <p className="text-xs text-slate-400">
+                            {s.templateName} — {s.date}
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold capitalize text-slate-600">
+                          {dominantLabel(counts.counts, counts.total)}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
+        </>
+      )}
     </div>
   );
 }

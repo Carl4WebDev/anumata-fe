@@ -66,7 +66,7 @@ export default function AddQuestionSetModal({ isOpen, onClose, onSave }: Props) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-16">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl md:p-8">
+      <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl md:p-8">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-xl font-bold text-slate-900">New Question Template</h2>
           <button onClick={handleClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
@@ -82,7 +82,7 @@ export default function AddQuestionSetModal({ isOpen, onClose, onSave }: Props) 
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Family Concerns"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
             />
           </div>
 
@@ -93,7 +93,7 @@ export default function AddQuestionSetModal({ isOpen, onClose, onSave }: Props) 
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Short description of what this template covers"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
             />
           </div>
 
@@ -104,7 +104,7 @@ export default function AddQuestionSetModal({ isOpen, onClose, onSave }: Props) 
                 type="button"
                 onClick={addQuestionField}
                 disabled={questions.length >= 10}
-                className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline disabled:opacity-40"
+                className="flex items-center gap-1 text-xs font-medium text-teal-600 hover:underline disabled:opacity-40"
               >
                 <Plus size={14} />
                 Add Question
@@ -119,7 +119,7 @@ export default function AddQuestionSetModal({ isOpen, onClose, onSave }: Props) 
                     value={q}
                     onChange={(e) => updateQuestion(i, e.target.value)}
                     placeholder={`Question ${i + 1}`}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
                   />
                   {questions.length > 3 && (
                     <button
@@ -148,7 +148,7 @@ export default function AddQuestionSetModal({ isOpen, onClose, onSave }: Props) 
             </button>
             <button
               type="submit"
-              className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+              className="flex-1 rounded-lg bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-700"
             >
               Create Template
             </button>

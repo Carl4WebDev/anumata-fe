@@ -1,17 +1,37 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Users } from "lucide-react";
 import { usePatients } from "../../context/patients/usePatients";
 import AddPatientModal from "../modals/AddPatientModal";
+import { ListPageSkeleton } from "../../../shared/components/Skeleton";
+import EmptyState from "../../../shared/components/EmptyState";
+import Avatar from "../../../shared/components/Avatar";
+import { useToast } from "../../../shared/context/ToastContext";
 
 export default function PatientsPage() {
-  const { patients, addPatient } = usePatients();
+  const { patients, addPatient, loading, error } = usePatients();
+  const { success } = useToast();
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
-  const filtered = patients.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase())
+  const filtered = patients.filter(
+    (p) =>
+      p.name.toLowerCase().includes(search.toLowerCase()) &&
+      (showArchived || !p.isArchived)
   );
+
+  const handleSave = async (patient: Parameters<typeof addPatient>[0]) => {
+    const result = await addPatient(patient);
+    if (result?.ok) {
+      success("Patient added successfully.");
+    }
+    return result;
+  };
+
+  if (loading) {
+    return <ListPageSkeleton label="Loading patients…" />;
+  }
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -19,58 +39,87 @@ export default function PatientsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 md:text-4xl">Patients</h1>
-          <p className="mt-1 text-sm text-slate-500">Manage therapist clients and interview history.</p>
+          <p className="mt-1 text-sm text-slate-500">Manage patients and interview history.</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700"
         >
           <Plus size={18} />
           Add Patient
         </button>
       </div>
 
+      {/* Error */}
+      {error && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {/* Search */}
-      <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <Search size={18} className="shrink-0 text-slate-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search patients..."
-          className="w-full text-sm outline-none"
-        />
+      <div className="flex items-center gap-3">
+        <div className="flex flex-1 items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <Search size={18} className="shrink-0 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search patients..."
+            aria-label="Search patients"
+            className="w-full text-sm outline-none"
+          />
+        </div>
+        <button
+          onClick={() => setShowArchived(!showArchived)}
+          className={`shrink-0 rounded-xl border px-4 py-3 text-sm font-medium transition ${
+            showArchived
+              ? "border-teal-200 bg-teal-50 text-teal-700"
+              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          {showArchived ? "Showing all" : "Show archived"}
+        </button>
       </div>
 
       {/* Table — desktop */}
-      <div className="hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
+      <div className="hidden rounded-xl border border-slate-200 bg-white shadow-sm md:block">
         <table className="w-full">
           <thead className="bg-slate-50">
             <tr>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Name</th>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Concern</th>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Sessions</th>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Risk</th>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Last Interview</th>
-              <th className="p-4 text-left text-sm font-medium text-slate-500">Action</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Name</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Sessions</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Risk</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Last Interview</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Next Follow-up</th>
+              <th scope="col" className="p-4 text-left text-sm font-medium text-slate-500">Action</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((patient) => (
               <tr key={patient.id} className="border-t border-slate-100">
                 <td className="p-4">
-                  <div>
-                    <span className="font-medium">{patient.name}</span>
-                    <p className="text-xs text-slate-400">{patient.age} &middot; {patient.gender}</p>
+                  <div className="flex items-center gap-3">
+                    <Avatar name={patient.name} src={patient.profileImage} size="md" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{patient.name}</span>
+                        {patient.isArchived && (
+                          <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                            Archived
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400">{patient.age} &middot; {patient.gender}</p>
+                    </div>
                   </div>
                 </td>
-                <td className="p-4 text-sm text-slate-500">{patient.concern}</td>
                 <td className="p-4 text-sm text-slate-500">{patient.sessions}</td>
                 <td className="p-4">
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                       patient.risk === "High"
-                        ? "bg-red-50 text-red-600"
+                        ? "bg-red-50 text-red-700"
                         : patient.risk === "Moderate"
                           ? "bg-yellow-50 text-yellow-600"
                           : patient.risk === "Low"
@@ -82,8 +131,21 @@ export default function PatientsPage() {
                   </span>
                 </td>
                 <td className="p-4 text-sm text-slate-500">{patient.lastInterview}</td>
+                <td className="p-4 text-sm text-slate-500">
+                  {patient.nextFollowUpDate ? (
+                    <span className={
+                      new Date(patient.nextFollowUpDate) < new Date(new Date().toDateString())
+                        ? "font-medium text-red-600"
+                        : "text-slate-600"
+                    }>
+                      {new Date(patient.nextFollowUpDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">—</span>
+                  )}
+                </td>
                 <td className="p-4">
-                  <Link to={`/patients/${patient.id}`} className="text-sm font-medium text-blue-600 hover:underline">
+                  <Link to={`/patients/${patient.id}`} className="text-sm font-medium text-teal-600 hover:underline">
                     View
                   </Link>
                 </td>
@@ -91,8 +153,23 @@ export default function PatientsPage() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-sm text-slate-400">
-                  No patients found.
+                <td colSpan={6} className="p-8">
+                  <EmptyState
+                    icon={Users}
+                    title={search ? "No patients match your search" : "No patients yet"}
+                    description={search ? "Try a different search term." : "Add your first patient to get started."}
+                    action={
+                      !search ? (
+                        <button
+                          onClick={() => setShowModal(true)}
+                          className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors"
+                        >
+                          <Plus size={16} />
+                          Add Patient
+                        </button>
+                      ) : undefined
+                    }
+                  />
                 </td>
               </tr>
             )}
@@ -103,36 +180,61 @@ export default function PatientsPage() {
       {/* Cards — mobile */}
       <div className="space-y-3 md:hidden">
         {filtered.map((patient) => (
-          <div key={patient.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div key={patient.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between">
-              <div>
-                <p className="font-medium">{patient.name}</p>
-                <p className="text-xs text-slate-400">{patient.age} &middot; {patient.gender} &middot; {patient.concern}</p>
+              <div className="flex items-center gap-3">
+                <Avatar name={patient.name} src={patient.profileImage} size="md" />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{patient.name}</p>
+                    {patient.isArchived && (
+                      <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                        Archived
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">{patient.age} &middot; {patient.gender}</p>
+                </div>
               </div>
               <span
                 className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                   patient.risk === "High"
                     ? "bg-red-50 text-red-600"
                     : patient.risk === "Moderate"
-                      ? "bg-yellow-50 text-yellow-600"
+                      ? "bg-amber-50 text-amber-700"
                       : patient.risk === "Low"
-                        ? "bg-green-50 text-green-600"
-                        : "bg-slate-100 text-slate-500"
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-slate-100 text-slate-600"
                 }`}
               >
                 {patient.risk}
               </span>
             </div>
             <div className="mt-3 flex items-center justify-between">
-              <span className="text-xs text-slate-400">{patient.sessions} sessions &middot; {patient.lastInterview}</span>
-              <Link to={`/patients/${patient.id}`} className="text-sm font-medium text-blue-600">
+              <div className="text-xs text-slate-400">
+                <span>{patient.sessions} sessions &middot; {patient.lastInterview}</span>
+                {patient.nextFollowUpDate && (
+                  <span className={
+                    new Date(patient.nextFollowUpDate) < new Date(new Date().toDateString())
+                      ? " ml-2 text-red-600 font-medium"
+                      : " ml-2"
+                  }>
+                    &middot; Follow-up: {new Date(patient.nextFollowUpDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                )}
+              </div>
+              <Link to={`/patients/${patient.id}`} className="text-sm font-medium text-teal-600">
                 View
               </Link>
             </div>
           </div>
         ))}
         {filtered.length === 0 && (
-          <p className="py-8 text-center text-sm text-slate-400">No patients found.</p>
+          <EmptyState
+            icon={Users}
+            title={search ? "No patients match your search" : "No patients yet"}
+            description={search ? "Try a different search term." : "Add your first patient to get started."}
+          />
         )}
       </div>
 
@@ -140,7 +242,8 @@ export default function PatientsPage() {
       <AddPatientModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        onSave={addPatient}
+        onSave={handleSave}
+        existingNames={patients.map((p) => p.name)}
       />
     </div>
   );

@@ -1,37 +1,41 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-
-const CONCERNS = [
-  "Family Concerns",
-  "Romantic Relationship",
-  "Academic Stress",
-  "Self Worth",
-  "Anxiety",
-  "Depression",
-  "Other",
-];
+import { PATIENT_CONCERNS as CONCERNS } from "../../../shared/constants/choices";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { name: string; age: number; gender: string; concern: string }) => void;
+  onSave: (data: { f_name: string; m_name?: string; l_name: string; age: number; gender: string; concern: string }) => Promise<{ ok: boolean; error?: string } | undefined>;
+  existingNames?: string[];
 }
 
-export default function AddPatientModal({ isOpen, onClose, onSave }: Props) {
-  const [name, setName] = useState("");
+export default function AddPatientModal({ isOpen, onClose, onSave, existingNames = [] }: Props) {
+  const [fName, setFName] = useState("");
+  const [mName, setMName] = useState("");
+  const [lName, setLName] = useState("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
   const [concern, setConcern] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (!name.trim() || !age || !gender || !concern) {
+    if (!fName.trim() || !lName.trim() || !age || !gender || !concern) {
       setError("All fields are required");
+      return;
+    }
+
+    const fullName = `${fName.trim()} ${lName.trim()}`.toLowerCase();
+    const nameExists = existingNames.some(
+      (existing) => existing.toLowerCase().trim() === fullName
+    );
+    if (nameExists) {
+      setError("A patient with this name already exists.");
       return;
     }
 
@@ -41,12 +45,21 @@ export default function AddPatientModal({ isOpen, onClose, onSave }: Props) {
       return;
     }
 
-    onSave({ name: name.trim(), age: ageNum, gender, concern });
-    setName("");
-    setAge("");
-    setGender("");
-    setConcern("");
-    onClose();
+    setSubmitting(true);
+    const result = await onSave({ f_name: fName.trim(), m_name: mName.trim() || undefined, l_name: lName.trim(), age: ageNum, gender, concern });
+    setSubmitting(false);
+
+    if (result?.ok) {
+      setFName("");
+      setMName("");
+      setLName("");
+      setAge("");
+      setGender("");
+      setConcern("");
+      onClose();
+    } else if (result?.error) {
+      setError(result.error);
+    }
   };
 
   const handleClose = () => {
@@ -56,7 +69,7 @@ export default function AddPatientModal({ isOpen, onClose, onSave }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl md:p-8">
+      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl md:p-8">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-xl font-bold text-slate-900">Add New Patient</h2>
           <button onClick={handleClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
@@ -65,14 +78,37 @@ export default function AddPatientModal({ isOpen, onClose, onSave }: Props) {
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">First Name</label>
+              <input
+                type="text"
+                value={fName}
+                onChange={(e) => setFName(e.target.value)}
+                placeholder="Juan"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Last Name</label>
+              <input
+                type="text"
+                value={lName}
+                onChange={(e) => setLName(e.target.value)}
+                placeholder="Dela Cruz"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+          </div>
+
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Full Name</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Middle Name <span className="text-slate-400">(optional)</span></label>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Juan Dela Cruz"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              value={mName}
+              onChange={(e) => setMName(e.target.value)}
+              placeholder="Santos"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
             />
           </div>
 
@@ -86,7 +122,7 @@ export default function AddPatientModal({ isOpen, onClose, onSave }: Props) {
                 placeholder="24"
                 min={10}
                 max={100}
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
               />
             </div>
             <div>
@@ -94,7 +130,7 @@ export default function AddPatientModal({ isOpen, onClose, onSave }: Props) {
               <select
                 value={gender}
                 onChange={(e) => setGender(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
               >
                 <option value="">Select...</option>
                 <option value="Male">Male</option>
@@ -105,20 +141,24 @@ export default function AddPatientModal({ isOpen, onClose, onSave }: Props) {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Primary Concern</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Interview Topic</label>
             <select
               value={concern}
               onChange={(e) => setConcern(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
             >
-              <option value="">Select concern...</option>
+              <option value="">Select topic...</option>
               {CONCERNS.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
 
-          {error && <p className="text-center text-sm text-red-600">{error}</p>}
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-center text-sm text-red-700">
+              {error}
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <button
@@ -130,9 +170,10 @@ export default function AddPatientModal({ isOpen, onClose, onSave }: Props) {
             </button>
             <button
               type="submit"
-              className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+              disabled={submitting}
+              className="flex-1 rounded-lg bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
             >
-              Add Patient
+              {submitting ? "Adding..." : "Add Patient"}
             </button>
           </div>
         </form>

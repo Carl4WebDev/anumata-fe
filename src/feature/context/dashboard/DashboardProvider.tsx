@@ -1,33 +1,53 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { DashboardContext } from "./DashboardContext";
-
-const HARDCODED = {
-  stats: {
-    totalPatients: 128,
-    pendingInterviews: 18,
-    highRiskCases: 4,
-    completedThisWeek: 32,
-  },
-  recentPatients: [
-    { id: 1, name: "John Doe", risk: "Moderate", status: "Active", lastInterview: "Apr 26, 2026" },
-    { id: 2, name: "Jane Smith", risk: "Low", status: "Active", lastInterview: "Apr 24, 2026" },
-    { id: 3, name: "Michael Cruz", risk: "High", status: "Review", lastInterview: "Apr 22, 2026" },
-    { id: 4, name: "Sarah Reyes", risk: "Low", status: "Active", lastInterview: "Apr 20, 2026" },
-  ],
-  riskOverview: { high: 20, moderate: 55, low: 80 },
-  emotionTrend: {
-    happy: 38,
-    sad: 47,
-    angry: 15,
-  },
-};
+import { dashboardApi } from "../../../shared/api/dashboardApi";
+import { ApiError } from "../../../shared/api/httpClient";
 
 export const DashboardProvider = ({ children }: { children: React.ReactNode }) => {
-  const [dashboard] = useState(HARDCODED);
-  const [loading] = useState(false);
-  const [error] = useState<string | null>(null);
+  const [dashboard, setDashboard] = useState({
+    stats: {
+      totalPatients: 0,
+      pendingInterviews: 0,
+      highRiskCases: 0,
+      completedThisWeek: 0,
+    },
+    recentPatients: [] as { id: number; name: string; risk: string; status: string; lastInterview: string }[],
+    riskOverview: { high: 0, moderate: 0, low: 0 },
+    emotionTrend: { happy: 0, sad: 0, angry: 0 },
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const clearError = useCallback(() => {}, []);
+  const fetchDashboard = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await dashboardApi.getStats();
+      const d = res.data;
+      setDashboard({
+        stats: {
+          totalPatients: d.totalPatients,
+          pendingInterviews: d.pendingInterviews,
+          highRiskCases: d.highRiskCases,
+          completedThisWeek: d.completedThisWeek,
+        },
+        recentPatients: d.recentPatients,
+        riskOverview: d.riskOverview,
+        emotionTrend: d.emotionTrend,
+      });
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Failed to load dashboard";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDashboard();
+  }, [fetchDashboard]);
+
+  const clearError = useCallback(() => setError(null), []);
 
   const value = useMemo(
     () => ({ dashboard, loading, error, clearError }),

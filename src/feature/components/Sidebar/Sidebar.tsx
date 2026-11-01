@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useUser } from "../../context/users/useUser";
-import { LayoutDashboard, Users, FileQuestion, Link2, BarChart3, Settings, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Users, CalendarDays, FileQuestion, Link2, BarChart3, Settings, LogOut, Menu, X } from "lucide-react";
+import Avatar from "../../../shared/components/Avatar";
 
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { label: "Patients", path: "/patients", icon: Users },
+  { label: "Appointments", path: "/appointments", icon: CalendarDays },
   { label: "Question Sets", path: "/question-sets", icon: FileQuestion },
   { label: "Interview Links", path: "/interview-links", icon: Link2 },
   { label: "Reports", path: "/reports", icon: BarChart3 },
@@ -13,7 +15,7 @@ const navItems = [
 ];
 
 export default function Sidebar() {
-  const { clearUser } = useUser();
+  const { user, clearUser } = useUser();
   const location = useLocation();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
@@ -49,13 +51,13 @@ export default function Sidebar() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[240px] flex-col bg-[#08132E] text-white transition-transform duration-200 ease-in-out md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-[240px] flex-col bg-[#08132E] text-white transition-transform duration-200 ease-in-out md:sticky md:top-0 md:h-screen md:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="p-6">
           <Link to="/dashboard" className="flex items-center gap-4" onClick={handleNav}>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500 text-xl font-bold">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-500 text-xl font-bold">
               A
             </div>
             <div>
@@ -65,7 +67,7 @@ export default function Sidebar() {
           </Link>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3">
+        <nav className="flex-1 overflow-y-auto space-y-1 px-3">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -89,7 +91,18 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div className="p-3">
+        <div className="space-y-1 p-3">
+          <Link
+            to="/settings"
+            onClick={handleNav}
+            className="flex items-center gap-3 rounded-2xl px-4 py-3 transition hover:bg-[#13244D]"
+          >
+            <Avatar name={user?.name ?? "Therapist"} src={user?.profileImage} size="md" className="border-[#1A3270]" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-white">{user?.name ?? "Therapist"}</p>
+              <p className="truncate text-xs text-slate-400">{user?.email ?? ""}</p>
+            </div>
+          </Link>
           <button
             onClick={handleLogout}
             className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-[#13244D] hover:text-white"

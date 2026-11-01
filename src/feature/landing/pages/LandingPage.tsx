@@ -3,52 +3,91 @@ import {
   Video,
   Brain,
   FileText,
-  Shield,
   TrendingUp,
   MessageSquare,
   ChevronRight,
   ArrowRight,
+  LineChart,
+  Mic,
+  Languages,
+  HeartHandshake,
+  Coffee,
+  Sparkles,
+  CalendarCheck,
+  Captions,
 } from "lucide-react";
 
 const steps = [
-  { num: "01", label: "Client clicks start", tag: "Start", color: "bg-blue-50 text-blue-600" },
-  { num: "02", label: "Camera and microphone open", tag: "Capture", color: "bg-teal-50 text-teal-600" },
-  { num: "03", label: "AI asks structured questions", tag: "Interview", color: "bg-blue-50 text-blue-600" },
-  { num: "04", label: "Client responds naturally", tag: "Response", color: "bg-teal-50 text-teal-600" },
-  { num: "05", label: "Facial + speech analysis runs", tag: "Analysis", color: "bg-blue-50 text-blue-600" },
-  { num: "06", label: "Therapist reviews the summary", tag: "Review", color: "bg-teal-50 text-teal-600" },
+  { num: "01", label: "Therapist prepares a question set and sends the patient a private link", tag: "Setup", color: "bg-teal-50 text-teal-600" },
+  { num: "02", label: "Patient gives consent and checks their camera and microphone", tag: "Start", color: "bg-teal-50 text-teal-600" },
+  { num: "03", label: "Amumata greets them with a short warm-up in their own language", tag: "Warm-up", color: "bg-teal-50 text-teal-600" },
+  { num: "04", label: "Amumata asks each question aloud; the patient simply answers out loud", tag: "Interview", color: "bg-teal-50 text-teal-600" },
+  { num: "05", label: "Face, voice, and words are analyzed for every answer (FER, SER, LER)", tag: "Analysis", color: "bg-teal-50 text-teal-600" },
+  { num: "06", label: "Multimodal fusion combines the evidence and flags emotional spikes", tag: "Fusion", color: "bg-teal-50 text-teal-600" },
+  { num: "07", label: "An AI pre-evaluation report is ready, and the therapist is notified", tag: "Report", color: "bg-teal-50 text-teal-600" },
+  { num: "08", label: "Therapist reviews the evidence, adds notes, and plans a follow-up", tag: "Review", color: "bg-teal-50 text-teal-600" },
 ];
 
 const features = [
   {
+    icon: Mic,
+    title: "Hands-Free Voice Interview",
+    desc: "Amumata speaks each question, listens, and checks in when the patient pauses. No clicking needed — patients can say “repeat” or ask for a break.",
+  },
+  {
+    icon: Languages,
+    title: "English, Tagalog & Bisaya",
+    desc: "Patients answer in the language they're comfortable with, Taglish included. Questions are translated for them and their words appear as live captions.",
+  },
+  {
+    icon: Coffee,
+    title: "Comfortable for Every Patient",
+    desc: "Take a break at any time, larger text, a slower voice, a microphone check before starting, gentle camera hints, and picking up where they left off after a reload.",
+  },
+  {
+    icon: HeartHandshake,
+    title: "Built-In Safety Net",
+    desc: "If a patient mentions self-harm, Amumata shows crisis hotlines right away and sends the therapist an urgent alert.",
+  },
+  {
     icon: Video,
     title: "Facial Expression Recognition",
-    desc: "Analyzes micro-expressions in real time to detect emotional states — happy, sad, angry, and neutral.",
+    desc: "Analyzes facial expressions during each answer and identifies emotional states such as happy, sad, angry, and neutral.",
   },
   {
     icon: MessageSquare,
-    title: "Speech Tone Analysis",
-    desc: "Evaluates vocal patterns including pitch, energy, and speech rate to identify emotional indicators.",
+    title: "Speech Emotion Recognition",
+    desc: "Reads emotion from the voice, including pitch, loudness, and pace compared with the patient's own usual voice in that session.",
   },
   {
     icon: Brain,
-    title: "Emotional Spike Detection",
-    desc: "Flags moments where emotions shift dramatically during the interview for therapist review.",
+    title: "Language Emotion Recognition",
+    desc: "Analyzes the transcribed answer — in English, Tagalog, or Bisaya — for language-based emotional cues.",
   },
   {
     icon: TrendingUp,
-    title: "Progress Tracking",
-    desc: "Tracks emotional patterns across multiple sessions to monitor client progress over time.",
+    title: "Multimodal Fusion & Spike Detection",
+    desc: "Combines FER, SER, and LER while weighing confidence and disagreement, then flags notable emotional shifts for therapist attention.",
   },
   {
     icon: FileText,
-    title: "Pre-Evaluation Reports",
-    desc: "Generates structured summaries with risk levels, indicators, and actionable recommendations.",
+    title: "AI-Assisted Pre-Evaluation Report",
+    desc: "Session summary, key emotional findings, areas for attention, suggested therapist focus, and follow-up questions, with the evidence behind each answer.",
   },
   {
-    icon: Shield,
-    title: "Privacy Compliant",
-    desc: "Built with RA 10173 (Data Privacy Act) in mind. Consent-first design. No diagnosis — only indicators.",
+    icon: LineChart,
+    title: "Progress Across Sessions",
+    desc: "A longitudinal AI summary of emotional patterns across a patient's completed sessions, to help spot changes and recurring themes over time.",
+  },
+  {
+    icon: Sparkles,
+    title: "AI Question-Set Builder",
+    desc: "Combine standardized and custom questions, or let the AI draft, review, and refine a question set for the therapist to approve.",
+  },
+  {
+    icon: CalendarCheck,
+    title: "Tools for the Practice",
+    desc: "Patient records, follow-up recommendations, appointment scheduling, and real-time notifications when an interview is done.",
   },
 ];
 
@@ -59,7 +98,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 md:px-8">
           <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-500 text-lg font-bold text-white">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500 text-lg font-bold text-white">
               A
             </div>
             <div>
@@ -77,7 +116,7 @@ export default function LandingPage() {
             </Link>
             <Link
               to="/login"
-              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+              className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700"
             >
               Get Started
             </Link>
@@ -89,22 +128,22 @@ export default function LandingPage() {
       <section className="mx-auto max-w-6xl px-4 pb-16 pt-12 md:px-8 md:pb-24 md:pt-20">
         <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
           <div>
-            <span className="mb-4 inline-block rounded-full bg-blue-50 px-4 py-1.5 text-xs font-semibold text-blue-600">
-              AI Interview &bull; Speech Tone &bull; Facial Expression
+            <span className="mb-4 inline-block rounded-full bg-teal-50 px-4 py-1.5 text-xs font-semibold text-teal-600">
+              Face &bull; Voice &bull; Words &mdash; in English, Tagalog &amp; Bisaya
             </span>
             <h1 className="text-3xl font-bold leading-tight text-slate-900 md:text-5xl lg:text-[3.5rem]">
-              AI-led client interview for{" "}
-              <span className="text-blue-600">early emotional awareness</span>.
+              AI-assisted emotional pre-evaluation{" "}
+              <span className="text-teal-600">for therapists</span>.
             </h1>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-slate-600 md:text-lg">
-              Amumata guides the client through standardized therapist-informed questions, records video
-              and audio responses, then generates emotional pre-evaluation feedback, recommendations,
-              and progress summaries.
+              Amumata holds a gentle, hands-free voice interview with each patient in their own language,
+              analyzes their facial expressions, voice, and words, and prepares a structured pre-evaluation
+              report — so the therapist starts the first session already informed.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 to="/login"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-teal-700"
               >
                 Start Prototype
                 <ArrowRight size={16} />
@@ -123,41 +162,48 @@ export default function LandingPage() {
             <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-lg">
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-2xl">
-                  <Video size={24} className="text-blue-600" />
+                  <Video size={24} className="text-teal-600" />
                 </div>
                 <div>
                   <p className="font-semibold text-slate-900">Interview Room</p>
                   <p className="text-sm text-slate-500">Question 2 of 6</p>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
+                  <span className="rounded-full bg-teal-600 px-2.5 py-1 text-xs font-medium text-white">Hands-free</span>
                   <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
                   <span className="text-xs font-medium text-red-500">Recording</span>
                 </div>
               </div>
 
-              <div className="mb-6 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-12 text-center">
-                <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-3xl">
-                  🙂
-                </div>
-                <p className="text-sm text-slate-500">Camera Preview</p>
-              </div>
-
-              <div className="rounded-xl border-l-4 border-blue-500 bg-blue-50 p-4">
-                <p className="text-sm font-medium text-blue-900">
+              <div className="mb-4 rounded-xl border-l-4 border-teal-500 bg-teal-50 p-4">
+                <p className="mb-1 text-xs font-semibold text-teal-600">Amumata</p>
+                <p className="text-sm font-medium text-teal-900">
+                  Puwede mo bang ikuwento ang isang sitwasyon sa pamilya mo na nakaapekto sa iyo kamakailan?
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
                   Can you tell me about a situation with your family that has been affecting you recently?
                 </p>
               </div>
 
-              <div className="mt-6 flex gap-2">
-                {[45, 60, 80, 55, 70, 40, 65, 50].map((h, i) => (
-                  <div key={i} className="flex-1 rounded-full bg-slate-100">
-                    <div
-                      className="rounded-full bg-gradient-to-t from-blue-600 to-teal-400 transition-all"
-                      style={{ height: `${h}px` }}
-                    />
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">
+                    <Captions size={13} /> Live caption
+                  </span>
+                  <div className="flex h-6 items-end gap-1" aria-hidden="true">
+                    {[10, 18, 24, 14, 20, 8, 16].map((h, i) => (
+                      <div key={i} className="w-1.5 rounded-full bg-linear-to-t from-teal-600 to-teal-400" style={{ height: `${h}px` }} />
+                    ))}
                   </div>
-                ))}
+                </div>
+                <p className="text-sm text-slate-700">
+                  Medyo mahirap po kasi lately, lagi kaming nagtatalo ng kapatid ko…
+                </p>
               </div>
+
+              <p className="mt-4 text-center text-xs text-slate-400">
+                Pause for 3 seconds when you're done &middot; say “repeat” to hear it again &middot; “break” to rest
+              </p>
             </div>
           </div>
         </div>
@@ -167,15 +213,15 @@ export default function LandingPage() {
       <section id="how-it-works" className="border-y border-slate-200 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-16 md:px-8 md:py-24">
           <div className="mb-12 text-center">
-            <h2 className="text-2xl font-bold text-slate-900 md:text-3xl">Core Flow</h2>
-            <p className="mt-3 text-slate-500">This is the system flow your defense must explain clearly.</p>
+            <h2 className="text-2xl font-bold text-slate-900 md:text-3xl">How It Works</h2>
+            <p className="mt-3 text-slate-500">From sending the interview link to the therapist's review.</p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {steps.map((step) => (
               <div
                 key={step.num}
-                className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-[#F1F5F9] p-5 transition hover:shadow-md"
+                className="flex items-center gap-4 rounded-xl border border-slate-200 bg-[#F1F5F9] p-5 transition hover:shadow-md"
               >
                 <span className="text-2xl font-bold text-slate-300">{step.num}</span>
                 <span className="flex-1 text-sm font-medium text-slate-700">{step.label}</span>
@@ -194,7 +240,7 @@ export default function LandingPage() {
           <div className="mb-12 text-center">
             <h2 className="text-2xl font-bold text-slate-900 md:text-3xl">Key Features</h2>
             <p className="mt-3 text-slate-500">
-              Combining computer vision and speech analysis for emotional pre-evaluation.
+              A patient-friendly interview, multimodal emotion analysis, and tools for the therapist's practice.
             </p>
           </div>
 
@@ -204,10 +250,10 @@ export default function LandingPage() {
               return (
                 <div
                   key={feature.title}
-                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md"
+                  className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md"
                 >
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50">
-                    <Icon size={22} className="text-blue-600" />
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-teal-50">
+                    <Icon size={22} className="text-teal-600" />
                   </div>
                   <h3 className="mb-2 text-base font-semibold text-slate-900">{feature.title}</h3>
                   <p className="text-sm leading-relaxed text-slate-500">{feature.desc}</p>
@@ -227,18 +273,21 @@ export default function LandingPage() {
                 Not a diagnosis. A head start.
               </h2>
               <p className="mt-4 text-base leading-relaxed text-slate-600">
-                Amumata does not provide clinical diagnoses. It detects emotional indicators and
-                flags spikes for the therapist to review — so the first real session starts with
-                structured data, not cold questions.
+                Amumata does not provide clinical diagnoses. It detects emotional indicators,
+                flags spikes, and generates AI-assisted guidance for the therapist to review — so
+                the first real session starts with structured data, not cold questions.
               </p>
               <div className="mt-8 space-y-4">
                 {[
-                  { label: "Detected Emotional Indicators", value: "Sadness, Anxiety" },
-                  { label: "Risk Level", value: "Moderate" },
-                  { label: "Recommendation", value: "Consider consultation with a mental health professional" },
+                  { label: "Emotional Distribution", value: "Per-session breakdown of detected emotions across all questions" },
+                  { label: "Emotional Spikes & Events", value: "Notable shifts and high-confidence signals flagged for review" },
+                  { label: "Evidence for Every Answer", value: "Face snapshots, voice cues, and the transcript behind each detected emotion" },
+                  { label: "Areas for Attention", value: "AI-identified patterns that may warrant therapist focus" },
+                  { label: "Suggested Follow-Up Questions", value: "Contextual questions generated to guide the next session" },
+                  { label: "Progress Over Time", value: "A summary of emotional patterns across the patient's sessions" },
                 ].map((item) => (
                   <div key={item.label} className="flex items-start gap-3">
-                    <ChevronRight size={16} className="mt-0.5 shrink-0 text-blue-600" />
+                    <ChevronRight size={16} className="mt-0.5 shrink-0 text-teal-600" />
                     <div>
                       <p className="text-sm font-medium text-slate-700">{item.label}</p>
                       <p className="text-sm text-slate-500">{item.value}</p>
@@ -251,17 +300,18 @@ export default function LandingPage() {
             {/* Sample Output Card */}
             <div className="rounded-3xl border border-slate-200 bg-[#F1F5F9] p-6 md:p-8">
               <div className="mb-6 flex items-center justify-between">
-                <h3 className="font-semibold text-slate-900">Pre-Evaluation Summary</h3>
-                <span className="rounded-full bg-yellow-50 px-3 py-1 text-xs font-semibold text-yellow-700">
-                  Moderate Risk
+                <h3 className="font-semibold text-slate-900">Pre-Evaluation Report</h3>
+                <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                  2 Spikes Detected
                 </span>
               </div>
 
-              <div className="mb-6 space-y-3">
+              <div className="mb-5 space-y-3">
                 {[
-                  { label: "Sad", pct: 64, color: "bg-blue-500" },
-                  { label: "Angry", pct: 18, color: "bg-red-500" },
-                  { label: "Happy", pct: 18, color: "bg-green-500" },
+                  { label: "Sad", pct: 58, color: "bg-blue-500" },
+                  { label: "Neutral", pct: 22, color: "bg-slate-400" },
+                  { label: "Angry", pct: 12, color: "bg-red-500" },
+                  { label: "Happy", pct: 8, color: "bg-green-500" },
                 ].map((e) => (
                   <div key={e.label}>
                     <div className="mb-1 flex justify-between text-sm">
@@ -275,10 +325,30 @@ export default function LandingPage() {
                 ))}
               </div>
 
-              <div className="rounded-xl border-l-4 border-yellow-400 bg-yellow-50 p-4">
-                <p className="text-sm font-medium text-yellow-800">
-                  Recommendation: Consider consultation with a mental health professional.
+              <div className="mb-4 rounded-xl border-l-4 border-amber-400 bg-amber-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">Areas for Attention</p>
+                <p className="mt-1 text-sm text-amber-800">
+                  Persistent sad affect across sessions. Elevated anger indicator in Q4 with modality disagreement.
                 </p>
+              </div>
+
+              <div className="mb-4 rounded-xl border-l-4 border-teal-400 bg-teal-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-teal-600">Suggested Therapist Focus</p>
+                <p className="mt-1 text-sm text-teal-800">
+                  Explore family-related stressors. Assess anger expression patterns.
+                </p>
+              </div>
+
+              <div className="rounded-xl border-l-4 border-teal-400 bg-teal-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-teal-600">Suggested Follow-Up</p>
+                <p className="mt-1 text-sm text-teal-800">
+                  "Can you describe what typically triggers your frustration?"
+                </p>
+              </div>
+
+              <div className="mt-4 flex items-center gap-2 text-xs text-slate-400">
+                <span className="inline-block h-2 w-2 rounded-full bg-green-400" />
+                3/3 modalities available for this session
               </div>
             </div>
           </div>
@@ -291,10 +361,12 @@ export default function LandingPage() {
           <div className="rounded-2xl border border-orange-200 bg-orange-50 p-6 md:p-8">
             <h3 className="mb-2 font-semibold text-orange-800">Important Disclaimer</h3>
             <p className="text-sm leading-relaxed text-orange-700">
-              Amumata is an AI-assisted pre-evaluation tool designed to support — not replace — licensed
-              mental health professionals. It does not provide clinical diagnoses. All outputs are
-              preliminary indicators that require professional interpretation. This system complies with
-              RA 10173 (Data Privacy Act of 2012). Client data is handled with strict confidentiality.
+              Amumata is an AI-assisted emotional pre-evaluation tool designed to support — not replace
+              — qualified mental health professionals. It does not provide clinical diagnosis. Results
+              are preliminary emotional indicators intended for professional review and interpretation.
+              Amumata is not an emergency service: in a crisis, call the NCMH Crisis Hotline 1553 or 911.
+              This system was designed with RA 10173 (Data Privacy Act of 2012) in mind. Patients give
+              informed consent before every interview, and interview data is visible only to their therapist.
             </p>
           </div>
         </div>
@@ -304,15 +376,15 @@ export default function LandingPage() {
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 md:flex-row md:px-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500 text-sm font-bold text-white">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500 text-sm font-bold text-white">
               A
             </div>
             <span className="text-sm font-medium text-slate-700">Amumata</span>
           </div>
           <p className="text-center text-xs text-slate-400">
-            AI-Assisted Emotional State Pre-Evaluation System &bull; Davao City &bull; 2025
+            AI-Assisted Emotional State Pre-Evaluation System &bull; Davao City &bull; 2026
           </p>
-          <Link to="/login" className="text-sm font-medium text-blue-600 hover:underline">
+          <Link to="/login" className="text-sm font-medium text-teal-600 hover:underline">
             Therapist Login
           </Link>
         </div>
