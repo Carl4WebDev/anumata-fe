@@ -3,6 +3,7 @@ import { QuestionSetsContext } from "./QuestionSetsContext";
 import { questionSetsApi } from "../../../shared/api/questionSetsApi";
 import { ApiError } from "../../../shared/api/httpClient";
 import { optimistic, removeItems } from "../../../shared/utils/optimistic";
+import type { QuestionSetItemsData } from "./QuestionSetsContext";
 
 function mapQuestionSet(qs: any) {
   const legacyQuestions = Array.isArray(qs.questions)
@@ -63,6 +64,20 @@ export const QuestionSetsProvider = ({ children }: { children: React.ReactNode }
     }
   }, []);
 
+  /** A set built from standardized / custom questions: shown in the list right away. */
+  const addQuestionSetWithItems = useCallback(async (data: QuestionSetItemsData) => {
+    try {
+      const res = await questionSetsApi.createWithItems(data);
+      // The server's reply has no item count; it's the number of items we sent.
+      const mapped = mapQuestionSet({ ...res.data, item_count: data.items.length });
+      setQuestionSets((prev) => [mapped, ...prev]);
+      return { ok: true, data: mapped };
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Failed to create interview set";
+      return { ok: false, message };
+    }
+  }, []);
+
   const updateQuestionSet = useCallback(async (id: number, data: { name: string; description: string; questions: string[] }) => {
     try {
       const res = await questionSetsApi.update(id, {
@@ -90,8 +105,8 @@ export const QuestionSetsProvider = ({ children }: { children: React.ReactNode }
   }, []);
 
   const value = useMemo(
-    () => ({ questionSets, loading, error, clearError, addQuestionSet, updateQuestionSet, removeQuestionSet }),
-    [questionSets, loading, error, clearError, addQuestionSet, updateQuestionSet, removeQuestionSet],
+    () => ({ questionSets, loading, error, clearError, addQuestionSet, addQuestionSetWithItems, updateQuestionSet, removeQuestionSet }),
+    [questionSets, loading, error, clearError, addQuestionSet, addQuestionSetWithItems, updateQuestionSet, removeQuestionSet],
   );
 
   return <QuestionSetsContext.Provider value={value}>{children}</QuestionSetsContext.Provider>;

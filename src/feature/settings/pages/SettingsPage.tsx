@@ -8,7 +8,10 @@ import Avatar from "../../../shared/components/Avatar";
 import AIModelGuide from "../components/AIModelGuide";
 import ChangePasswordModal from "../components/ChangePasswordModal";
 
-type ComponentStatus = "ready" | "not_ready" | "checking";
+/** "starting" = the AI is waking up on Modal (it sleeps when unused). */
+type ComponentStatus = "ready" | "not_ready" | "checking" | "starting";
+
+const AI_RECHECK_MS = 15000;
 
 interface AiComponent {
   icon: typeof Eye;
@@ -114,6 +117,14 @@ function StatusBadge({ status }: { status: ComponentStatus }) {
       </span>
     );
   }
+  if (status === "starting") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+        <Loader2 size={10} className="animate-spin" />
+        Starting up
+      </span>
+    );
+  }
   return (
     <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700">
       Not Ready
@@ -167,8 +178,9 @@ export default function SettingsPage() {
     setAffiliation(profile.affiliation ?? "");
   }, [profile]);
 
-  const loadHealth = useCallback(async () => {
-    setHealthLoading(true);
+  /** `quiet`: background re-check while the AI wakes up (no "Checking" flash). */
+  const loadHealth = useCallback(async ({ quiet = false }: { quiet?: boolean } = {}) => {
+    if (!quiet) setHealthLoading(true);
     try {
       const data = await fetchSystemHealth();
       setHealth(data);
@@ -183,6 +195,14 @@ export default function SettingsPage() {
   useEffect(() => {
     loadHealth();
   }, [loadHealth]);
+
+  // While the AI wakes up (1–3 min on Modal), keep checking until it's ready.
+  const aiStarting = health?.ai_service.status === "starting";
+  useEffect(() => {
+    if (!aiStarting) return;
+    const id = setTimeout(() => void loadHealth({ quiet: true }), AI_RECHECK_MS);
+    return () => clearTimeout(id);
+  }, [aiStarting, health, loadHealth]);
 
   const displayName = [fName, mName, lName].filter(Boolean).join(" ") || profile?.email || "Therapist";
 
@@ -245,10 +265,12 @@ export default function SettingsPage() {
   const getComponentStatus = (comp: AiComponent): ComponentStatus => {
     if (healthLoading) return "checking";
     if (!health) return "not_ready";
+    if (health.ai_service.status === "starting") return "starting";
     return comp.getStatus(health);
   };
 
   const overallOk = health?.status === "ok";
+  const overallLabel = overallOk ? "All Systems Operational" : aiStarting ? "AI waking up (1–3 min)" : "Partial Outage";
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -416,11 +438,11 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2">
                 {!healthLoading && health && (
                   <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${overallOk ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>
-                    {overallOk ? "All Systems Operational" : "Partial Outage"}
+                    {overallLabel}
                   </span>
                 )}
                 <button
-                  onClick={loadHealth}
+                  onClick={() => void loadHealth()}
                   disabled={healthLoading}
                   className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
                 >
