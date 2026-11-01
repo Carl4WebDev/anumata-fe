@@ -2,6 +2,7 @@ import { Navigate, Outlet } from "react-router-dom";
 import Sidebar from "../Sidebar/Sidebar";
 import NotificationBell from "../../../shared/components/NotificationBell";
 import OfflineBanner from "../../../shared/components/OfflineBanner";
+import AiWakeBanner from "../../../shared/components/AiWakeBanner";
 
 export default function ProtectedLayout() {
   const token = localStorage.getItem("user_token");
@@ -19,6 +20,7 @@ export default function ProtectedLayout() {
           <NotificationBell />
         </div>
         <OfflineBanner />
+        <AiWakeBanner />
         <Outlet />
       </main>
     </div>
