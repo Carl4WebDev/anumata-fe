@@ -19,8 +19,17 @@ export interface SystemUpdate {
 export const SYSTEM_UPDATES: SystemUpdate[] = [
   {
     date: "2026-11-03",
-    title: "Gentle check-ins when a patient struggles",
+    title: "Gentle check-ins when a patient struggles, and patient contacts",
     groups: [
+      {
+        area: "Appointments and patients",
+        changes: [
+          "Patients can have a mobile number and an email for appointment reminders (optional): in Book appointment → New patient, Add Patient, and Edit on the patient's page.",
+          "When booking for an existing patient, the form shows their saved contacts — or that none is saved yet.",
+          "A new patient's concern can be “Other (type your own)…”, with a box to specify it.",
+          "Booking messages now say when: “Patient added and appointment booked for Nov 3, 1:00 PM.”",
+        ],
+      },
       {
         area: "Interview room (patient side)",
         changes: [
@@ -43,6 +52,10 @@ export const SYSTEM_UPDATES: SystemUpdate[] = [
           "Questions the patient skipped are marked “Skipped by patient” and left out of the session's emotion mix, risk level and spikes.",
         ],
       },
+    ],
+    deploySteps: [
+      "Run migrations/manual/add_patient_contacts_and_reminders.sql on the Render database.",
+      "Then deploy the backend and frontend.",
     ],
   },
   {

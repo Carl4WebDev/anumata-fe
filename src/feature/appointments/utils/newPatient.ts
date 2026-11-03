@@ -6,9 +6,23 @@ export interface NewPatientDraft {
   age: string;
   gender: string;
   concern: string;
+  /** Optional contacts for appointment reminders. */
+  contact_number: string;
+  email: string;
+  reminder_consent: boolean;
 }
 
-export const EMPTY_PATIENT: NewPatientDraft = { f_name: "", m_name: "", l_name: "", age: "", gender: "", concern: "" };
+export const EMPTY_PATIENT: NewPatientDraft = {
+  f_name: "",
+  m_name: "",
+  l_name: "",
+  age: "",
+  gender: "",
+  concern: "",
+  contact_number: "",
+  email: "",
+  reminder_consent: false,
+};
 
 export const MIN_PATIENT_AGE = 10;
 export const MAX_PATIENT_AGE = 100;
@@ -19,7 +33,7 @@ export function isPatientDraftComplete(p: NewPatientDraft): boolean {
     p.f_name.trim() &&
       p.l_name.trim() &&
       p.gender &&
-      p.concern &&
+      p.concern.trim() &&
       p.age !== "" &&
       Number.isInteger(age) &&
       age >= MIN_PATIENT_AGE &&

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { PatientsContext } from "./PatientsContext";
+import { PatientsContext, type AddPatientInput } from "./PatientsContext";
 import { patientsApi } from "../../../shared/api/patientsApi";
 import { followUpsApi } from "../../../shared/api/followUpsApi";
 import { ApiError } from "../../../shared/api/httpClient";
@@ -20,6 +20,9 @@ function mapPatient(p: any, followUps: FollowUp[]) {
     age: p.age,
     gender: p.gender.charAt(0).toUpperCase() + p.gender.slice(1),
     concern: p.primary_concern,
+    contactNumber: p.contact_number ?? null,
+    email: p.email ?? null,
+    reminderConsent: Boolean(p.reminder_consent),
     profileImage: p.profile_image ?? null,
     isArchived: Boolean(p.is_archived),
     status: p.is_archived ? "Archived" : "Active",
@@ -63,7 +66,7 @@ export const PatientsProvider = ({ children }: { children: React.ReactNode }) =>
 
   const clearError = useCallback(() => setError(null), []);
 
-  const addPatient = useCallback(async (data: { f_name: string; m_name?: string; l_name: string; age: number; gender: string; concern: string }) => {
+  const addPatient = useCallback(async (data: AddPatientInput) => {
     try {
       const res = await patientsApi.create({
         f_name: data.f_name,
@@ -72,6 +75,9 @@ export const PatientsProvider = ({ children }: { children: React.ReactNode }) =>
         age: data.age,
         gender: data.gender.toLowerCase(),
         primary_concern: data.concern,
+        contact_number: data.contact_number || undefined,
+        email: data.email || undefined,
+        reminder_consent: Boolean(data.reminder_consent && data.email),
       });
       const mapped = mapPatient(res.data, []);
       setPatients((prev) => [mapped, ...prev]);
@@ -98,6 +104,9 @@ export const PatientsProvider = ({ children }: { children: React.ReactNode }) =>
     age: p.age,
     gender: p.gender.charAt(0).toUpperCase() + p.gender.slice(1),
     concern: p.primary_concern,
+    contactNumber: p.contact_number ?? null,
+    email: p.email ?? null,
+    reminderConsent: Boolean(p.reminder_consent),
     profileImage: p.profile_image ?? null,
     isArchived: Boolean(p.is_archived),
     status: p.is_archived ? "Archived" : "Active",

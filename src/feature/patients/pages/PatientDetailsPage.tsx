@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Link2, ExternalLink, Brain, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Sparkles, BarChart3, CalendarDays, Camera, Trash2, Pencil, Archive, ArchiveRestore, Search, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, Link2, ExternalLink, Brain, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Sparkles, BarChart3, CalendarDays, Camera, Trash2, Pencil, Archive, ArchiveRestore, Search, SlidersHorizontal, Phone, Mail } from "lucide-react";
 import { usePatients } from "../../context/patients/usePatients";
 import { DetailPageSkeleton } from "../../../shared/components/Skeleton";
 import { useSessions } from "../../context/sessions/useSessions";
@@ -26,6 +26,7 @@ import {
 } from "../utils/historyFilters";
 import { useInterviewLinks } from "../../context/interviewLinks/useInterviewLinks";
 import { useToast } from "../../../shared/context/ToastContext";
+import { reminderEmailsEnabled } from "../../../shared/constants/features";
 
 /** Downscale an image file to a square PNG data URL of the given size. */
 function resizeImage(file: File, size: number): Promise<string> {
@@ -229,6 +230,9 @@ export default function PatientDetailsPage() {
     age: number;
     gender: string;
     primary_concern: string;
+    contact_number: string;
+    email: string;
+    reminder_consent: boolean;
   }) => {
     if (!id) return { ok: false, error: "Missing patient id" };
     const res = await updatePatient(Number(id), data);
@@ -388,6 +392,29 @@ export default function PatientDetailsPage() {
               </div>
               <p className="mt-1 text-sm text-slate-500">
                 {patient.age} &middot; {patient.gender} &middot; {patient.concern}
+              </p>
+              <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                {patient.contactNumber || patient.email ? (
+                  <>
+                    {patient.contactNumber && (
+                      <span className="flex items-center gap-1">
+                        <Phone size={12} /> {patient.contactNumber}
+                      </span>
+                    )}
+                    {patient.email && (
+                      <span className="flex items-center gap-1">
+                        <Mail size={12} /> {patient.email}
+                        {reminderEmailsEnabled() && (
+                          <span className={patient.reminderConsent ? "text-teal-700" : "text-slate-400"}>
+                            {patient.reminderConsent ? "· reminders on" : "· no reminder consent"}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-slate-400">No contact for reminders yet — add one with Edit.</span>
+                )}
               </p>
             </div>
           </div>
@@ -738,6 +765,9 @@ export default function PatientDetailsPage() {
             age: fullPatient.age,
             gender: fullPatient.gender.charAt(0).toUpperCase() + fullPatient.gender.slice(1),
             primary_concern: fullPatient.primary_concern,
+            contact_number: fullPatient.contact_number ?? null,
+            email: fullPatient.email ?? null,
+            reminder_consent: Boolean(fullPatient.reminder_consent),
           }}
           onSave={handleSaveEdit}
         />

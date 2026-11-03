@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { PATIENT_CONCERNS as CONCERNS } from "../../../shared/constants/choices";
+import type { AddPatientInput } from "../../context/patients/PatientsContext";
+import ContactFields from "../components/ContactFields";
+import { EMPTY_CONTACT } from "../components/contactValue";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { f_name: string; m_name?: string; l_name: string; age: number; gender: string; concern: string }) => Promise<{ ok: boolean; error?: string } | undefined>;
+  onSave: (data: AddPatientInput) => Promise<{ ok: boolean; error?: string } | undefined>;
   existingNames?: string[];
 }
 
@@ -16,6 +19,7 @@ export default function AddPatientModal({ isOpen, onClose, onSave, existingNames
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
   const [concern, setConcern] = useState("");
+  const [contact, setContact] = useState(EMPTY_CONTACT);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -46,7 +50,16 @@ export default function AddPatientModal({ isOpen, onClose, onSave, existingNames
     }
 
     setSubmitting(true);
-    const result = await onSave({ f_name: fName.trim(), m_name: mName.trim() || undefined, l_name: lName.trim(), age: ageNum, gender, concern });
+    const result = await onSave({
+      f_name: fName.trim(),
+      m_name: mName.trim() || undefined,
+      l_name: lName.trim(),
+      age: ageNum,
+      gender,
+      concern,
+      contact_number: contact.contactNumber.trim() || undefined,
+      email: contact.email.trim() || undefined,
+    });
     setSubmitting(false);
 
     if (result?.ok) {
@@ -56,6 +69,7 @@ export default function AddPatientModal({ isOpen, onClose, onSave, existingNames
       setAge("");
       setGender("");
       setConcern("");
+      setContact(EMPTY_CONTACT);
       onClose();
     } else if (result?.error) {
       setError(result.error);
@@ -153,6 +167,8 @@ export default function AddPatientModal({ isOpen, onClose, onSave, existingNames
               ))}
             </select>
           </div>
+
+          <ContactFields value={contact} onChange={setContact} />
 
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-center text-sm text-red-700">

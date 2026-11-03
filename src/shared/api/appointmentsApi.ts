@@ -26,6 +26,15 @@ export interface Appointment {
   /** Session type it was booked as, and that type's name at booking time. */
   session_type_id?: number | null;
   session_type?: string | null;
+  /** Reminder emails for this booking (only sent ones count as delivered). */
+  reminders?: AppointmentReminder[];
+}
+
+/** One reminder email for an appointment: "day_before" or "hours_before". */
+export interface AppointmentReminder {
+  kind: "day_before" | "hours_before";
+  status: "sending" | "sent" | "failed";
+  sent_at: string;
 }
 
 /** A therapist-defined kind of session with its own length, e.g. "Consultation", 30 min. */

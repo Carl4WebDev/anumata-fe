@@ -11,6 +11,10 @@ export interface Patient {
   age: number;
   gender: string;
   primary_concern: string;
+  /** Contacts for appointment reminders (optional). */
+  contact_number: string | null;
+  email: string | null;
+  reminder_consent: boolean;
   profile_image: string | null;
   is_archived: boolean;
   archived_at: string | null;
@@ -36,11 +40,37 @@ export const patientsApi = {
     return httpClient.get<Patient>(`/api/patients/${id}`);
   },
 
-  create(data: { f_name: string; m_name?: string; l_name: string; age: number; gender: string; primary_concern: string }) {
+  create(data: {
+    f_name: string;
+    m_name?: string;
+    l_name: string;
+    age: number;
+    gender: string;
+    primary_concern: string;
+    contact_number?: string;
+    email?: string;
+    reminder_consent?: boolean;
+  }) {
     return httpClient.post<Patient>("/api/patients", data);
   },
 
-  update(id: number, data: { f_name?: string; m_name?: string; l_name?: string; age?: number; gender?: string; primary_concern?: string; profile_image?: string | null; is_archived?: boolean }) {
+  update(
+    id: number,
+    data: {
+      f_name?: string;
+      m_name?: string;
+      l_name?: string;
+      age?: number;
+      gender?: string;
+      primary_concern?: string;
+      /** "" clears it. */
+      contact_number?: string;
+      email?: string;
+      reminder_consent?: boolean;
+      profile_image?: string | null;
+      is_archived?: boolean;
+    },
+  ) {
     return httpClient.patch<Patient>(`/api/patients/${id}`, data);
   },
 

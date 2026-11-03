@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, X, Pencil, UserX, Clock, Repeat, Undo2 } from "lucide-react";
+import { Check, X, Pencil, UserX, Clock, Repeat, Undo2, Mail } from "lucide-react";
 import { appointmentsApi, type Appointment } from "../../../shared/api/appointmentsApi";
 import { statusStyles, formatDateTime, formatMinutes, formatTime, hasStarted, undoTimeLeft } from "../utils/appointmentUtils";
 import PreSessionInterview from "./PreSessionInterview";
+import { reminderEmailsEnabled } from "../../../shared/constants/features";
 
 interface AppointmentCardProps {
   appt: Appointment;
@@ -16,6 +17,11 @@ interface AppointmentCardProps {
 
 const btn = "flex items-center gap-1 rounded-xl px-3 py-1.5 text-sm";
 const neutralBtn = `${btn} border border-slate-200 text-slate-600 hover:bg-slate-50`;
+
+/** Was a reminder email delivered to the patient for this booking? */
+function emailedReminder(appt: Appointment): boolean {
+  return Boolean(appt.reminders?.some((r) => r.status === "sent"));
+}
 
 export default function AppointmentCard({ appt, showDate = false, onEdit, onCancel, onQuickAction }: AppointmentCardProps) {
   const status = statusStyles[appt.status];
@@ -59,6 +65,11 @@ export default function AppointmentCard({ appt, showDate = false, onEdit, onCanc
             {appt.follow_up_id && (
               <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600" title="Booked from a follow-up recommendation">
                 Follow-up
+              </span>
+            )}
+            {scheduled && reminderEmailsEnabled() && emailedReminder(appt) && (
+              <span className="flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-700" title="A reminder email was sent to the patient">
+                <Mail size={11} /> Reminder emailed
               </span>
             )}
           </div>

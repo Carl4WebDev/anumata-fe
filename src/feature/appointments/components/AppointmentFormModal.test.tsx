@@ -1,4 +1,4 @@
-import { describe, test, expect, vi, beforeEach } from "vitest";
+import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -14,7 +14,7 @@ const addPatient = vi.fn();
 vi.mock("../../context/patients/usePatients", () => ({
   usePatients: () => ({
     patients: [
-      { id: 9, name: "MARIA SANTOS", isArchived: false },
+      { id: 9, name: "MARIA SANTOS", isArchived: false, contactNumber: "+639171234567", email: "maria@gmail.com", reminderConsent: true },
       { id: 10, name: "OLD PATIENT", isArchived: true },
     ],
     addPatient,
@@ -36,9 +36,13 @@ function renderModal(mode: Parameters<typeof AppointmentFormModal>[0]["mode"], o
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // "Today" is Monday 2 Nov 2026, 7:00 AM Manila, so the form opens on the day these tests book.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-01T23:00:00.000Z"));
   api.freeSlots.mockResolvedValue({ date: "2026-11-02", slot_minutes: 60, break_minutes: 0, slots: [SLOT_9, SLOT_10] });
   api.getSchedule.mockResolvedValue({ session_types: [] } as unknown as Schedule);
 });
+afterEach(() => vi.useRealTimers());
 
 describe("AppointmentFormModal — booking", () => {
   test("books the chosen patient into the chosen free slot", async () => {
@@ -54,7 +58,7 @@ describe("AppointmentFormModal — booking", () => {
     await user.click(screen.getByRole("button", { name: "Book appointment" }));
 
     expect(api.book).toHaveBeenCalledWith({ patient_id: 9, start_at: SLOT_10, reason: "Initial consultation" });
-    expect(onSaved).toHaveBeenCalledWith("Appointment booked");
+    expect(onSaved).toHaveBeenCalledWith(expect.stringMatching(/^Appointment booked for Nov 2, 10:00\sAM\.$/));
   });
 
   test("reason can be typed when it's not in the list", async () => {
@@ -123,9 +127,10 @@ describe("AppointmentFormModal — new patient", () => {
       age: 29,
       gender: "male",
       concern: "Anxiety",
+      reminder_consent: false,
     });
     expect(api.book).toHaveBeenCalledWith(expect.objectContaining({ patient_id: 42, start_at: SLOT_9 }));
-    expect(onSaved).toHaveBeenCalledWith("Patient added and appointment booked");
+    expect(onSaved).toHaveBeenCalledWith(expect.stringMatching(/^Patient added and appointment booked for Nov 2, 9:00\sAM\.$/));
   });
 
   test("needs all required patient fields", async () => {
@@ -159,7 +164,7 @@ describe("AppointmentFormModal — new patient", () => {
     await user.click(screen.getByRole("button", { name: "Book appointment" }));
     expect(addPatient).toHaveBeenCalledTimes(1);
     expect(api.book).toHaveBeenLastCalledWith(expect.objectContaining({ patient_id: 42 }));
-    expect(onSaved).toHaveBeenCalledWith("Appointment booked");
+    expect(onSaved).toHaveBeenCalledWith(expect.stringMatching(/^Appointment booked for Nov 2, /));
   });
 });
 
@@ -187,7 +192,7 @@ describe("AppointmentFormModal — session types", () => {
     await user.click(screen.getByRole("button", { name: /9:00\s?AM/ }));
     await user.click(screen.getByRole("button", { name: "Book appointment" }));
     expect(api.book).toHaveBeenCalledWith({ patient_id: 9, start_at: SLOT_9, session_type_id: 8 });
-    expect(onSaved).toHaveBeenCalledWith("Appointment booked");
+    expect(onSaved).toHaveBeenCalledWith(expect.stringMatching(/^Appointment booked for Nov 2, 9:00\sAM\.$/));
   });
 
   test("with no session types there is no type choice", async () => {
@@ -242,7 +247,7 @@ describe("AppointmentFormModal — editing", () => {
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     expect(api.update).toHaveBeenCalledWith(5, { start_at: SLOT_10 });
-    expect(onSaved).toHaveBeenCalledWith("Appointment moved");
+    expect(onSaved).toHaveBeenCalledWith(expect.stringMatching(/^Appointment moved to Nov 2, 10:00\sAM\.$/));
   });
 
   test("editing only the reason sends only the reason", async () => {
@@ -276,7 +281,7 @@ describe("AppointmentFormModal — recurring series", () => {
       repeat: { every_weeks: 1, count: 4 },
       skip_unavailable: false,
     });
-    expect(onSaved).toHaveBeenCalledWith("4 sessions booked");
+    expect(onSaved).toHaveBeenCalledWith(expect.stringMatching(/^4 sessions booked, starting Nov 2, 9:00\sAM\.$/));
   });
 
   test("some dates taken: lists them, and 'Book the other …' books the rest", async () => {
@@ -300,12 +305,78 @@ describe("AppointmentFormModal — recurring series", () => {
 
     await user.click(screen.getByRole("button", { name: /Book the other 3, skip this one/ }));
     expect(api.book).toHaveBeenLastCalledWith(expect.objectContaining({ skip_unavailable: true, repeat: { every_weeks: 1, count: 4 } }));
-    expect(onSaved).toHaveBeenCalledWith("3 sessions booked (1 skipped)");
+    expect(onSaved).toHaveBeenCalledWith(expect.stringMatching(/^3 sessions booked, starting Nov 2, 9:00\sAM \(1 skipped\)\.$/));
   });
 
   test("editing an appointment offers no repeat option", async () => {
     renderModal({ kind: "edit", appt: { appointment_id: 1, patient_id: 9, patient_name: "MARIA SANTOS", start_at: SLOT_9, end_at: SLOT_10, status: "scheduled", reason: null } as Appointment });
     await screen.findByRole("button", { name: /9:00\s?AM/ });
     expect(screen.queryByLabelText("Repeat")).not.toBeInTheDocument();
+  });
+});
+
+describe("AppointmentFormModal — a new patient's concern", () => {
+  test("'Other' shows a box to specify the concern, and that text is saved", async () => {
+    const user = userEvent.setup();
+    addPatient.mockResolvedValue({ ok: true, data: { id: 42 } });
+    api.book.mockResolvedValue({} as Appointment);
+    renderModal({ kind: "book" });
+
+    await user.click(screen.getByRole("button", { name: /New patient/ }));
+    await user.type(screen.getByLabelText("First name"), "Juan");
+    await user.type(screen.getByLabelText("Last name"), "Dela Cruz");
+    await user.selectOptions(screen.getByLabelText("Age"), "29");
+    await user.selectOptions(screen.getByLabelText("Gender"), "male");
+    await user.selectOptions(screen.getByLabelText("Primary concern"), "__other__");
+    await user.click(await screen.findByRole("button", { name: /9:00\s?AM/ }));
+    const submit = screen.getByRole("button", { name: "Book appointment" });
+    expect(submit).toBeDisabled(); // "Other" chosen but not specified yet
+
+    await user.type(screen.getByPlaceholderText("Specify the concern *"), "Grief after a loss");
+    await user.click(submit);
+    expect(addPatient).toHaveBeenCalledWith(expect.objectContaining({ concern: "Grief after a loss" }));
+  });
+});
+
+describe("AppointmentFormModal — contacts for reminders", () => {
+  beforeEach(() => vi.stubEnv("VITE_REMINDER_EMAILS", "true"));
+  afterEach(() => vi.unstubAllEnvs());
+
+  test("while reminder emails are off, only the contacts show", async () => {
+    vi.stubEnv("VITE_REMINDER_EMAILS", "false");
+    const user = userEvent.setup();
+    renderModal({ kind: "book" });
+    await user.selectOptions(screen.getByLabelText("Patient"), "9");
+    expect(screen.getByText("Contact: +639171234567 · maria@gmail.com")).toBeInTheDocument();
+    expect(screen.queryByText("reminder emails on")).not.toBeInTheDocument();
+  });
+
+  test("a new patient's mobile number and email are saved with the patient", async () => {
+    const user = userEvent.setup();
+    addPatient.mockResolvedValue({ ok: true, data: { id: 42 } });
+    api.book.mockResolvedValue({} as Appointment);
+    renderModal({ kind: "book" });
+
+    await user.click(screen.getByRole("button", { name: /New patient/ }));
+    await user.type(screen.getByLabelText("First name"), "Juan");
+    await user.type(screen.getByLabelText("Last name"), "Dela Cruz");
+    await user.selectOptions(screen.getByLabelText("Age"), "29");
+    await user.selectOptions(screen.getByLabelText("Gender"), "male");
+    await user.selectOptions(screen.getByLabelText("Primary concern"), "Anxiety");
+    await user.type(screen.getByLabelText("Mobile number"), "0917 123 4567");
+    await user.type(screen.getByLabelText("Email"), "juan@gmail.com");
+    await user.click(screen.getByRole("checkbox", { name: /agreed to get appointment reminders/ }));
+    await user.click(await screen.findByRole("button", { name: /9:00\s?AM/ }));
+    await user.click(screen.getByRole("button", { name: "Book appointment" }));
+
+    expect(addPatient).toHaveBeenCalledWith(expect.objectContaining({ contact_number: "0917 123 4567", email: "juan@gmail.com", reminder_consent: true }));
+  });
+
+  test("choosing an existing patient shows where reminders will go", async () => {
+    const user = userEvent.setup();
+    renderModal({ kind: "book" });
+    await user.selectOptions(screen.getByLabelText("Patient"), "9");
+    expect(screen.getByText(/Contact: \+639171234567 · maria@gmail\.com/)).toBeInTheDocument();
+    expect(screen.getByText("reminder emails on")).toBeInTheDocument();
   });
 });

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X } from "lucide-react";
+import ContactFields from "../components/ContactFields";
 
 const CONCERNS = [
   "Family Concerns",
@@ -21,6 +22,9 @@ interface Props {
     age: number;
     gender: string;
     primary_concern: string;
+    contact_number: string | null;
+    email: string | null;
+    reminder_consent: boolean;
   };
   onSave: (data: {
     f_name: string;
@@ -29,6 +33,10 @@ interface Props {
     age: number;
     gender: string;
     primary_concern: string;
+    /** "" clears it. */
+    contact_number: string;
+    email: string;
+    reminder_consent: boolean;
   }) => Promise<{ ok: boolean; error?: string }>;
 }
 
@@ -39,6 +47,11 @@ export default function EditPatientModal({ isOpen, onClose, initial, onSave }: P
   const [age, setAge] = useState(String(initial.age));
   const [gender, setGender] = useState(initial.gender);
   const [concern, setConcern] = useState(initial.primary_concern);
+  const [contact, setContact] = useState({
+    contactNumber: initial.contact_number ?? "",
+    email: initial.email ?? "",
+    reminderConsent: initial.reminder_consent,
+  });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -67,6 +80,9 @@ export default function EditPatientModal({ isOpen, onClose, initial, onSave }: P
       age: ageNum,
       gender,
       primary_concern: concern,
+      contact_number: contact.contactNumber.trim(),
+      email: contact.email.trim(),
+      reminder_consent: contact.reminderConsent && Boolean(contact.email.trim()),
     });
     setSubmitting(false);
 
@@ -166,6 +182,8 @@ export default function EditPatientModal({ isOpen, onClose, initial, onSave }: P
               )}
             </select>
           </div>
+
+          <ContactFields value={contact} onChange={setContact} />
 
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-center text-sm text-red-700">

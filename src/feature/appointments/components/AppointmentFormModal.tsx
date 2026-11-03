@@ -5,7 +5,8 @@ import { ApiError } from "../../../shared/api/httpClient";
 import { usePatients } from "../../context/patients/usePatients";
 import ChoiceInput from "../../../shared/components/ChoiceInput";
 import { APPOINTMENT_REASONS } from "../../../shared/constants/choices";
-import { formatDayHeading, formatMinutes, formatTime, manilaDateOf, manilaToday } from "../utils/appointmentUtils";
+import { formatDayHeading, formatMinutes, formatShortDateTime, formatTime, manilaDateOf, manilaToday } from "../utils/appointmentUtils";
+import { reminderEmailsEnabled } from "../../../shared/constants/features";
 import NewPatientFields from "./NewPatientFields";
 import { EMPTY_PATIENT, isPatientDraftComplete, type NewPatientDraft } from "../utils/newPatient";
 
@@ -30,6 +31,9 @@ interface PatientOption {
   id: number;
   name: string;
   isArchived: boolean;
+  contactNumber?: string | null;
+  email?: string | null;
+  reminderConsent?: boolean;
 }
 
 interface SlotResult {
@@ -50,6 +54,29 @@ function shiftDate(date: string, days: number): string {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Something went wrong.";
+}
+
+/** The chosen patient's contacts, and whether reminder emails will go out. */
+function PatientContactLine({ patient }: { patient: PatientOption }) {
+  const contacts = [patient.contactNumber, patient.email].filter(Boolean);
+  if (contacts.length === 0) {
+    return <p className="text-xs text-slate-400">No contact for reminders yet — add one on the patient&apos;s page.</p>;
+  }
+  return (
+    <p className="text-xs text-slate-500">
+      Contact: {contacts.join(" · ")}
+      {reminderEmailsEnabled() && (
+        <>
+          {" — "}
+          {patient.email && patient.reminderConsent ? (
+            <span className="text-teal-700">reminder emails on</span>
+          ) : (
+            <span className="text-slate-400">{patient.email ? "no reminder consent" : "no email for reminders"}</span>
+          )}
+        </>
+      )}
+    </p>
+  );
 }
 
 const SERIES_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -88,6 +115,7 @@ export default function AppointmentFormModal({ mode, onClose, onSaved }: Appoint
   });
   const [selectedSlot, setSelectedSlot] = useState<string | null>(editing?.start_at ?? null);
   const [reason, setReason] = useState(editing?.reason ?? followUp?.reason ?? "");
+  const selectedPatient = activePatients.find((p) => String(p.id) === patientId) ?? null;
   const fixedPatientName = fixedPatientId
     ? (activePatients.find((p) => p.id === fixedPatientId)?.name ?? `Patient #${fixedPatientId}`)
     : null;
@@ -162,7 +190,10 @@ export default function AppointmentFormModal({ mode, onClose, onSaved }: Appoint
       l_name: newPatient.l_name.trim(),
       age: Number(newPatient.age),
       gender: newPatient.gender,
-      concern: newPatient.concern,
+      concern: newPatient.concern.trim(),
+      contact_number: newPatient.contact_number.trim() || undefined,
+      email: newPatient.email.trim() || undefined,
+      reminder_consent: newPatient.reminder_consent,
     });
     if (!res.ok) {
       setError(res.error ?? "Could not create the patient record.");
@@ -186,7 +217,7 @@ export default function AppointmentFormModal({ mode, onClose, onSaved }: Appoint
           ...(timeChanged ? { start_at: selectedSlot } : {}),
           ...(reasonChanged ? { reason: reason.trim() } : {}),
         });
-        onSaved(timeChanged ? "Appointment moved" : "Appointment updated");
+        onSaved(timeChanged ? `Appointment moved to ${formatShortDateTime(selectedSlot)}.` : "Appointment updated");
         return;
       }
       let bookFor = Number(patientId);
@@ -207,11 +238,14 @@ export default function AppointmentFormModal({ mode, onClose, onSaved }: Appoint
         ...(typeId ? { session_type_id: typeId } : {}),
         ...(repeating ? { repeat: { every_weeks: Number(repeatEvery) as 1 | 2, count: repeatCount }, skip_unavailable: skipUnavailable } : {}),
       });
+      // Say when: "… booked for Nov 3, 1:00 PM." (a series: when it starts).
+      const added = patientCreated ? "Patient added and " : "";
       if ("appointments" in result) {
         const skipped = result.skipped.length ? ` (${result.skipped.length} skipped)` : "";
-        onSaved(`${patientCreated ? "Patient added and " : ""}${result.appointments.length} sessions booked${skipped}`);
+        const first = result.appointments[0]?.start_at ?? selectedSlot;
+        onSaved(`${added}${result.appointments.length} sessions booked, starting ${formatShortDateTime(first)}${skipped}.`);
       } else {
-        onSaved(patientCreated ? "Patient added and appointment booked" : "Appointment booked");
+        onSaved(`${patientCreated ? "Patient added and appointment" : "Appointment"} booked for ${formatShortDateTime(selectedSlot)}.`);
       }
     } catch (err) {
       const details = err instanceof ApiError ? (err.details as { unavailable?: string[]; available_count?: number } | undefined) : undefined;
@@ -267,14 +301,17 @@ export default function AppointmentFormModal({ mode, onClose, onSaved }: Appoint
                 {patientMode === "new" ? (
                   <NewPatientFields value={newPatient} onChange={setNewPatient} />
                 ) : (
-                  <select value={patientId} onChange={(e) => setPatientId(e.target.value)} className={field} aria-label="Patient">
-                    <option value="">Select a patient…</option>
-                    {activePatients.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    <select value={patientId} onChange={(e) => setPatientId(e.target.value)} className={field} aria-label="Patient">
+                      <option value="">Select a patient…</option>
+                      {activePatients.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedPatient && <PatientContactLine patient={selectedPatient} />}
+                  </>
                 )}
               </div>
             )}

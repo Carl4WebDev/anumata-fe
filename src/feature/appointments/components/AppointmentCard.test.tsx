@@ -1,4 +1,4 @@
-import { describe, test, expect, vi } from "vitest";
+import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import AppointmentCard from "./AppointmentCard";
@@ -83,5 +83,26 @@ describe("AppointmentCard — recurring series", () => {
   test("a single appointment shows no series badge", () => {
     renderCard(base);
     expect(screen.queryByText(/Session \d+ of/)).not.toBeInTheDocument();
+  });
+});
+
+describe("AppointmentCard — reminder emails", () => {
+  beforeEach(() => vi.stubEnv("VITE_REMINDER_EMAILS", "true"));
+  afterEach(() => vi.unstubAllEnvs());
+
+  test("shows when a reminder email went out to the patient", () => {
+    renderCard({ ...base, reminders: [{ kind: "day_before", status: "sent", sent_at: FUTURE }] });
+    expect(screen.getByText("Reminder emailed")).toBeInTheDocument();
+  });
+
+  test("hidden while reminder emails are off", () => {
+    vi.stubEnv("VITE_REMINDER_EMAILS", "false");
+    renderCard({ ...base, reminders: [{ kind: "day_before", status: "sent", sent_at: FUTURE }] });
+    expect(screen.queryByText("Reminder emailed")).not.toBeInTheDocument();
+  });
+
+  test("a failed or pending reminder doesn't count", () => {
+    renderCard({ ...base, reminders: [{ kind: "day_before", status: "failed", sent_at: FUTURE }] });
+    expect(screen.queryByText("Reminder emailed")).not.toBeInTheDocument();
   });
 });

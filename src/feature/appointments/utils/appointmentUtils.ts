@@ -26,6 +26,13 @@ export function formatDateTime(iso: string): string {
   });
 }
 
+/** "Nov 3, 1:00 PM" in Philippine time — for confirmation messages. */
+export function formatShortDateTime(iso: string): string {
+  const d = new Date(iso);
+  const day = d.toLocaleDateString("en-US", { timeZone: TIME_ZONE, month: "short", day: "numeric" });
+  return `${day}, ${formatTime(iso)}`;
+}
+
 /** 30 → "30 min", 90 → "1 hr 30 min", 120 → "2 hr" */
 export function formatMinutes(minutes: number): string {
   if (minutes < 60) return `${minutes} min`;
