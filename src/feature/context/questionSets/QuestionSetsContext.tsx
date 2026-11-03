@@ -6,6 +6,8 @@ export interface QuestionSetData {
   questions: string[];
   /** Optional follow-up per question (same order; "" = none). */
   followUps?: string[];
+  /** Questions marked sensitive (same order). */
+  sensitives?: boolean[];
 }
 
 /** A set built by picking standardized / custom questions. */

@@ -12,6 +12,7 @@ interface Props {
     description: string;
     questions: string[];
     followUps?: string[];
+    sensitives?: boolean[];
     questionCount?: number;
   } | null;
 }
@@ -60,6 +61,7 @@ export default function ViewQuestionSetModal({ isOpen, onClose, questionSet }: P
         category: item.sq_category,
         source: item.source_type,
         followUp: undefined as string | undefined,
+        sensitive: false,
       }))
     : questionSet.questions.map((q, i) => ({
         text: q,
@@ -67,6 +69,7 @@ export default function ViewQuestionSetModal({ isOpen, onClose, questionSet }: P
         category: undefined,
         source: "legacy",
         followUp: questionSet.followUps?.[i] || undefined,
+        sensitive: questionSet.sensitives?.[i] === true,
       }));
 
   return (
@@ -117,6 +120,9 @@ export default function ViewQuestionSetModal({ isOpen, onClose, questionSet }: P
                     )}
                     {q.source === "standardized" && (
                       <span className="ml-1 mt-1 inline-block rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-600">Standardized</span>
+                    )}
+                    {q.sensitive && (
+                      <span className="ml-1 mt-1 inline-block rounded bg-rose-100 px-1.5 py-0.5 text-[10px] text-rose-700">Sensitive</span>
                     )}
                     {q.source === "custom" && (
                       <span className="ml-1 mt-1 inline-block rounded bg-purple-100 px-1.5 py-0.5 text-[10px] text-purple-600">Custom</span>

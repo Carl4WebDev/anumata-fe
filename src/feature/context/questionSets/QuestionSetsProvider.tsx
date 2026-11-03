@@ -9,6 +9,9 @@ function mapQuestionSet(qs: any) {
   const legacyQuestions = Array.isArray(qs.questions)
     ? qs.questions.map((q: any) => (typeof q === "string" ? q : q.text))
     : [];
+  const sensitives: boolean[] = Array.isArray(qs.questions)
+    ? qs.questions.map((q: any) => typeof q === "object" && q?.sensitive === true)
+    : [];
   const followUps: string[] = Array.isArray(qs.questions)
     ? qs.questions.map((q: any) => (typeof q === "string" ? "" : (q.follow_up ?? "")))
     : [];
@@ -20,16 +23,22 @@ function mapQuestionSet(qs: any) {
     description: qs.description || "",
     questions: legacyQuestions,
     followUps,
+    sensitives,
     questionCount,
     sourceType: qs.source_type || "custom",
   };
 }
 
-/** Questions as the API takes them, each with its follow-up when there is one. */
-function toQuestionPayload({ questions, followUps }: QuestionSetData) {
+/** Questions as the API takes them, each with its follow-up and sensitive mark when there is one. */
+function toQuestionPayload({ questions, followUps, sensitives }: QuestionSetData) {
   return questions.map((text, order) => {
     const followUp = followUps?.[order]?.trim();
-    return followUp ? { text, order, follow_up: followUp } : { text, order };
+    return {
+      text,
+      order,
+      ...(followUp ? { follow_up: followUp } : {}),
+      ...(sensitives?.[order] ? { sensitive: true } : {}),
+    };
   });
 }
 

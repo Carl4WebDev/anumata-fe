@@ -7,13 +7,18 @@ interface FeelingWordsProps {
   selected: string[];
   onToggle: (key: string) => void;
   large?: boolean;
+  /** Draw attention to the chips (Amumata just suggested them during a check-in). */
+  highlight?: boolean;
 }
 
 /** Optional feeling chips under the captions, to help the patient start talking. */
-export default function FeelingWords({ lang, selected, onToggle, large = false }: FeelingWordsProps) {
+export default function FeelingWords({ lang, selected, onToggle, large = false, highlight = false }: FeelingWordsProps) {
   const full = selected.length >= MAX_FEELINGS_PER_QUESTION;
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+    <div
+      className={`rounded-2xl border p-3 transition ${highlight ? "border-teal-400/70 bg-teal-500/10 ring-2 ring-teal-400/40" : "border-white/10 bg-white/5"}`}
+      data-highlight={highlight || undefined}
+    >
       <p className={`mb-2 text-slate-300 ${large ? "text-sm" : "text-xs"}`}>{FEELINGS_PROMPT[lang]}</p>
       <div className="flex flex-wrap gap-1.5" role="group" aria-label={FEELINGS_PROMPT[lang]}>
         {FEELING_WORDS.map((w) => {

@@ -114,6 +114,8 @@ function mapSession(s: SessionData): MappedSession {
       face_frames: t.face_frames ?? null,
       follow_up_asked: t.follow_up_asked ?? null,
       feelings_tapped: Array.isArray(t.feelings_tapped) ? t.feelings_tapped : [],
+      check_in: t.check_in ?? null,
+      skipped: t.skipped === true,
       frame_image: t.frame_image ?? null,
       evidence_frames: t.evidence_frames ?? null,
     })),

@@ -2,6 +2,7 @@ import { describe, test, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ModelEvaluation from "./ModelEvaluation";
 import SystemUpdates from "./SystemUpdates";
+import InterviewFeatures from "./InterviewFeatures";
 import { MODEL_EVALUATIONS } from "../data/evaluationResults";
 
 describe("evaluation numbers are consistent", () => {
@@ -40,10 +41,25 @@ describe("ModelEvaluation panel", () => {
 });
 
 describe("SystemUpdates panel", () => {
-  test("the latest update is open, with the steps needed on the live server", () => {
+  test("the latest update is open; older ones open on tap, with the steps needed on the live server", () => {
     render(<SystemUpdates />);
-    expect(screen.getByText("Monday, November 2, 2026")).toBeInTheDocument();
+    expect(screen.getByText("Tuesday, November 3, 2026")).toBeInTheDocument();
+    expect(screen.getByText(/Okay ka pa ba mopadayon/)).toBeInTheDocument();
+    expect(screen.queryByText(/Undo Completed \/ No-show \/ Cancelled within 15 minutes/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Monday, November 2, 2026/ }));
     expect(screen.getByText(/Undo Completed \/ No-show \/ Cancelled within 15 minutes/)).toBeInTheDocument();
     expect(screen.getByText(/add_session_types_and_break\.sql/)).toBeInTheDocument();
+  });
+});
+
+describe("InterviewFeatures panel", () => {
+  test("lists the room's features by stage; a stage opens on tap", () => {
+    render(<InterviewFeatures />);
+    expect(screen.getByText("Interview Room Features")).toBeInTheDocument();
+    expect(screen.queryByText("Gentle check-ins")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /During each question/ }));
+    expect(screen.getByText("Gentle check-ins")).toBeInTheDocument();
+    expect(screen.getByText(/Okay ka pa ba mopadayon/)).toBeInTheDocument();
   });
 });

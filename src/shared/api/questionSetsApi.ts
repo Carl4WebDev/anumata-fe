@@ -9,6 +9,8 @@ export interface SetQuestion {
   text: string;
   order: number;
   follow_up?: string;
+  /** Marked sensitive: a gentle line before it, and an earlier check-in. */
+  sensitive?: boolean;
 }
 
 export interface QuestionSet {
@@ -34,6 +36,8 @@ export interface AiGeneratedQuestion {
   category: string;
   /** Optional follow-up the therapist adds before saving. */
   follow_up?: string;
+  /** Marked sensitive: a gentle line before it, and an earlier check-in. */
+  sensitive?: boolean;
 }
 
 /** Response from POST /api/question-sets/ai/generate */
@@ -80,11 +84,11 @@ export const questionSetsApi = {
     return httpClient.get<QuestionSet>(`/api/question-sets/${id}`);
   },
 
-  create(data: { name: string; description?: string; questions: string[] | { text: string; order?: number; follow_up?: string }[] }) {
+  create(data: { name: string; description?: string; questions: string[] | { text: string; order?: number; follow_up?: string; sensitive?: boolean }[] }) {
     return httpClient.post<QuestionSet>("/api/question-sets", data);
   },
 
-  update(id: number, data: { name?: string; description?: string; questions?: string[] | { text: string; order?: number; follow_up?: string }[] }) {
+  update(id: number, data: { name?: string; description?: string; questions?: string[] | { text: string; order?: number; follow_up?: string; sensitive?: boolean }[] }) {
     return httpClient.patch<QuestionSet>(`/api/question-sets/${id}`, data);
   },
 

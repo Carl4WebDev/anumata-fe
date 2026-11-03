@@ -40,6 +40,9 @@ export interface QuestionData {
   followUpAsked: string | null;
   /** Feeling words the patient tapped during this question. */
   feelingsTapped: string[];
+  /** A check-in offered when the patient struggled, and whether they skipped the question. */
+  checkIn: { reason: string; outcome: string } | null;
+  skipped: boolean;
   languageDetected: string | null;
   frameImage: string | null;
   evidenceFrames: {
@@ -156,6 +159,8 @@ export function useSessionComputed(session: MappedSession | null | undefined) {
         isSpike,
         followUpAsked: r.follow_up_asked ?? null,
         feelingsTapped: r.feelings_tapped ?? [],
+        checkIn: r.check_in ?? null,
+        skipped: r.skipped === true,
         languageDetected: r.language_detected ?? null,
         frameImage: r.frame_image ?? null,
         evidenceFrames: r.evidence_frames ?? null,

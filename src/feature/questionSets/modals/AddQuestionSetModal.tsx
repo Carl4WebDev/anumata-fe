@@ -6,7 +6,7 @@ import { MIN_QUESTIONS, emptyQuestions, toQuestionSetData, type DraftQuestion } 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { name: string; description: string; questions: string[]; followUps: string[] }) => void;
+  onSave: (data: { name: string; description: string; questions: string[]; followUps: string[]; sensitives: boolean[] }) => void;
 }
 
 export default function AddQuestionSetModal({ isOpen, onClose, onSave }: Props) {

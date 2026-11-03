@@ -71,6 +71,18 @@ import { MOOD_QUESTIONS, type MoodMoment, type SelfReport } from "../hooks/moodC
 import MoodCheck from "../components/MoodCheck";
 import FeelingWords from "../components/FeelingWords";
 import { toggleFeeling } from "../hooks/feelingWords";
+import CheckInActions from "../components/CheckInActions";
+import { createPostureTracker } from "../hooks/postureCheck";
+import {
+  CHECK_IN_LINE,
+  CHECK_IN_OKAY,
+  SENSITIVE_INTRO,
+  decideCheckIn,
+  sensitiveFlagsOf,
+  soundsHardToAnswer,
+  type CheckInOutcome,
+  type CheckInReason,
+} from "../hooks/struggleCheck";
 
 // Hardcoded fallback questions if token not found
 const FALLBACK_QUESTIONS = [
@@ -236,6 +248,15 @@ export default function InterviewRoom() {
   // Feeling words tapped per question (the patient's own words for how they feel).
   const [feelings, setFeelings] = useState<Record<number, string[]>>({});
   const feelingsRef = useRef<Record<number, string[]>>({});
+  // Gentle check-ins when the patient struggles, and questions they skipped (see struggleCheck.ts).
+  const sensitiveRef = useRef<boolean[]>([]);
+  const checkInsRef = useRef<Record<number, { reason: CheckInReason; outcome: CheckInOutcome }>>({});
+  const skippedRef = useRef<Set<number>>(new Set());
+  const hardWordsAtRef = useRef<number | null>(null);
+  const postureRef = useRef(createPostureTracker());
+  // A check-in is waiting for the patient's reply (continue / break / skip).
+  const [checkInOpen, setCheckInOpenState] = useState(false);
+  const checkInOpenRef = useRef(false);
   const sessionInfoRef = useRef({ patientName, templateName, rapportResponses });
   useEffect(() => {
     stateRef.current = state;
@@ -291,6 +312,7 @@ export default function InterviewRoom() {
         const questionTexts = qs.map((q: any) => (typeof q === "string" ? q : q.text));
         if (questionTexts.length > 0) {
           followUpsRef.current = followUpsOf(qs);
+          sensitiveRef.current = sensitiveFlagsOf(qs);
           setQuestions(questionTexts);
           setPatientName(link.patient_name || "Client");
           setTemplateName(link.question_set_name || "Interview");
@@ -357,7 +379,10 @@ export default function InterviewRoom() {
   // "Say hello" check on the start screen only (the captions take over after).
   const micCheck = useMicCheck(stream, state === "idle");
   // "I can't see your face" hints, on the patient's device, while they talk to Amumata.
-  const faceHint = useFaceCheck(videoRef, inConversation && !onBreak && cameraOn);
+  // The same sightings feed the head-down / blank-stare tracker used for check-ins.
+  const faceHint = useFaceCheck(videoRef, inConversation && !onBreak && cameraOn, (sighting, usable) =>
+    postureRef.current.feed(sighting, usable, Date.now()),
+  );
 
   // Re-attach the stream when the video element remounts (idle → conversation),
   // only if not already bound — rebinding makes the preview flicker.
@@ -525,6 +550,20 @@ export default function InterviewRoom() {
     answerBaseRef.current = 0;
     turnLangRef.current = "";
     confirmAskedAtRef.current = null;
+    hardWordsAtRef.current = null;
+    postureRef.current.resetClocks();
+    setCheckInOpen(false);
+  };
+
+  const setCheckInOpen = (open: boolean) => {
+    checkInOpenRef.current = open;
+    setCheckInOpenState(open);
+  };
+
+  /** Record what the patient chose after a check-in on question `index`. */
+  const markCheckIn = (index: number, outcome: CheckInOutcome) => {
+    const checkIn = checkInsRef.current[index];
+    if (checkIn) checkInsRef.current = { ...checkInsRef.current, [index]: { ...checkIn, outcome } };
   };
 
   /** Has the patient said anything since the current prompt? */
@@ -699,10 +738,42 @@ export default function InterviewRoom() {
     if (fresh) newTurn();
     setTurnPhase("preparing");
     const q = await prepareText(questionsRef.current[index]);
+    // A question the therapist marked sensitive gets a soft line first (once, not on "repeat").
+    if (fresh && sensitiveRef.current[index]) {
+      const lang = langRef.current;
+      setSpokenLine(null);
+      setAiPrompt({ kind: "localized", line: SENSITIVE_INTRO, primary: "all" });
+      await say(SENSITIVE_INTRO[lang], lang, SENSITIVE_INTRO.en);
+    }
     setSpokenLine(null);
     setAiPrompt({ kind: "text", main: q.main, sub: q.sub });
     // The question as the therapist wrote it is the fallback when the translation can't be voiced.
     await say(q.speak, q.speakLang, questionsRef.current[index]);
+    listen();
+  };
+
+  /**
+   * "Are you okay to continue?" — when the patient seems to struggle with
+   * question `index`. Their choice (continue / break / skip) is recorded for the therapist.
+   */
+  const offerCheckIn = async (index: number, reason: CheckInReason) => {
+    checkInsRef.current = { ...checkInsRef.current, [index]: { reason, outcome: "continued" } };
+    hardWordsAtRef.current = null;
+    setCheckInOpen(true);
+    const lang = langRef.current;
+    setSpokenLine(null);
+    setAiPrompt({ kind: "localized", line: CHECK_IN_LINE, primary: "all" });
+    await say(CHECK_IN_LINE[lang], lang, CHECK_IN_LINE.en);
+    listen();
+  };
+
+  /** "I'm okay": the same question carries on. */
+  const continueAfterCheckIn = async () => {
+    setCheckInOpen(false);
+    const lang = langRef.current;
+    setSpokenLine(null);
+    setAiPrompt({ kind: "localized", line: CHECK_IN_OKAY, primary: "all" });
+    await say(CHECK_IN_OKAY[lang], lang, CHECK_IN_OKAY.en);
     listen();
   };
 
@@ -737,6 +808,8 @@ export default function InterviewRoom() {
       crisis: crisisRaisedRef.current,
       moodBefore: moodRef.current.mood_before,
       feelings: feelingsRef.current,
+      checkIns: checkInsRef.current,
+      skipped: [...skippedRef.current],
       savedAt: Date.now(),
     });
   };
@@ -761,6 +834,8 @@ export default function InterviewRoom() {
     followUpAskedRef.current.clear();
     feelingsRef.current = {};
     setFeelings({});
+    checkInsRef.current = {};
+    skippedRef.current = new Set();
     capturedFramesRef.current.clear();
     capturedAudioRef.current.clear();
     if (token) {
@@ -816,6 +891,8 @@ export default function InterviewRoom() {
     setRapportResponses(p.rapportResponses);
     moodRef.current = { mood_before: p.moodBefore ?? null, mood_after: null };
     feelingsRef.current = p.feelings ?? {};
+    checkInsRef.current = p.checkIns ?? {};
+    skippedRef.current = new Set(p.skipped ?? []);
     setFeelings(feelingsRef.current);
     setElapsed(p.elapsed);
     elapsedRef.current = p.elapsed;
@@ -911,6 +988,8 @@ export default function InterviewRoom() {
         nextAppointmentAt: nextAppointmentRef.current,
         followUpsAsked: [...followUpAskedRef.current],
         feelingsTapped: feelingsRef.current,
+        checkIns: checkInsRef.current,
+        skipped: [...skippedRef.current],
       }),
     );
     if (info.rapportResponses.length > 0) {
@@ -935,6 +1014,12 @@ export default function InterviewRoom() {
     const answer = turnTextRef.current.join(" ").trim();
     answersRef.current.set(index, answer);
     const answered = Boolean(answer) || captionsRef.current.getActivity().lastVoiceAt !== null;
+    // Moved on without saying anything: skipped, so it's left out of the AI results.
+    if (!answered) {
+      skippedRef.current.add(index);
+      markCheckIn(index, "skipped");
+    }
+    setCheckInOpen(false);
 
     if (index >= questionsRef.current.length - 1) {
       // Close the last answer's recording before the mood check, so the check isn't part of it.
@@ -979,6 +1064,10 @@ export default function InterviewRoom() {
 
   /** Pause the answer: nothing is recorded, timed or moved on until "ready". */
   const startBreak = async () => {
+    if (checkInOpenRef.current) {
+      markCheckIn(currentIndexRef.current, "break");
+      setCheckInOpen(false);
+    }
     setBreak(true);
     setMoveOnAt(null);
     stopFrameCapture();
@@ -1020,6 +1109,21 @@ export default function InterviewRoom() {
       if (parsed === "yes") void runFlow(endBreak);
       return;
     }
+    // Reply to "Are you okay to continue?": "oo / okay" → carry on, "no / pahulay" → a break,
+    // "sunod / tapos na" → skip (handled below as "next"); anything else is their answer.
+    if (current === "recording" && checkInOpenRef.current && !isExplicitDone(p.text)) {
+      if (parsed === "yes") {
+        void runFlow(continueAfterCheckIn);
+        return;
+      }
+      if (parsed === "no" || parsed === "pause") {
+        void runNow(startBreak);
+        return;
+      }
+      setCheckInOpen(false);
+    }
+    // A short "I don't know / ambot / lisod isulti" may mean the question is hard to answer.
+    if (current === "recording" && soundsHardToAnswer(p.text)) hardWordsAtRef.current = Date.now();
     // While answering, "oo" / "okay lang" / "hindi" are real answers, not
     // commands — only "repeat" and an explicit "I'm done / next / tapos na"
     // act. Casual yes / no count once Amumata has asked "are you done?".
@@ -1081,7 +1185,7 @@ export default function InterviewRoom() {
 
   const tick = () => {
       const current = stateRef.current;
-      if (!handsFreeRef.current || flowBusyRef.current || onBreakRef.current) return;
+      if (flowBusyRef.current || onBreakRef.current) return;
       if (current !== "recording" && current !== "rapport_wait" && current !== "permission_wait") return;
       const turnPhase = phaseRef.current;
       if (turnPhase !== "listening" && turnPhase !== "confirming") return;
@@ -1089,6 +1193,29 @@ export default function InterviewRoom() {
       const activity = captionsRef.current.getActivity();
       const lastVoice = activity.lastVoiceAt ?? 0;
       const now = Date.now();
+
+      // Struggling with a question? A gentle check-in — also with hands-free off,
+      // since it never moves on by itself. Not once the crisis card is up (it has its own message).
+      if (current === "recording" && turnPhase === "listening" && !checkInOpenRef.current && !crisisRaisedRef.current) {
+        const index = currentIndexRef.current;
+        const reason = decideCheckIn({
+          now,
+          silenceSince: Math.max(listenSinceRef.current, lastVoice),
+          hasAnswer: spokeSincePrompt(),
+          voiceActive: activity.voiceActive,
+          pendingTranscripts: activity.pending,
+          hardWordsAt: hardWordsAtRef.current,
+          posture: cameraOn ? postureRef.current.read() : { headDownMs: 0, stillMs: 0 },
+          sensitive: Boolean(sensitiveRef.current[index]),
+          askedThisQuestion: index in checkInsRef.current,
+          checkInsSoFar: Object.keys(checkInsRef.current).length,
+        });
+        if (reason) {
+          void runFlow(() => offerCheckIn(index, reason));
+          return;
+        }
+      }
+      if (!handsFreeRef.current) return;
 
       if (current === "permission_wait") {
         // Starting the interview always needs an explicit "yes" — only remind.
@@ -1137,6 +1264,8 @@ export default function InterviewRoom() {
           return;
         }
         const isLast = index >= questionsRef.current.length - 1;
+        // From here a "yes" means "move on", not "I'm okay to continue".
+        setCheckInOpen(false);
         void runFlow(() => checkIn(!answered ? "confirmSilent" : isLast ? "confirmDoneLast" : "confirmDone"));
       } else if (action === "auto_proceed") {
         const answered = spokeSincePrompt();
@@ -1172,6 +1301,7 @@ export default function InterviewRoom() {
   };
 
   const handleNextButton = () => void runNow(proceedFormal);
+  const handleCheckInContinue = () => void runNow(continueAfterCheckIn);
   const handleRepeatButton = () => void runNow(repeatQuestion);
   const handleKeepTalking = () => void runNow(async () => listen());
   const handleBreakButton = () => void runNow(startBreak);
@@ -1420,7 +1550,8 @@ export default function InterviewRoom() {
             <span className="text-xs font-medium text-slate-200">{onBreak ? "Paused" : "Recording for your therapist"}</span>
           </div>
         )}
-        {(faceHint || !cameraOn) && (
+        {/* Not during a check-in: "I can't see your face" would be unkind to someone looking down. */}
+        {((faceHint && !checkInOpen) || !cameraOn) && (
           <p
             role="status"
             className="absolute inset-x-3 top-14 mx-auto flex max-w-md items-center justify-center gap-2 rounded-xl bg-amber-500/90 px-3 py-2 text-center text-sm font-medium text-slate-950 shadow-lg"
@@ -1554,6 +1685,15 @@ export default function InterviewRoom() {
             selected={feelings[currentIndex] ?? []}
             onToggle={handleFeelingToggle}
             large={comfort.largeText}
+            highlight={checkInOpen}
+          />
+        )}
+        {isFormal && !onBreak && checkInOpen && (
+          <CheckInActions
+            lang={detectedLang}
+            onContinue={handleCheckInContinue}
+            onBreak={handleBreakButton}
+            onSkip={handleNextButton}
           />
         )}
         {phase === "confirming" && moveOnAt !== null && !captions.voiceActive && !onBreak && <MoveOnCountdown until={moveOnAt} />}

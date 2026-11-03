@@ -84,6 +84,10 @@ export interface TranscriptEntry {
   follow_up_asked?: string;
   /** Feeling words the patient tapped during this question. */
   feelings_tapped?: string[];
+  /** A check-in offered when the patient struggled: why, and what they chose. */
+  check_in?: { reason: string; outcome: string };
+  /** Skipped without an answer (left out of the session's AI results). */
+  skipped?: boolean;
 }
 
 /** What the AI read across every frame of one answer (sessions analysed after this was added). */

@@ -8,7 +8,7 @@ export interface InterviewLink {
   patient_name: string;
   question_set_id: number;
   question_set_name: string;
-  questions?: { text: string; order: number; follow_up?: string }[];
+  questions?: { text: string; order: number; follow_up?: string; sensitive?: boolean }[];
   /** The patient's next scheduled appointment (only from the interview page's own link). */
   next_appointment_at?: string | null;
   created_at: string;

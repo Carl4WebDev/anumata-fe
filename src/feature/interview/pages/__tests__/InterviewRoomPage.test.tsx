@@ -74,9 +74,15 @@ vi.mock("../../../../shared/api/interviewLinksApi", () => ({
 vi.mock("../../../../shared/api/healthApi", () => ({ fetchSystemHealth: () => Promise.resolve({}) }));
 vi.mock("../../../../shared/api/translateApi", () => ({ translateQuestion: () => Promise.resolve(null) }));
 // The real face check runs MediaPipe (WASM), which jsdom can't: control its hint directly.
-const faceCheck = { hint: null as null | "no_face" | "too_far" | "too_dark", lastActive: false };
+const faceCheck = {
+  hint: null as null | "no_face" | "too_far" | "too_dark",
+  lastActive: false,
+  // Where the fake camera sees the face each second (for the head-down / blank-stare tracker).
+  onSighting: null as null | ((s: { cy: number; height: number; points: { x: number; y: number }[] } | null, usable: boolean) => void),
+};
 vi.mock("../../hooks/useFaceCheck", () => ({
-  useFaceCheck: (_ref: unknown, active: boolean) => {
+  useFaceCheck: (_ref: unknown, active: boolean, onSighting?: typeof faceCheck.onSighting) => {
+    faceCheck.onSighting = onSighting ?? null;
     faceCheck.lastActive = active;
     return active ? faceCheck.hint : null;
   },
@@ -439,7 +445,8 @@ describe("InterviewRoom — hands-free voice flow", () => {
     await startAndWarmUp();
     await say("Oo");
     await wait(10);
-    await wait(15500); // silence → "would you like to move on?"
+    await wait(13500); // silence → a gentle check-in first
+    await wait(15500); // still silent → "would you like to move on?"
     await wait(3500); // no reply → "let's move on"
     expect(screen.getByText("Question 2 of 2")).toBeInTheDocument();
     expect(spoken.some((s) => s.startsWith("Salamat sa"))).toBe(false);
@@ -517,7 +524,9 @@ describe("InterviewRoom — hands-free voice flow", () => {
     await startAndWarmUp();
     await say("Oo");
     await wait(10);
-    await wait(15500); // thinking time, then "Gusto mo na bang lumipat…?"
+    await wait(13500); // thinking time → "Okay ka pa ba na magpatuloy?"
+    expect(spoken.some((s) => s.startsWith("Okay ka pa ba na magpatuloy?"))).toBe(true);
+    await wait(15500); // still nothing → "Gusto mo na bang lumipat…?"
     expect(spoken.some((s) => s.startsWith("Walang pagmamadali"))).toBe(true);
     await wait(3500); // no reply
     expect(spoken).toContain("Sige, lumipat na tayo.");
@@ -739,12 +748,119 @@ describe("InterviewRoom — feeling words", () => {
     await startAndWarmUp();
     await say("Oo");
     await wait(10);
-    await say("Hindi ko alam");
+    await say("Hindi masyado");
     await wait(3500);
     expect(screen.getByRole("timer")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Malungkot/ }));
     await wait(10);
     expect(screen.queryByRole("timer")).not.toBeInTheDocument();
     expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
+  });
+});
+
+describe("InterviewRoom — gentle check-ins when the patient struggles", () => {
+  const CHECK_IN_TL = "Okay ka pa ba na magpatuloy?";
+  const checkInSaid = () => spoken.some((s) => s.startsWith(CHECK_IN_TL));
+  const feelingChips = () => screen.getByRole("group", { name: /Mahirap bang sabihin/ }).parentElement;
+
+  test("no answer for a while → 'Okay ka pa ba?' with the feeling words highlighted; 'oo' carries on", async () => {
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    await wait(12000);
+    expect(checkInSaid()).toBe(false);
+    await wait(1500);
+    expect(checkInSaid()).toBe(true);
+    expect(feelingChips()).toHaveAttribute("data-highlight", "true");
+    expect(screen.getByRole("button", { name: /Okay lang ako — ituloy/ })).toBeInTheDocument();
+
+    await say("Oo");
+    await wait(10);
+    expect(spoken).toContain("Sige. Dahan-dahan lang — nakikinig ako.");
+    expect(screen.queryByRole("button", { name: /Okay lang ako — ituloy/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
+  });
+
+  test("'ambot' (I don't know) → a check-in after a short pause; 'pahinga' starts a break", async () => {
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    await say("Ambot");
+    await wait(3000);
+    expect(checkInSaid()).toBe(true);
+    await say("Pahinga muna");
+    await wait(10);
+    expect(spoken.some((s) => s.startsWith("Sige, magpahinga ka muna"))).toBe(true);
+  });
+
+  test("skipping after a check-in is saved, and the skipped question is marked for the analysis", async () => {
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    await wait(13500);
+    fireEvent.click(screen.getByRole("button", { name: /Laktawan ang tanong/ }));
+    await wait(10);
+    expect(screen.getByText("Question 2 of 2")).toBeInTheDocument();
+    await say("Okay naman");
+    await say("Tapos na");
+    await wait(100);
+    const saved = JSON.parse(sessionStorage.getItem("amumata_result_tok") ?? "{}");
+    expect(saved.checkIns).toEqual({ 0: { reason: "no_answer", outcome: "skipped" } });
+    expect(saved.skipped).toEqual([0]);
+  });
+
+  test("head down while silent → a check-in sooner than silence alone", async () => {
+    const face = (cy: number, wobble: number) => ({
+      cy,
+      height: 0.4,
+      points: [
+        { x: 0.4 + wobble, y: cy },
+        { x: 0.6 + wobble, y: cy },
+      ],
+    });
+    await startAndWarmUp();
+    // The camera learns where the face usually is …
+    for (let i = 0; i < 6; i += 1) {
+      await wait(1000);
+      faceCheck.onSighting?.(face(0.5, i % 2 ? 0.02 : 0), true);
+    }
+    await say("Oo");
+    await wait(10);
+    // … then the head goes down and stays down, in silence.
+    for (let i = 0; i < 9; i += 1) {
+      await wait(1000);
+      faceCheck.onSighting?.(face(0.65, i % 2 ? 0.02 : 0), true);
+    }
+    await wait(600);
+    expect(checkInSaid()).toBe(true); // ~9 s, well before the 13 s no-answer check-in
+    fireEvent.click(screen.getByRole("button", { name: /Laktawan ang tanong/ }));
+    await wait(10);
+    await say("Tapos na");
+    await wait(100);
+    const saved = JSON.parse(sessionStorage.getItem("amumata_result_tok") ?? "{}");
+    expect(saved.checkIns[0].reason).toBe("head_down");
+  });
+
+  test("at most once per question", async () => {
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    await wait(13500);
+    await say("Oo");
+    await wait(10);
+    const before = spoken.filter((s) => s.startsWith(CHECK_IN_TL)).length;
+    await wait(14000);
+    expect(spoken.filter((s) => s.startsWith(CHECK_IN_TL)).length).toBe(before);
+  });
+
+  test("a question marked sensitive gets a gentle line first", async () => {
+    link.questions = [{ text: "How have you been sleeping?", sensitive: true }, "What helps you relax?"];
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    expect(spoken).toContain("Mas personal ang susunod na tanong. Dahan-dahan lang, at okay lang na laktawan ito.");
+    expect(spoken.indexOf("Mas personal ang susunod na tanong. Dahan-dahan lang, at okay lang na laktawan ito.")).toBeLessThan(
+      spoken.lastIndexOf("How have you been sleeping?"),
+    );
   });
 });

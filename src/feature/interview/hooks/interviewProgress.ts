@@ -1,4 +1,5 @@
 import type { ResponseLanguage } from "./rapportUtils";
+import type { CheckInOutcome, CheckInReason } from "./struggleCheck";
 
 /**
  * Where the patient is in the formal interview, saved after every answer so a
@@ -24,6 +25,10 @@ export interface InterviewProgress {
   moodBefore?: number | null;
   /** Feeling words tapped so far, by question index. */
   feelings?: Record<number, string[]>;
+  /** Check-ins offered so far (why, and what the patient chose), by question index. */
+  checkIns?: Record<number, { reason: CheckInReason; outcome: CheckInOutcome }>;
+  /** Questions the patient skipped without answering. */
+  skipped?: number[];
   savedAt: number;
 }
 
@@ -54,15 +59,19 @@ export function loadProgress(token: string, now = Date.now()): InterviewProgress
       Array.isArray(p.rapportResponses) &&
       typeof p.savedAt === "number";
     if (!valid || now - p.savedAt > PROGRESS_MAX_AGE_MS) return null;
-    const { moodBefore, feelings, ...rest } = p;
+    const { moodBefore, feelings, checkIns, skipped, ...rest } = p;
     const validMood = Number.isInteger(moodBefore) && moodBefore >= 1 && moodBefore <= 5;
     const validFeelings =
       feelings && typeof feelings === "object" && !Array.isArray(feelings) && Object.values(feelings).every(Array.isArray);
+    const validCheckIns = checkIns && typeof checkIns === "object" && !Array.isArray(checkIns);
+    const validSkipped = Array.isArray(skipped) && skipped.every((i: unknown) => Number.isInteger(i));
     return {
       ...rest,
       crisis: p.crisis === true,
       ...(validMood ? { moodBefore } : {}),
       ...(validFeelings ? { feelings } : {}),
+      ...(validCheckIns ? { checkIns } : {}),
+      ...(validSkipped ? { skipped } : {}),
     };
   } catch {
     return null;

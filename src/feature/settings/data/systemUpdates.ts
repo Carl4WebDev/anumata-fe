@@ -18,6 +18,34 @@ export interface SystemUpdate {
 
 export const SYSTEM_UPDATES: SystemUpdate[] = [
   {
+    date: "2026-11-03",
+    title: "Gentle check-ins when a patient struggles",
+    groups: [
+      {
+        area: "Interview room (patient side)",
+        changes: [
+          "If a patient seems to struggle with a question, Amumata gently asks “Okay ka pa ba mopadayon?” and offers three choices: continue, take a break, or skip. The feeling words light up as a way to answer.",
+          "A check-in happens when the patient: gives no answer for a while; says a short “I don't know / ambot / ewan ko”; or keeps the head down (yuko) or stares without moving (tulala) while silent. Camera cues never count on their own.",
+          "At most once per question and 3 times per interview; never while the crisis help card is showing.",
+          "Head-down and stillness are measured on the patient's own device from the face position — nothing extra is uploaded.",
+        ],
+      },
+      {
+        area: "Question sets",
+        changes: [
+          "A question can be marked “Sensitive question” (Add, Edit, AI builder). Amumata says a gentle line before it and checks in sooner if the patient struggles.",
+        ],
+      },
+      {
+        area: "Session review",
+        changes: [
+          "Each question shows when a check-in was offered, why (e.g. “head down while silent”), and what the patient chose.",
+          "Questions the patient skipped are marked “Skipped by patient” and left out of the session's emotion mix, risk level and spikes.",
+        ],
+      },
+    ],
+  },
+  {
     date: "2026-11-02",
     title: "Appointments, a calmer interview room, and model evaluation",
     groups: [

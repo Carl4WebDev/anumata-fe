@@ -149,6 +149,10 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
     setDraftQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, text } : q)));
   };
 
+  const updateQuestionSensitive = (index: number, sensitive: boolean) => {
+    setDraftQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, sensitive } : q)));
+  };
+
   const updateQuestionFollowUp = (index: number, follow_up: string) => {
     setDraftQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, follow_up } : q)));
   };
@@ -191,6 +195,7 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
         description: draftDescription.trim() || description.trim(),
         questions: filled.map((q) => q.text.trim()),
         followUps: filled.map((q) => q.follow_up?.trim() ?? ""),
+        sensitives: filled.map((q) => q.sensitive === true),
       });
       success("Question set created successfully");
       handleClose();
@@ -367,6 +372,7 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
                     onToggle={() => toggleExpand(i)}
                     onTextChange={(text) => updateQuestionText(i, text)}
                     onFollowUpChange={(text) => updateQuestionFollowUp(i, text)}
+                    onSensitiveChange={(on) => updateQuestionSensitive(i, on)}
                     onCategoryChange={(cat) => updateQuestionCategory(i, cat)}
                     onDelete={() => removeQuestion(i)}
                     onRefine={() => handleRefine(i)}
@@ -503,6 +509,7 @@ interface DraftQuestionCardProps {
   onToggle: () => void;
   onTextChange: (text: string) => void;
   onFollowUpChange: (text: string) => void;
+  onSensitiveChange: (on: boolean) => void;
   onCategoryChange: (category: string) => void;
   onDelete: () => void;
   onRefine: () => void;
@@ -517,6 +524,7 @@ function DraftQuestionCard({
   onToggle,
   onTextChange,
   onFollowUpChange,
+  onSensitiveChange,
   onCategoryChange,
   onDelete,
   onRefine,
@@ -580,6 +588,15 @@ function DraftQuestionCard({
           className="w-full rounded-lg border border-dashed border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
         />
       </div>
+      <label className="mt-1.5 flex w-fit items-center gap-1.5 text-xs text-slate-500">
+        <input
+          type="checkbox"
+          checked={question.sensitive === true}
+          onChange={(e) => onSensitiveChange(e.target.checked)}
+          className="accent-rose-500"
+        />
+        Sensitive question
+      </label>
 
       {expanded && (
         <div className="mt-3 space-y-2">

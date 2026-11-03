@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { MessageSquare, AlertTriangle, AlertCircle, CornerDownRight } from "lucide-react";
+import { MessageSquare, AlertTriangle, AlertCircle, CornerDownRight, HeartHandshake } from "lucide-react";
 import ModelSubCard from "./ModelSubCard";
 import FusionResultCard from "./FusionResultCard";
 import PerQuestionNotes from "./PerQuestionNotes";
@@ -8,6 +8,12 @@ import EmotionTag from "../../../shared/components/EmotionTag";
 import CollapsibleSection from "../../../shared/components/CollapsibleSection";
 import type { QuestionData } from "../hooks/useSessionComputed";
 import { feelingLabel } from "../../interview/hooks/feelingWords";
+import {
+  CHECK_IN_OUTCOME_LABELS,
+  CHECK_IN_REASON_LABELS,
+  type CheckInOutcome,
+  type CheckInReason,
+} from "../../interview/hooks/struggleCheck";
 
 interface QuestionCardProps {
   data: QuestionData;
@@ -37,6 +43,22 @@ function QuestionCardInner({ data, note, onNoteChange }: QuestionCardProps) {
               </span>
             )}
           </div>
+          {(data.checkIn || data.skipped) && (
+            <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+              {data.checkIn && (
+                <span className="flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-800">
+                  <HeartHandshake size={12} />
+                  Check-in offered — {CHECK_IN_REASON_LABELS[data.checkIn.reason as CheckInReason] ?? data.checkIn.reason};{" "}
+                  patient {CHECK_IN_OUTCOME_LABELS[data.checkIn.outcome as CheckInOutcome] ?? data.checkIn.outcome}
+                </span>
+              )}
+              {data.skipped && (
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-600">
+                  Skipped by patient — not counted in the AI results
+                </span>
+              )}
+            </p>
+          )}
           {data.followUpAsked && (
             <p className="mt-1 flex items-start gap-1 text-xs text-slate-500">
               <CornerDownRight size={12} className="mt-0.5 shrink-0 text-teal-500" />

@@ -135,6 +135,10 @@ export interface InterviewExtras {
   followUpsAsked?: number[];
   /** Feeling words tapped, by question index. */
   feelingsTapped?: Record<number, string[]>;
+  /** Check-ins offered when the patient struggled (why, and what they chose), by question index. */
+  checkIns?: Record<number, { reason: string; outcome: string }>;
+  /** Questions the patient skipped without answering (left out of the AI results). */
+  skipped?: number[];
 }
 
 export const emotionApi = {
@@ -185,6 +189,12 @@ export const emotionApi = {
     if (extras.followUpsAsked?.length) formData.append("follow_ups_asked", JSON.stringify(extras.followUpsAsked));
     if (extras.feelingsTapped && Object.keys(extras.feelingsTapped).length > 0) {
       formData.append("feelings_tapped", JSON.stringify(extras.feelingsTapped));
+    }
+    if (extras.checkIns && Object.keys(extras.checkIns).length > 0) {
+      formData.append("check_ins", JSON.stringify(extras.checkIns));
+    }
+    if (extras.skipped?.length) {
+      formData.append("skipped_questions", JSON.stringify(extras.skipped));
     }
     for (const file of files) {
       formData.append("files", file);

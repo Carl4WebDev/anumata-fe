@@ -39,6 +39,8 @@ function readExtras(token: string): InterviewExtras {
       selfReport: saved.selfReport ?? null,
       followUpsAsked: Array.isArray(saved.followUpsAsked) ? saved.followUpsAsked : [],
       feelingsTapped: saved.feelingsTapped && typeof saved.feelingsTapped === "object" ? saved.feelingsTapped : {},
+      checkIns: saved.checkIns && typeof saved.checkIns === "object" ? saved.checkIns : {},
+      skipped: Array.isArray(saved.skipped) ? saved.skipped : [],
     };
   } catch {
     return {};

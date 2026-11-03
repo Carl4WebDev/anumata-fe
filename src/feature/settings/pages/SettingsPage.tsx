@@ -8,6 +8,7 @@ import Avatar from "../../../shared/components/Avatar";
 import AIModelGuide from "../components/AIModelGuide";
 import ModelEvaluation from "../components/ModelEvaluation";
 import SystemUpdates from "../components/SystemUpdates";
+import InterviewFeatures from "../components/InterviewFeatures";
 import ChangePasswordModal from "../components/ChangePasswordModal";
 
 /** "starting" = the AI is waking up on Modal (it sleeps when unused). */
@@ -599,6 +600,11 @@ export default function SettingsPage() {
       {/* What changed recently */}
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
         <SystemUpdates />
+      </section>
+
+      {/* Everything the patient's interview room does */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+        <InterviewFeatures />
       </section>
 
       {/* The models' real test-set results */}

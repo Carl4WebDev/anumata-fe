@@ -1,14 +1,17 @@
-import { Plus, Trash2, CornerDownRight } from "lucide-react";
-import { MAX_QUESTIONS, MIN_QUESTIONS, type DraftQuestion } from "./questionDrafts";
+import { Plus, Trash2, CornerDownRight, HeartHandshake } from "lucide-react";
+import { MAX_QUESTIONS, MIN_QUESTIONS, emptyQuestion, type DraftQuestion } from "./questionDrafts";
 
 interface QuestionRowsProps {
   questions: DraftQuestion[];
   onChange: (questions: DraftQuestion[]) => void;
 }
 
-/** The question list of the Add / Edit forms: each question with an optional follow-up underneath. */
+/**
+ * The question list of the Add / Edit forms: each question with an optional
+ * follow-up and a "sensitive" mark underneath.
+ */
 export default function QuestionRows({ questions, onChange }: QuestionRowsProps) {
-  const update = (index: number, field: keyof DraftQuestion, value: string) =>
+  const update = <K extends keyof DraftQuestion>(index: number, field: K, value: DraftQuestion[K]) =>
     onChange(questions.map((q, i) => (i === index ? { ...q, [field]: value } : q)));
 
   return (
@@ -17,7 +20,7 @@ export default function QuestionRows({ questions, onChange }: QuestionRowsProps)
         <label className="text-sm font-medium text-slate-700">Questions</label>
         <button
           type="button"
-          onClick={() => questions.length < MAX_QUESTIONS && onChange([...questions, { text: "", followUp: "" }])}
+          onClick={() => questions.length < MAX_QUESTIONS && onChange([...questions, emptyQuestion()])}
           disabled={questions.length >= MAX_QUESTIONS}
           className="flex items-center gap-1 text-xs font-medium text-teal-600 hover:underline disabled:opacity-40"
         >
@@ -60,11 +63,22 @@ export default function QuestionRows({ questions, onChange }: QuestionRowsProps)
                 className="w-full rounded-lg border border-dashed border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
               />
             </div>
+            <label className="flex w-fit items-center gap-1.5 pl-8 text-xs text-slate-500">
+              <input
+                type="checkbox"
+                checked={q.sensitive}
+                onChange={(e) => update(i, "sensitive", e.target.checked)}
+                className="accent-rose-500"
+              />
+              <HeartHandshake size={12} className={q.sensitive ? "text-rose-500" : "text-slate-300"} />
+              Sensitive question
+            </label>
           </div>
         ))}
       </div>
       <p className="mt-2 text-xs text-slate-400">
         Minimum {MIN_QUESTIONS}, maximum {MAX_QUESTIONS} questions. A follow-up is asked once, only when the patient&apos;s answer is short.
+        For a sensitive question, Amumata says a gentle line first and checks in sooner if the patient struggles.
       </p>
     </div>
   );

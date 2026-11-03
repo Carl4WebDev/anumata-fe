@@ -6,8 +6,15 @@ import { MIN_QUESTIONS, toQuestionSetData, type DraftQuestion } from "./question
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { name: string; description: string; questions: string[]; followUps: string[] }) => void;
-  questionSet: { id: number; name: string; description: string; questions: string[]; followUps?: string[] } | null;
+  onSave: (data: { name: string; description: string; questions: string[]; followUps: string[]; sensitives: boolean[] }) => void;
+  questionSet: {
+    id: number;
+    name: string;
+    description: string;
+    questions: string[];
+    followUps?: string[];
+    sensitives?: boolean[];
+  } | null;
 }
 
 export default function EditQuestionSetModal({ isOpen, onClose, onSave, questionSet }: Props) {
@@ -20,7 +27,13 @@ export default function EditQuestionSetModal({ isOpen, onClose, onSave, question
     if (isOpen && questionSet) {
       setName(questionSet.name);
       setDescription(questionSet.description);
-      setQuestions(questionSet.questions.map((text, i) => ({ text, followUp: questionSet.followUps?.[i] ?? "" })));
+      setQuestions(
+        questionSet.questions.map((text, i) => ({
+          text,
+          followUp: questionSet.followUps?.[i] ?? "",
+          sensitive: questionSet.sensitives?.[i] === true,
+        })),
+      );
       setError("");
     }
   }, [isOpen, questionSet]);

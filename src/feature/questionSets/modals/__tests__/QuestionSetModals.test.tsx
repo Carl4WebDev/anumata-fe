@@ -18,6 +18,7 @@ describe("question set forms — follow-ups", () => {
       description: "",
       questions: ["How are you sleeping?", "How is work?", "Who supports you?"],
       followUps: ["", "What makes it hard?", ""],
+      sensitives: [false, false, false],
     });
   });
 
@@ -35,5 +36,24 @@ describe("question set forms — follow-ups", () => {
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ questions: ["Q1", "Q3", "Q4"], followUps: ["F1", "F3", ""] }),
     );
+  });
+});
+
+describe("question set forms — sensitive questions", () => {
+  test("a question can be marked sensitive, and the mark stays with it when editing", () => {
+    const onSave = vi.fn();
+    render(
+      <EditQuestionSetModal
+        isOpen
+        onClose={vi.fn()}
+        onSave={onSave}
+        questionSet={{ id: 1, name: "Intake", description: "", questions: ["Q1", "Q2", "Q3"], sensitives: [false, true, false] }}
+      />,
+    );
+    const boxes = screen.getAllByRole("checkbox", { name: /Sensitive question/ });
+    expect(boxes.map((b) => (b as HTMLInputElement).checked)).toEqual([false, true, false]);
+    fireEvent.click(boxes[2]);
+    fireEvent.click(screen.getByRole("button", { name: "Update Template" }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ sensitives: [false, true, true] }));
   });
 });

@@ -1,6 +1,7 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { FaceDetector } from "@mediapipe/tasks-vision";
-import { assessFace, createFaceHintTracker, type FaceProblem } from "./faceCheck";
+import { assessFace, createFaceHintTracker, FACE_DARK, type FaceProblem } from "./faceCheck";
+import type { FaceSighting } from "./postureCheck";
 
 /**
  * Runs a face detector on the camera preview, on the patient's own device
@@ -51,8 +52,32 @@ function measureBrightness(video: HTMLVideoElement, canvas: HTMLCanvasElement): 
   }
 }
 
-export function useFaceCheck(videoRef: RefObject<HTMLVideoElement | null>, active: boolean): FaceProblem | null {
+/** The most confident face in a detection result, as fractions of the frame (for the posture tracker). */
+function sightingOf(
+  detections: { boundingBox?: { originY: number; height: number }; keypoints?: { x: number; y: number }[]; categories: { score: number }[] }[],
+  frameHeight: number,
+): FaceSighting | null {
+  const best = [...detections].sort((a, b) => (b.categories[0]?.score ?? 0) - (a.categories[0]?.score ?? 0))[0];
+  if (!best?.boundingBox || (best.categories[0]?.score ?? 0) < 0.5 || !frameHeight) return null;
+  const { originY, height } = best.boundingBox;
+  return { cy: (originY + height / 2) / frameHeight, height: height / frameHeight, points: best.keypoints ?? [] };
+}
+
+/**
+ * `onSighting` (optional): called once a second with where the face is (null
+ * when none is seen) and whether the picture is bright enough to trust that —
+ * the interview room uses it to notice a head going down or a blank stare.
+ */
+export function useFaceCheck(
+  videoRef: RefObject<HTMLVideoElement | null>,
+  active: boolean,
+  onSighting?: (sighting: FaceSighting | null, usable: boolean) => void,
+): FaceProblem | null {
   const [hint, setHint] = useState<FaceProblem | null>(null);
+  const onSightingRef = useRef(onSighting);
+  useEffect(() => {
+    onSightingRef.current = onSighting;
+  });
 
   useEffect(() => {
     if (!active) {
@@ -72,15 +97,20 @@ export function useFaceCheck(videoRef: RefObject<HTMLVideoElement | null>, activ
         const video = videoRef.current;
         if (!video || video.readyState < 2 || !video.videoWidth) return;
         let faces: { width: number; score: number }[];
+        let sighting: FaceSighting | null;
         try {
-          faces = detector.detectForVideo(video, performance.now()).detections.map((d) => ({
+          const { detections } = detector.detectForVideo(video, performance.now());
+          faces = detections.map((d) => ({
             width: (d.boundingBox?.width ?? 0) / video.videoWidth,
             score: d.categories[0]?.score ?? 0,
           }));
+          sighting = sightingOf(detections, video.videoHeight);
         } catch {
           return; // a frame the detector couldn't read — try again next second
         }
-        setHint(tracker.feed(assessFace({ faces, brightness: measureBrightness(video, canvas) })));
+        const brightness = measureBrightness(video, canvas);
+        setHint(tracker.feed(assessFace({ faces, brightness })));
+        onSightingRef.current?.(sighting, brightness === null || brightness >= FACE_DARK);
       }, CHECK_MS);
     });
 

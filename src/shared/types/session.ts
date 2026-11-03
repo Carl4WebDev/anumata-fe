@@ -151,6 +151,10 @@ export interface MappedSession {
     follow_up_asked: string | null;
     /** Feeling words the patient tapped during this question (their own report). */
     feelings_tapped: string[];
+    /** A check-in offered when the patient struggled with this question, or null. */
+    check_in: { reason: string; outcome: string } | null;
+    /** The patient skipped this question (it is left out of the AI results). */
+    skipped: boolean;
     frame_image: string | null;
     evidence_frames: {
       frame_image: string;

@@ -19,7 +19,8 @@ const MIN_SCORE = 0.5;
 // The analysis needs a face ≥ 40 px in a 640 px frame (~6%); ask for closer well before that.
 const MIN_FACE_WIDTH = 0.12;
 // No face in a picture this dark → blame the light, not the patient.
-const DARK = 0.2;
+export const FACE_DARK = 0.2;
+const DARK = FACE_DARK;
 // Even with a face found, this dark hurts the analysis.
 const VERY_DARK = 0.12;
 
