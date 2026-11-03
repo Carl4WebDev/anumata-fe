@@ -1,12 +1,19 @@
 import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { X, CornerDownRight } from "lucide-react";
 import { questionSetsApi } from "../../../shared/api/questionSetsApi";
 import { Skeleton } from "../../../shared/components/Skeleton";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  questionSet: { id: number; name: string; description: string; questions: string[]; questionCount?: number } | null;
+  questionSet: {
+    id: number;
+    name: string;
+    description: string;
+    questions: string[];
+    followUps?: string[];
+    questionCount?: number;
+  } | null;
 }
 
 interface QuestionSetItem {
@@ -52,8 +59,15 @@ export default function ViewQuestionSetModal({ isOpen, onClose, questionSet }: P
         code: item.question_code,
         category: item.sq_category,
         source: item.source_type,
+        followUp: undefined as string | undefined,
       }))
-    : questionSet.questions.map((q) => ({ text: q, code: undefined, category: undefined, source: "legacy" }));
+    : questionSet.questions.map((q, i) => ({
+        text: q,
+        code: undefined,
+        category: undefined,
+        source: "legacy",
+        followUp: questionSet.followUps?.[i] || undefined,
+      }));
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-16">
@@ -90,6 +104,14 @@ export default function ViewQuestionSetModal({ isOpen, onClose, questionSet }: P
                   <span className="shrink-0 text-sm font-bold text-teal-500">{i + 1}.</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-teal-900">{q.text}</p>
+                    {q.followUp && (
+                      <p className="mt-1 flex items-start gap-1 text-xs text-teal-700/80">
+                        <CornerDownRight size={12} className="mt-0.5 shrink-0" />
+                        <span>
+                          <span className="font-medium">Follow-up:</span> {q.followUp}
+                        </span>
+                      </p>
+                    )}
                     {q.code && (
                       <span className="mt-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-slate-500">{q.code}</span>
                     )}

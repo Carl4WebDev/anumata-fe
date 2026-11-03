@@ -18,6 +18,14 @@ vi.mock("../../context/patients/usePatients", () => ({
   }),
 }));
 
+// Appointment cards show the pre-session interview line, which uses these app-wide providers.
+vi.mock("../../context/interviewLinks/useInterviewLinks", () => ({
+  useInterviewLinks: () => ({ generateLink: vi.fn() }),
+}));
+vi.mock("../../../shared/context/ToastContext", () => ({
+  useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), toast: vi.fn() }),
+}));
+
 const api = vi.mocked(appointmentsApi);
 
 function appt(overrides: Partial<Appointment>): Appointment {

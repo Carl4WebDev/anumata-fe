@@ -4,6 +4,10 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import ConsentPage from "../ConsentPage";
 
 const getByToken = vi.fn();
+// The AI wake-up check (no real network in tests).
+const fetchSystemHealth = vi.fn().mockResolvedValue({});
+vi.mock("../../../../shared/api/healthApi", () => ({ fetchSystemHealth: () => fetchSystemHealth() }));
+
 vi.mock("../../../../shared/api/interviewLinksApi", () => ({
   interviewLinksApi: { getByToken: (token: string) => getByToken(token) },
 }));
@@ -53,5 +57,14 @@ describe("ConsentPage — live captions notice", () => {
     renderPage();
     expect(screen.getByText(/not sent to Google or Microsoft/i)).toBeInTheDocument();
     expect(screen.queryByText(/sends your voice to Google or Microsoft/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("ConsentPage — waking the AI", () => {
+  test("starts waking the AI as soon as the patient opens their link", () => {
+    getByToken.mockResolvedValue(questions(3));
+    fetchSystemHealth.mockClear();
+    renderPage();
+    expect(fetchSystemHealth).toHaveBeenCalledTimes(1);
   });
 });

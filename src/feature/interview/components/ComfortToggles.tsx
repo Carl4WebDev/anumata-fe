@@ -1,10 +1,12 @@
-import { ALargeSmall, Snail } from "lucide-react";
+import { ALargeSmall, Hourglass, Snail } from "lucide-react";
 
 interface ComfortTogglesProps {
   largeText: boolean;
   slowVoice: boolean;
+  moreTime: boolean;
   onToggleLargeText: () => void;
   onToggleSlowVoice: () => void;
+  onToggleMoreTime: () => void;
   /** "light" = start screen (labelled buttons); "dark" = interview top bar (compact). */
   variant: "light" | "dark";
 }
@@ -22,12 +24,21 @@ const STYLES = {
   },
 };
 
-/** Larger text / slower voice — comfort options the patient can switch any time. */
-export default function ComfortToggles({ largeText, slowVoice, onToggleLargeText, onToggleSlowVoice, variant }: ComfortTogglesProps) {
+/** Larger text / slower voice / more time to think — comfort options the patient can switch any time. */
+export default function ComfortToggles({
+  largeText,
+  slowVoice,
+  moreTime,
+  onToggleLargeText,
+  onToggleSlowVoice,
+  onToggleMoreTime,
+  variant,
+}: ComfortTogglesProps) {
   const style = STYLES[variant];
   const options = [
     { label: "Larger text", on: largeText, onClick: onToggleLargeText, Icon: ALargeSmall },
     { label: "Slower voice", on: slowVoice, onClick: onToggleSlowVoice, Icon: Snail },
+    { label: "More time to think", on: moreTime, onClick: onToggleMoreTime, Icon: Hourglass },
   ];
   return (
     <>

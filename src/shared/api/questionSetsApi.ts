@@ -5,12 +5,19 @@ import { runAiJob } from "./aiJobs";
 // Types — Question Set CRUD
 // =============================================================================
 
+export interface SetQuestion {
+  text: string;
+  order: number;
+  follow_up?: string;
+}
+
 export interface QuestionSet {
   question_set_id: number;
   therapist_id: number;
   name: string;
   description: string;
-  questions: { text: string; order: number }[];
+  /** `follow_up`: optional therapist-written prompt, asked once when the answer is short. */
+  questions: SetQuestion[];
   created_at: string;
   updated_at?: string;
 }
@@ -25,6 +32,8 @@ export interface AiGeneratedQuestion {
   text: string;
   purpose: string;
   category: string;
+  /** Optional follow-up the therapist adds before saving. */
+  follow_up?: string;
 }
 
 /** Response from POST /api/question-sets/ai/generate */
@@ -71,11 +80,11 @@ export const questionSetsApi = {
     return httpClient.get<QuestionSet>(`/api/question-sets/${id}`);
   },
 
-  create(data: { name: string; description?: string; questions: string[] | { text: string; order?: number }[] }) {
+  create(data: { name: string; description?: string; questions: string[] | { text: string; order?: number; follow_up?: string }[] }) {
     return httpClient.post<QuestionSet>("/api/question-sets", data);
   },
 
-  update(id: number, data: { name?: string; description?: string; questions?: string[] | { text: string; order?: number }[] }) {
+  update(id: number, data: { name?: string; description?: string; questions?: string[] | { text: string; order?: number; follow_up?: string }[] }) {
     return httpClient.patch<QuestionSet>(`/api/question-sets/${id}`, data);
   },
 

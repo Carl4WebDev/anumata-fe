@@ -20,6 +20,8 @@ import {
   Coffee,
   Play,
   ScanFace,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { interviewLinksApi } from "../../../shared/api/interviewLinksApi";
 import { translateQuestion, type QuestionLanguage } from "../../../shared/api/translateApi";
@@ -42,10 +44,11 @@ import {
 } from "../hooks/rapportUtils";
 import { useLiveCaptions, type CaptionPhrase } from "../hooks/useLiveCaptions";
 import { isExplicitDone, parseVoiceCommand } from "../hooks/voiceCommands";
-import { decideTurn, QUESTION_TIMING, WARMUP_TIMING } from "../hooks/handsFree";
+import { decideTurn, questionTiming, WARMUP_TIMING } from "../hooks/handsFree";
 import {
   CONVERSATION_LINES,
-  VOICE_TIPS,
+  voiceTips,
+  REASSURANCE_LINE,
   VOICE_FALLBACK_NOTE,
   closingLine,
   transitionLine,
@@ -57,10 +60,17 @@ import { useMicCheck } from "../hooks/useMicCheck";
 import MicCheckPanel from "../components/MicCheckPanel";
 import ComfortToggles from "../components/ComfortToggles";
 import { useComfortSettings } from "../hooks/comfortSettings";
+import { useKeepAiAwake } from "../../../shared/hooks/useKeepAiAwake";
 import { detectCrisis } from "../hooks/crisisDetection";
 import { useFaceCheck } from "../hooks/useFaceCheck";
 import { FACE_HINTS } from "../hooks/faceCheck";
 import CrisisCard from "../components/CrisisCard";
+import AmumataPresence, { type PresenceMood } from "../components/AmumataPresence";
+import { followUpsOf, shouldAskFollowUp } from "../hooks/followUps";
+import { MOOD_QUESTIONS, type MoodMoment, type SelfReport } from "../hooks/moodCheck";
+import MoodCheck from "../components/MoodCheck";
+import FeelingWords from "../components/FeelingWords";
+import { toggleFeeling } from "../hooks/feelingWords";
 
 // Hardcoded fallback questions if token not found
 const FALLBACK_QUESTIONS = [
@@ -77,6 +87,8 @@ type InterviewState =
   | "rapport_wait"
   | "rapport_chat"
   | "permission_wait"
+  | "mood_before"
+  | "mood_after"
   | "idle"
   | "recording"
   | "finished";
@@ -211,6 +223,19 @@ export default function InterviewRoom() {
   const questionTransCacheRef = useRef<Map<string, Promise<string | null>>>(new Map());
   const translationQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const questionsRef = useRef<string[]>([]);
+  // The therapist's follow-up for each question, and which ones were already asked.
+  const followUpsRef = useRef<(string | null)[]>([]);
+  const followUpAskedRef = useRef<Set<number>>(new Set());
+  // Phrases of this turn said before the current prompt (a follow-up keeps adding to the same answer).
+  const answerBaseRef = useRef(0);
+  // The patient's mood before / after (tapped faces), and the tap the mood check is waiting for.
+  const moodRef = useRef<SelfReport>({ mood_before: null, mood_after: null });
+  const moodResolveRef = useRef<((mood: number | null) => void) | null>(null);
+  // When the patient next sees their therapist (from the link), for "what happens next".
+  const nextAppointmentRef = useRef<string | null>(null);
+  // Feeling words tapped per question (the patient's own words for how they feel).
+  const [feelings, setFeelings] = useState<Record<number, string[]>>({});
+  const feelingsRef = useRef<Record<number, string[]>>({});
   const sessionInfoRef = useRef({ patientName, templateName, rapportResponses });
   useEffect(() => {
     stateRef.current = state;
@@ -221,6 +246,8 @@ export default function InterviewRoom() {
   });
 
   // Larger text / slower voice, remembered in this browser.
+  // Keep the AI awake through the interview, so the analysis can start the moment it ends.
+  useKeepAiAwake(state !== "finished");
   const comfort = useComfortSettings();
   const tts = useTTS({ rate: comfort.voiceRate });
   const ttsRef = useRef(tts);
@@ -263,9 +290,11 @@ export default function InterviewRoom() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const questionTexts = qs.map((q: any) => (typeof q === "string" ? q : q.text));
         if (questionTexts.length > 0) {
+          followUpsRef.current = followUpsOf(qs);
           setQuestions(questionTexts);
           setPatientName(link.patient_name || "Client");
           setTemplateName(link.question_set_name || "Interview");
+          nextAppointmentRef.current = link.next_appointment_at ?? null;
         } else {
           setQuestions(FALLBACK_QUESTIONS);
           setPatientName("Client");
@@ -493,9 +522,14 @@ export default function InterviewRoom() {
   const newTurn = () => {
     captionsRef.current.newTurn();
     turnTextRef.current = [];
+    answerBaseRef.current = 0;
     turnLangRef.current = "";
     confirmAskedAtRef.current = null;
   };
+
+  /** Has the patient said anything since the current prompt? */
+  const spokeSincePrompt = () =>
+    captionsRef.current.getActivity().lastVoiceAt !== null || turnTextRef.current.length > answerBaseRef.current;
 
   /** Listen to the patient (again); silence is counted from now. */
   const listen = () => {
@@ -513,7 +547,7 @@ export default function InterviewRoom() {
     confirmAskedAtRef.current = Date.now();
     // "Moving on…" notices get a visible countdown; questions wait for a reply.
     const isNotice = line === "confirmDone" || line === "confirmDoneLast";
-    setMoveOnAt(isNotice ? confirmAskedAtRef.current + QUESTION_TIMING.confirmTimeoutMs : null);
+    setMoveOnAt(isNotice ? confirmAskedAtRef.current + questionTiming(comfort.moreTime).confirmTimeoutMs : null);
     setTurnPhase("confirming");
   };
 
@@ -560,6 +594,9 @@ export default function InterviewRoom() {
     nudgedRef.current = false;
     const lang = langRef.current;
     setSpokenLine(null);
+    // Once, before starting: no right or wrong answers, only the therapist sees this, skip or rest anytime.
+    setAiPrompt({ kind: "localized", line: REASSURANCE_LINE, primary: "all" });
+    await say(REASSURANCE_LINE[lang], lang, REASSURANCE_LINE.en);
     setAiPrompt({ kind: "localized", line: PERMISSION_LINES, primary: "all" });
     await say(PERMISSION_LINES[lang], lang, PERMISSION_LINES.en);
     listen();
@@ -638,11 +675,11 @@ export default function InterviewRoom() {
   const prefetchTranslations = (lang: ResponseLanguage) => {
     if (lang === "en") return;
     questionsRef.current.forEach((q) => void translationFor(q, lang));
+    followUpsRef.current.forEach((f) => f && void translationFor(f, lang));
   };
 
-  /** The question in the patient's language (via the AI translator), English underneath. */
-  const prepareQuestion = async (index: number) => {
-    const original = questionsRef.current[index];
+  /** A question (or follow-up) in the patient's language (via the AI translator), English underneath. */
+  const prepareText = async (original: string) => {
     const lang = langRef.current;
     if (lang === "en") return { main: original, speak: original, speakLang: undefined };
     // Never keep the patient waiting on the translator: if it isn't ready
@@ -661,11 +698,30 @@ export default function InterviewRoom() {
     setCurrentIndex(index);
     if (fresh) newTurn();
     setTurnPhase("preparing");
-    const q = await prepareQuestion(index);
+    const q = await prepareText(questionsRef.current[index]);
     setSpokenLine(null);
     setAiPrompt({ kind: "text", main: q.main, sub: q.sub });
     // The question as the therapist wrote it is the fallback when the translation can't be voiced.
     await say(q.speak, q.speakLang, questionsRef.current[index]);
+    listen();
+  };
+
+  /**
+   * The therapist's follow-up after a short answer. It belongs to the same
+   * question: the recording keeps going and the reply is added to the answer.
+   */
+  const askFollowUp = async (index: number) => {
+    const followUp = followUpsRef.current[index];
+    if (!followUp) return;
+    followUpAskedRef.current.add(index);
+    captionsRef.current.newTurn(); // fresh captions and silence clock for the reply
+    answerBaseRef.current = turnTextRef.current.length;
+    confirmAskedAtRef.current = null;
+    setTurnPhase("preparing");
+    const q = await prepareText(followUp);
+    setSpokenLine(null);
+    setAiPrompt({ kind: "text", main: q.main, sub: q.sub });
+    await say(q.speak, q.speakLang, followUp);
     listen();
   };
 
@@ -679,6 +735,8 @@ export default function InterviewRoom() {
       elapsed: elapsedRef.current,
       rapportResponses: sessionInfoRef.current.rapportResponses,
       crisis: crisisRaisedRef.current,
+      moodBefore: moodRef.current.mood_before,
+      feelings: feelingsRef.current,
       savedAt: Date.now(),
     });
   };
@@ -700,6 +758,9 @@ export default function InterviewRoom() {
     setState("recording");
     setElapsed(0);
     answersRef.current.clear();
+    followUpAskedRef.current.clear();
+    feelingsRef.current = {};
+    setFeelings({});
     capturedFramesRef.current.clear();
     capturedAudioRef.current.clear();
     if (token) {
@@ -713,6 +774,37 @@ export default function InterviewRoom() {
     await askFormal(0);
   };
 
+  /**
+   * "How are you feeling right now?" — waits for a tapped face (or Skip).
+   * Asked outside the recordings, so it is never part of an answer.
+   */
+  const askMood = async (moment: MoodMoment) => {
+    setState(moment === "before" ? "mood_before" : "mood_after");
+    const lang = langRef.current;
+    const chosen = new Promise<number | null>((resolve) => {
+      moodResolveRef.current = resolve;
+    });
+    setSpokenLine(null);
+    setAiPrompt({ kind: "localized", line: MOOD_QUESTIONS[moment], primary: "all" });
+    await say(MOOD_QUESTIONS[moment][lang], lang, MOOD_QUESTIONS[moment].en);
+    setTurnPhase("listening");
+    const mood = await chosen;
+    moodRef.current = { ...moodRef.current, [moment === "before" ? "mood_before" : "mood_after"]: mood };
+  };
+
+  const chooseMood = (mood: number | null) => {
+    ttsRef.current.stop();
+    moodResolveRef.current?.(mood);
+    moodResolveRef.current = null;
+  };
+
+  /** "Ready" → the mood check, then the first question. */
+  const beginInterview = async () => {
+    moodRef.current = { mood_before: null, mood_after: null };
+    await askMood("before");
+    await startFormal();
+  };
+
   /** After a refresh: skip the warm-up and re-ask the question that was interrupted. */
   const resumeInterview = () => {
     const p = savedProgress;
@@ -722,6 +814,9 @@ export default function InterviewRoom() {
     updateLanguage(p.lang);
     prefetchTranslations(p.lang);
     setRapportResponses(p.rapportResponses);
+    moodRef.current = { mood_before: p.moodBefore ?? null, mood_after: null };
+    feelingsRef.current = p.feelings ?? {};
+    setFeelings(feelingsRef.current);
     setElapsed(p.elapsed);
     elapsedRef.current = p.elapsed;
     currentIndexRef.current = p.nextIndex;
@@ -784,9 +879,11 @@ export default function InterviewRoom() {
     captionsRef.current.stop();
     stopFrameCapture();
 
+    // Still recording (ended early)? Close that answer. After the closing mood check it's already closed.
+    const stillRecording = mediaRecorderRef.current !== null;
     const lastAudio = await stopAudioRecording();
     if (lastAudio) capturedAudioRef.current.set(index, lastAudio);
-    keepFrame(index);
+    if (stillRecording) keepFrame(index);
     stopMedia();
 
     const qs = questionsRef.current;
@@ -810,6 +907,10 @@ export default function InterviewRoom() {
         responses: finalResponses,
         duration: elapsedRef.current,
         completedAt: new Date().toISOString(),
+        selfReport: moodRef.current,
+        nextAppointmentAt: nextAppointmentRef.current,
+        followUpsAsked: [...followUpAskedRef.current],
+        feelingsTapped: feelingsRef.current,
       }),
     );
     if (info.rapportResponses.length > 0) {
@@ -836,8 +937,15 @@ export default function InterviewRoom() {
     const answered = Boolean(answer) || captionsRef.current.getActivity().lastVoiceAt !== null;
 
     if (index >= questionsRef.current.length - 1) {
+      // Close the last answer's recording before the mood check, so the check isn't part of it.
+      stopFrameCapture();
+      keepFrame(index);
+      const audio = await stopAudioRecording();
+      if (audio) capturedAudioRef.current.set(index, audio);
+      await askMood("after");
       const name = sessionInfoRef.current.patientName;
-      await sayText(closingLine(name, langRef.current), closingLine(name, "en"));
+      const nextAt = nextAppointmentRef.current;
+      await sayText(closingLine(name, langRef.current, nextAt), closingLine(name, "en", nextAt));
       await finishInterview();
       return;
     }
@@ -928,7 +1036,7 @@ export default function InterviewRoom() {
     }
 
     if (current === "permission_wait") {
-      if (command === "yes") void runFlow(startFormal);
+      if (command === "yes") void runFlow(beginInterview);
       else if (command === "no") void runFlow(async () => {
         await sayLine("notReady");
         listen();
@@ -998,12 +1106,12 @@ export default function InterviewRoom() {
         {
           now,
           silenceSince: Math.max(listenSinceRef.current, lastVoice),
-          hasAnswer: activity.lastVoiceAt !== null || turnTextRef.current.length > 0,
+          hasAnswer: spokeSincePrompt(),
           voiceActive: activity.voiceActive,
           pendingTranscripts: activity.pending,
           confirmAskedAt: confirmAskedAtRef.current,
         },
-        current === "recording" ? QUESTION_TIMING : WARMUP_TIMING,
+        current === "recording" ? questionTiming(comfort.moreTime) : WARMUP_TIMING,
       );
       if (action === "wait") return;
 
@@ -1016,11 +1124,22 @@ export default function InterviewRoom() {
 
       // Formal question.
       if (action === "ask_confirm") {
-        const answered = activity.lastVoiceAt !== null || turnTextRef.current.length > 0;
-        const isLast = currentIndexRef.current >= questionsRef.current.length - 1;
+        const answered = spokeSincePrompt();
+        const index = currentIndexRef.current;
+        // A short answer gets the therapist's follow-up (once) instead of "moving on".
+        const followUp = shouldAskFollowUp({
+          followUp: followUpsRef.current[index],
+          alreadyAsked: followUpAskedRef.current.has(index),
+          answer: turnTextRef.current.join(" "),
+        });
+        if (answered && followUp) {
+          void runFlow(() => askFollowUp(index));
+          return;
+        }
+        const isLast = index >= questionsRef.current.length - 1;
         void runFlow(() => checkIn(!answered ? "confirmSilent" : isLast ? "confirmDoneLast" : "confirmDone"));
       } else if (action === "auto_proceed") {
-        const answered = activity.lastVoiceAt !== null || turnTextRef.current.length > 0;
+        const answered = spokeSincePrompt();
         void runFlow(async () => {
           // After an answer the notice already said "moving on" — don't repeat it.
           if (!answered) await sayLine("movingOn");
@@ -1035,12 +1154,29 @@ export default function InterviewRoom() {
   });
 
   // ─── Optional buttons (same actions as the voice commands) ───
+  /**
+   * A feeling word tapped for the current question. Tapping counts as taking
+   * part: the silence clock restarts, and a "moving on" countdown is called off.
+   */
+  const handleFeelingToggle = (key: string) => {
+    const index = currentIndexRef.current;
+    const next = { ...feelingsRef.current, [index]: toggleFeeling(feelingsRef.current[index] ?? [], key) };
+    feelingsRef.current = next;
+    setFeelings(next);
+    if (phaseRef.current === "confirming") {
+      setMoveOnAt(null);
+      listen();
+    } else {
+      listenSinceRef.current = Date.now();
+    }
+  };
+
   const handleNextButton = () => void runNow(proceedFormal);
   const handleRepeatButton = () => void runNow(repeatQuestion);
   const handleKeepTalking = () => void runNow(async () => listen());
   const handleBreakButton = () => void runNow(startBreak);
   const handleResumeButton = () => void runNow(endBreak);
-  const handleStartButton = () => void runNow(startFormal);
+  const handleStartButton = () => void runNow(beginInterview);
   const handleSkipWarmup = () => void runNow(askPermission);
   const handleTypedAnswer = () => {
     const text = typedAnswer.trim();
@@ -1105,6 +1241,8 @@ export default function InterviewRoom() {
               slowVoice={comfort.slowVoice}
               onToggleLargeText={comfort.toggleLargeText}
               onToggleSlowVoice={comfort.toggleSlowVoice}
+              moreTime={comfort.moreTime}
+              onToggleMoreTime={comfort.toggleMoreTime}
             />
           </div>
 
@@ -1194,6 +1332,7 @@ export default function InterviewRoom() {
 
   // ─── Conversation screen: face on the left, conversation on the right ───
   const isFormal = state === "recording";
+  const moodCheck = state === "mood_before" || state === "mood_after";
   const listening = phase === "listening" || phase === "confirming";
   const working = phase === "busy" || phase === "preparing";
   const statusLabel = onBreak && phase !== "speaking"
@@ -1217,6 +1356,19 @@ export default function InterviewRoom() {
         : phase === "confirming"
           ? "bg-amber-400"
           : "bg-red-500";
+  const presenceMood: PresenceMood = onBreak
+    ? "resting"
+    : phase === "speaking"
+      ? "speaking"
+      : working
+        ? "thinking"
+        : "listening";
+  const presenceLabel = {
+    resting: "Take all the time you need",
+    speaking: "Amumata is speaking",
+    thinking: "One moment…",
+    listening: moodCheck ? "Tap the face that fits" : captions.voiceActive ? "I'm listening" : "Go ahead — I'm listening",
+  }[presenceMood];
   const isLastQuestion = currentIndex >= questions.length - 1;
   // Speaking English because this device has no voice for the patient's language.
   const voiceIsEnglish = langDetected && detectedLang !== "en" && !tts.hasVoiceFor(TTS_LOCALE[detectedLang]);
@@ -1227,29 +1379,51 @@ export default function InterviewRoom() {
     <div className="flex h-dvh flex-col overflow-hidden bg-slate-950 text-white lg:flex-row">
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Left: the patient's face */}
-      <section className="relative h-[40dvh] shrink-0 bg-black lg:h-full lg:w-1/2">
-        <video ref={videoRef} autoPlay playsInline muted className="h-full w-full -scale-x-100 object-cover" />
-        {!cameraOn && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
-            <VideoOff size={56} className="text-slate-600" />
+      {/* Left: Amumata, with the patient's own video small in the corner */}
+      <section className="relative h-[40dvh] shrink-0 overflow-hidden bg-linear-to-b from-slate-900 via-slate-900 to-teal-950/60 lg:h-full lg:w-1/2">
+        <div className="flex h-full items-center justify-center pb-6">
+          <AmumataPresence mood={presenceMood} label={presenceLabel} getLevel={captions.getLevel} />
+        </div>
+        {/* Self-view. Hiding it only covers the preview: the camera keeps recording for the therapist. */}
+        <div className="absolute bottom-3 right-3 flex flex-col items-end gap-1.5">
+          <div
+            className={`relative aspect-4/3 w-24 overflow-hidden rounded-xl border border-white/15 bg-black shadow-lg sm:w-32 lg:w-44 ${comfort.hideSelfView ? "pointer-events-none absolute bottom-0 right-0 opacity-0" : ""}`}
+            aria-hidden={comfort.hideSelfView}
+          >
+            <video ref={videoRef} autoPlay playsInline muted className="h-full w-full -scale-x-100 object-cover" />
+            {!cameraOn && (
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+                <VideoOff size={24} className="text-slate-600" />
+              </div>
+            )}
           </div>
-        )}
+          <button
+            onClick={comfort.toggleSelfView}
+            className="flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-[11px] text-slate-200 backdrop-blur-sm hover:bg-black/70"
+            title={comfort.hideSelfView ? "Show your video again" : "Hide your own video — Amumata still records for your therapist"}
+          >
+            {comfort.hideSelfView ? <Eye size={12} /> : <EyeOff size={12} />}
+            {comfort.hideSelfView ? "Show my video" : "Hide my video"}
+          </button>
+        </div>
         <div className="absolute left-3 top-3 flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500 text-sm font-bold shadow-lg">A</div>
           <span className="text-sm font-semibold drop-shadow-lg">Amumata</span>
         </div>
+        {/* Honest but calm: it says it's recording, without a red light or a running clock. */}
         {isFormal && (
-          <div className="absolute right-3 top-3 flex items-center gap-2 rounded-full bg-black/50 px-3 py-1.5 backdrop-blur-sm">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-            <span className="text-xs font-medium">Recording</span>
-            <span className="font-mono text-xs text-slate-300">{formatTime(elapsed)}</span>
+          <div
+            className="absolute right-3 top-3 flex items-center gap-2 rounded-full bg-black/40 px-3 py-1.5 backdrop-blur-sm"
+            title={`Interview time: ${formatTime(elapsed)}`}
+          >
+            <span className="h-2 w-2 rounded-full bg-teal-400" />
+            <span className="text-xs font-medium text-slate-200">{onBreak ? "Paused" : "Recording for your therapist"}</span>
           </div>
         )}
         {(faceHint || !cameraOn) && (
           <p
             role="status"
-            className="absolute inset-x-3 bottom-16 mx-auto flex max-w-md items-center justify-center gap-2 rounded-xl bg-amber-500/90 px-3 py-2 text-center text-sm font-medium text-slate-950 shadow-lg"
+            className="absolute inset-x-3 top-14 mx-auto flex max-w-md items-center justify-center gap-2 rounded-xl bg-amber-500/90 px-3 py-2 text-center text-sm font-medium text-slate-950 shadow-lg"
           >
             <ScanFace size={16} className="shrink-0" />
             {FACE_HINTS[cameraOn && faceHint ? faceHint : "camera_off"][detectedLang]}
@@ -1291,7 +1465,9 @@ export default function InterviewRoom() {
                 </div>
               </div>
             ) : (
-              <span className="text-xs font-medium text-teal-400">{state === "permission_wait" ? "Ready to begin" : "Getting to know you"}</span>
+              <span className="text-xs font-medium text-teal-400">
+                {moodCheck ? "Quick check-in" : state === "permission_wait" ? "Ready to begin" : "Getting to know you"}
+              </span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -1305,6 +1481,8 @@ export default function InterviewRoom() {
               slowVoice={comfort.slowVoice}
               onToggleLargeText={comfort.toggleLargeText}
               onToggleSlowVoice={comfort.toggleSlowVoice}
+              moreTime={comfort.moreTime}
+              onToggleMoreTime={comfort.toggleMoreTime}
             />
             <button
               onClick={() => setHandsFree((v) => !v)}
@@ -1355,17 +1533,29 @@ export default function InterviewRoom() {
           {voiceIsEnglish && <p className="mt-3 text-xs text-slate-400">{VOICE_FALLBACK_NOTE[detectedLang]}</p>}
         </div>
 
-        {/* What the patient is saying */}
-        <CaptionPanel
-          segments={captions.turnSegments}
-          interim={phase === "speaking" ? "" : captions.interim}
-          engine={captions.engine}
-          listening={listening}
-          voiceActive={captions.voiceActive}
-          getLevel={captions.getLevel}
-          placeholder={phase === "speaking" ? "Your words will appear here as you speak." : "Go ahead — I'm listening."}
-          largeText={comfort.largeText}
-        />
+        {/* What the patient is saying — or, at the start and end, the faces to tap */}
+        {moodCheck ? (
+          <MoodCheck lang={detectedLang} onChoose={chooseMood} large={comfort.largeText} />
+        ) : (
+          <CaptionPanel
+            segments={captions.turnSegments}
+            interim={phase === "speaking" ? "" : captions.interim}
+            engine={captions.engine}
+            listening={listening}
+            voiceActive={captions.voiceActive}
+            getLevel={captions.getLevel}
+            placeholder={phase === "speaking" ? "Your words will appear here as you speak." : "Go ahead — I'm listening."}
+            largeText={comfort.largeText}
+          />
+        )}
+        {isFormal && !onBreak && (
+          <FeelingWords
+            lang={detectedLang}
+            selected={feelings[currentIndex] ?? []}
+            onToggle={handleFeelingToggle}
+            large={comfort.largeText}
+          />
+        )}
         {phase === "confirming" && moveOnAt !== null && !captions.voiceActive && !onBreak && <MoveOnCountdown until={moveOnAt} />}
         {onBreak && (
           <div className="rounded-2xl border border-sky-400/30 bg-sky-500/10 p-4 text-center" role="status">
@@ -1379,7 +1569,9 @@ export default function InterviewRoom() {
           </div>
         )}
         {captions.error && <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200">{captions.error}</p>}
-        <p className={`text-center text-slate-500 ${comfort.largeText ? "text-sm" : "text-xs"}`}>{VOICE_TIPS[detectedLang]}</p>
+        <p className={`text-center text-slate-500 ${comfort.largeText ? "text-sm" : "text-xs"}`}>
+          {voiceTips(detectedLang, questionTiming(comfort.moreTime).answeredSilenceMs / 1000)}
+        </p>
 
         {/* Optional buttons — everything here can also be done by voice */}
         <div className="rounded-2xl border border-white/10 bg-white/5">

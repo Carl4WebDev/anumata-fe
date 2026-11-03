@@ -127,6 +127,16 @@ export class StagedFilesMissingError extends Error {
   }
 }
 
+/** What the interview room adds to the upload, besides the recordings. */
+export interface InterviewExtras {
+  /** The faces tapped before / after the interview (1–5, null = skipped). */
+  selfReport?: { mood_before: number | null; mood_after: number | null } | null;
+  /** Indexes of the questions whose follow-up was asked. */
+  followUpsAsked?: number[];
+  /** Feeling words tapped, by question index. */
+  feelingsTapped?: Record<number, string[]>;
+}
+
 export const emotionApi = {
   /**
    * Early upload: send one finished answer's recordings while the patient
@@ -165,10 +175,17 @@ export const emotionApi = {
    * Upload the interview and start its analysis. Returns as soon as the
    * server has the files — the analysis runs in the background; follow it
    * with analysisStatus(). `staged` names files already sent with stageFiles().
+   * `extras`: the faces the patient tapped before / after the interview, and
+   * which questions got the therapist's follow-up.
    */
-  async startAnalysis(token: string, files: File[], staged: string[] = []): Promise<void> {
+  async startAnalysis(token: string, files: File[], staged: string[] = [], extras: InterviewExtras = {}): Promise<void> {
     const formData = new FormData();
     if (staged.length > 0) formData.append("staged", JSON.stringify(staged));
+    if (extras.selfReport) formData.append("self_report", JSON.stringify(extras.selfReport));
+    if (extras.followUpsAsked?.length) formData.append("follow_ups_asked", JSON.stringify(extras.followUpsAsked));
+    if (extras.feelingsTapped && Object.keys(extras.feelingsTapped).length > 0) {
+      formData.append("feelings_tapped", JSON.stringify(extras.feelingsTapped));
+    }
     for (const file of files) {
       formData.append("files", file);
     }

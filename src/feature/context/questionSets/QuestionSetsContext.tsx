@@ -4,6 +4,8 @@ export interface QuestionSetData {
   name: string;
   description: string;
   questions: string[];
+  /** Optional follow-up per question (same order; "" = none). */
+  followUps?: string[];
 }
 
 /** A set built by picking standardized / custom questions. */

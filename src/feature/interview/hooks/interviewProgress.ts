@@ -20,6 +20,10 @@ export interface InterviewProgress {
   rapportResponses: { question: string; answer: string; acknowledgment: string }[];
   /** The crisis help card was shown — keep showing it after the reload. */
   crisis: boolean;
+  /** The face tapped before the first question (1–5), if any. */
+  moodBefore?: number | null;
+  /** Feeling words tapped so far, by question index. */
+  feelings?: Record<number, string[]>;
   savedAt: number;
 }
 
@@ -50,7 +54,16 @@ export function loadProgress(token: string, now = Date.now()): InterviewProgress
       Array.isArray(p.rapportResponses) &&
       typeof p.savedAt === "number";
     if (!valid || now - p.savedAt > PROGRESS_MAX_AGE_MS) return null;
-    return { ...p, crisis: p.crisis === true };
+    const { moodBefore, feelings, ...rest } = p;
+    const validMood = Number.isInteger(moodBefore) && moodBefore >= 1 && moodBefore <= 5;
+    const validFeelings =
+      feelings && typeof feelings === "object" && !Array.isArray(feelings) && Object.values(feelings).every(Array.isArray);
+    return {
+      ...rest,
+      crisis: p.crisis === true,
+      ...(validMood ? { moodBefore } : {}),
+      ...(validFeelings ? { feelings } : {}),
+    };
   } catch {
     return null;
   }

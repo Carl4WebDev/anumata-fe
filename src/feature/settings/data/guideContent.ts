@@ -367,77 +367,72 @@ export const guideSections: GuideSection[] = [
     icon: "Database",
     items: [
       {
-        id: "training-architecture-mismatch",
-        title: "CRITICAL: Training/Production Architecture Mismatch",
+        id: "training-projects",
+        title: "Where the Production Models Were Trained",
         content:
-          "Training scripts in `fer-factory/`, `ser-factory/`, `language-factory/`, and `anumata-ml/` use " +
-          "**TensorFlow/Keras**. Production models in `src/ai/models/` are **PyTorch**.\n\n" +
-          "The actual training pipeline that produced the production checkpoints is **NOT documented** in the repository.\n\n" +
-          "- FER training: TF CNN, 48x48 grayscale, 1 channel. Production: PyTorch EfficientNet-B0, 224x224 RGB, 3 channels.\n" +
-          "- SER training: TF CNN on MFCC features. Production: PyTorch Wav2Vec2 on raw waveform.\n" +
-          "- LER training: DistilBERT multi-task. Production: XLM-RoBERTa-base single-task.",
-        verification: "missing-evidence",
-        source: "fer-factory/ml/train_model.py",
-        tags: ["training", "mismatch", "critical", "architecture"],
+          "The three production models were trained in separate **PyTorch** projects outside this repository " +
+          "(`fer/`, `ser/`, `language/`). Their training settings, dataset notes and test-set results are copied " +
+          "into `docs/evaluation/`.\n\n" +
+          "The deployed checkpoints in `src/ai/models/` are the same files that were evaluated " +
+          "(`fer_best_model.pth`, `ser_best_model.pt` = phase 2, `ler_best_model.pt` = phase 2).\n\n" +
+          "The TensorFlow/Keras \"factory\" scripts seen elsewhere were earlier experiments and did not produce " +
+          "the production models.",
+        verification: "verified",
+        source: "docs/evaluation/README.md",
+        tags: ["training", "provenance", "pytorch"],
       },
       {
-        id: "fer-training-scripts",
-        title: "FER Training Scripts vs Production",
+        id: "fer-training",
+        title: "FER Training",
         content:
-          "Factory scripts: TensorFlow CNN, 48x48 grayscale, 1 channel.\n" +
-          "Production: PyTorch EfficientNet-B0, 224x224 RGB, 3 channels.\n\n" +
-          "These are completely different architectures.",
-        verification: "missing-evidence",
-        source: "fer-factory/ml/train_model.py",
-        tags: ["training", "fer", "tensorflow", "pytorch"],
+          "**Model:** EfficientNet-B0 (ImageNet-pretrained), 224x224 RGB, 4 classes.\n\n" +
+          "**Data:** FER2013 + RAF-DB + CK+ merged. Train 26,703 / validation 4,711 / test 7,717 images.\n\n" +
+          "**Settings:** batch 16; head training 10 epochs at LR 1e-3, then fine-tuning 15 epochs at LR 1e-5 " +
+          "(cosine decay); dropout 0.4; weight decay 1e-4; early stopping 5; seed 42. " +
+          "Best checkpoint: epoch 14, validation accuracy 61.5%.",
+        verification: "verified",
+        source: "docs/evaluation/fer/training_config.py",
+        tags: ["training", "fer", "efficientnet", "datasets"],
       },
       {
-        id: "ser-training-scripts",
-        title: "SER Training Scripts vs Production",
+        id: "ser-training",
+        title: "SER Training",
         content:
-          "Factory scripts: TensorFlow CNN on MFCC features.\n" +
-          "Production: PyTorch Wav2Vec2 on raw waveform.\n\n" +
-          "Different architectures entirely.",
-        verification: "missing-evidence",
-        source: "ser-factory/",
-        tags: ["training", "ser", "tensorflow", "pytorch"],
+          "**Model:** Wav2Vec2-base backbone + classifier (768 → 256 → 4), raw 16 kHz mono audio.\n\n" +
+          "**Data:** CREMA-D, RAVDESS, SAVEE, TESS (acted English speech; angry/happy/neutral/sad only). " +
+          "Stratified 70/15/15 split, seed 42: train 5,230 / validation 1,121 / test 1,121 clips.\n\n" +
+          "**Settings:** batch 16; phase 1 frozen backbone (LR 1e-3), phase 2 fine-tuning (backbone LR 1e-5); " +
+          "dropout 0.3; weight decay 1e-2; warmup 10%; early stopping 5. Audio trimmed of silence, max 4 s.",
+        verification: "verified",
+        source: "docs/evaluation/ser/training_config.py",
+        tags: ["training", "ser", "wav2vec2", "datasets"],
       },
       {
-        id: "ler-training-scripts",
-        title: "LER Training Scripts vs Production",
+        id: "ler-training",
+        title: "LER Training",
         content:
-          "Factory scripts: DistilBERT multi-task.\n" +
-          "Production: XLM-RoBERTa-base single-task.\n\n" +
-          "Different models.",
-        verification: "missing-evidence",
-        source: "language-factory/",
-        tags: ["training", "ler", "distilbert", "xlm-roberta"],
+          "**Model:** XLM-RoBERTa-base + classifier (768 → 256 → 4), max 128 tokens.\n\n" +
+          "**Data:** GoEmotions (50,634) + DAIR-AI Emotion (19,234) = 69,868 English texts after cleaning " +
+          "(319 duplicates and 3,183 ambiguous labels such as confusion/surprise removed). " +
+          "Train 55,894 / validation 6,987 / test 6,987.\n\n" +
+          "**Settings:** batch 16; phase 1 frozen backbone (LR 1e-3), phase 2 unfreezes the top 4 layers " +
+          "(backbone LR 1e-5, head 1e-4); class-balanced sampling; early stopping 5.",
+        verification: "verified",
+        source: "docs/evaluation/ler/training_config.py",
+        tags: ["training", "ler", "xlm-roberta", "datasets"],
       },
       {
-        id: "evaluation-results-empty",
-        title: "Evaluation Results Directories Empty",
+        id: "data-splits-leakage",
+        title: "Data Splits and Leakage",
         content:
-          "Factory evaluation scripts exist (`evaluate_model.py`) but `FER_Training/results/` and " +
-          "`SER_Training/results/` directories are **EMPTY**.\n\n" +
-          "No evaluation results (accuracy, F1, confusion matrices) exist anywhere in the repository.",
-        verification: "missing-evidence",
-        source: "FER_Training/results/",
-        tags: ["training", "evaluation", "results", "empty"],
-      },
-      {
-        id: "training-provenance-undocumented",
-        title: "Training Provenance Undocumented",
-        content:
-          "Checkpoint files exist and load successfully, but training provenance is undocumented:\n" +
-          "- Dataset used\n" +
-          "- Train/validation/test splits\n" +
-          "- Data augmentation\n" +
-          "- Number of epochs\n" +
-          "- Learning rate\n" +
-          "- Batch size\n" +
-          "- Optimizer",
-        verification: "missing-evidence",
-        tags: ["training", "provenance", "hyperparameters"],
+          "- **SER:** split by file, stratified by emotion — **not speaker-independent**. All 121 speakers are in both " +
+          "training and test (every test clip is a familiar voice), so its accuracy is likely optimistic for a new speaker.\n" +
+          "- **LER:** duplicate texts removed before splitting; only 7 of 6,987 test texts (0.1%) also appear in training.\n" +
+          "- **FER:** the test set is FER2013's and RAF-DB's official test images, separate from their training images; " +
+          "CK+ is only in training/validation.",
+        verification: "verified",
+        source: "docs/evaluation/README.md",
+        tags: ["training", "splits", "leakage"],
       },
     ],
   },
@@ -451,43 +446,56 @@ export const guideSections: GuideSection[] = [
     icon: "BarChart3",
     items: [
       {
-        id: "no-evaluation-results",
-        title: "No Evaluation Results Found",
+        id: "test-set-results",
+        title: "Test-Set Results",
         content:
-          "No evaluation results found in repository. `FER_Training/results/` and `SER_Training/results/` are empty.\n\n" +
-          "No classification reports, confusion matrices, or per-class metrics available.",
-        verification: "missing-evidence",
-        source: "FER_Training/results/",
-        tags: ["evaluation", "metrics", "missing"],
-      },
-      {
-        id: "best-val-acc-logged",
-        title: "best_val_acc Logged but Not Stored",
-        content:
-          "Checkpoint files log `best_val_acc` on load but this value is not displayed or stored anywhere accessible.",
+          "Each model was evaluated on a held-out test split it never saw in training:\n\n" +
+          "- **SER (voice):** accuracy **90.54%**, macro F1 0.905 (1,121 clips)\n" +
+          "- **LER (words):** accuracy **74.97%**, macro F1 0.731 (6,987 texts)\n" +
+          "- **FER (face):** accuracy **61.15%**, macro F1 0.588 (7,717 images)\n\n" +
+          "Classification reports and confusion matrices (CSV + PNG) are in `docs/evaluation/{fer,ser,ler}/`.",
         verification: "verified",
-        source: "src/ai/fer/fer_service.py",
-        tags: ["evaluation", "val-acc", "logged"],
+        source: "docs/evaluation/README.md",
+        tags: ["evaluation", "metrics", "accuracy", "f1"],
       },
       {
-        id: "what-evaluation-needed",
-        title: "What's Needed for Defense",
+        id: "per-class-f1",
+        title: "F1 per Emotion",
         content:
-          "Per-class precision, recall, F1-score. Confusion matrix. Test-set sample counts and provenance. " +
-          "Training/validation/test split ratios.\n\n" +
-          "The evaluation scripts exist but have not been run (or results were not committed).",
-        verification: "missing-evidence",
-        tags: ["evaluation", "defense", "requirements"],
+          "- SER (voice): Angry 0.92 · Happy 0.90 · Neutral 0.89 · Sad 0.91\n" +
+          "- LER (words): Angry 0.64 · Happy 0.83 · Neutral 0.64 · Sad 0.81\n" +
+          "- FER (face): Angry 0.50 · Happy 0.75 · Neutral 0.57 · Sad 0.53\n\n" +
+          "Full tables and confusion matrices: the Model Evaluation panel above.\n\n" +
+          "Happy is the easiest emotion for all three models; Angry and Neutral are the hardest for FER and LER.",
+        verification: "verified",
+        source: "docs/evaluation/*/classification_report.txt",
+        tags: ["evaluation", "per-class", "f1"],
       },
       {
-        id: "evaluation-most-critical-gap",
-        title: "Most Critical Gap for Thesis Defense",
+        id: "fer-weakest",
+        title: "Why FER Is the Weakest — and Why Fusion Uses Voice Too",
         content:
-          "**This is the most critical gap for thesis defense.** A panel will expect quantitative " +
-          "evidence that the models perform adequately on held-out test data.\n\n" +
-          "Without these numbers, any claim about model performance is unsubstantiated.",
-        verification: "missing-evidence",
-        tags: ["evaluation", "critical", "defense"],
+          "FER reaches 61%. Most of its errors are faces read as **Sad** (350 angry, 413 happy and 538 neutral test " +
+          "faces). FER2013 is a hard, low-resolution, in-the-wild dataset; the 85–89% figures in the literature are " +
+          "mostly for controlled datasets.\n\n" +
+          "The session result fuses FER with SER (50/50, confidence-adaptive), and SER is the strongest model (91%), " +
+          "so a weak face reading is balanced by the voice.",
+        verification: "verified",
+        source: "docs/evaluation/fer/confusion_matrix.csv",
+        tags: ["evaluation", "fer", "fusion", "defense"],
+      },
+      {
+        id: "evaluation-scope",
+        title: "What These Numbers Do and Don't Show",
+        content:
+          "They show performance on public test sets: acted English speech (SER), English Reddit/Twitter text (LER) " +
+          "and mixed face photos (FER). They do **not** measure accuracy on real Davao patients, whose language, " +
+          "recording conditions and expressions differ. SER's split also keeps the same speakers in training and test.\n\n" +
+          "For real interviews, `npm run eval:self-report` (backend) compares the AI with patients' own report " +
+          "(mood check and feeling words). See `docs/evaluation/README.md`.",
+        verification: "verified",
+        source: "docs/evaluation/README.md",
+        tags: ["evaluation", "limitations", "self-report"],
       },
     ],
   },
@@ -705,9 +713,11 @@ export const guideSections: GuideSection[] = [
         id: "dataset-limitations",
         title: "Dataset Limitations",
         content:
-          "Training provenance undocumented. No evaluation metrics available. " +
-          "Models may not generalize to all populations, lighting conditions, audio environments.",
-        verification: "missing-evidence",
+          "Trained on public datasets: acted English speech (CREMA-D, RAVDESS, SAVEE, TESS), English online text " +
+          "(GoEmotions, DAIR-AI) and face photos (FER2013, RAF-DB, CK+). None were collected in Davao. " +
+          "Models may not generalize to all populations, languages, lighting conditions or audio environments.",
+        verification: "verified",
+        source: "docs/evaluation/README.md",
         tags: ["limitations", "dataset", "generalization"],
       },
       {
@@ -863,20 +873,23 @@ export const guideSections: GuideSection[] = [
         id: "q5-datasets",
         title: "Q5: What datasets were used?",
         content:
-          "**MISSING EVIDENCE.** Training scripts reference generic datasets (FER2013, RAVDESS, etc.) " +
-          "but the actual production checkpoints' training data is undocumented.",
-        verification: "missing-evidence",
-        tags: ["defense", "q5", "datasets", "missing"],
+          "- **FER:** FER2013 26,217 · RAF-DB 12,488 · CK+ 426 (39,131 images)\n" +
+          "- **SER:** CREMA-D 4,900 · TESS 1,600 · RAVDESS 672 · SAVEE 300 (7,472 clips, 121 speakers)\n" +
+          "- **LER:** GoEmotions 50,634 · DAIR-AI Emotion 19,234 (69,868 texts after cleaning)\n\n" +
+          "Details and split sizes: `docs/evaluation/README.md`.",
+        verification: "verified",
+        source: "docs/evaluation/README.md",
+        tags: ["defense", "q5", "datasets"],
       },
       {
         id: "q6-preprocessing",
         title: "Q6: How were datasets preprocessed?",
         content:
-          "**PARTIALLY VERIFIED.** Production preprocessing verified:\n" +
-          "- FER: 224x224 RGB, ImageNet normalization\n" +
-          "- SER: 16kHz mono, 3.0s max, 0.5s offset\n\n" +
-          "Training preprocessing from factory scripts (48x48 grayscale for FER) does NOT match production.",
-        verification: "partially-verified",
+          "- **FER:** face crop, resized to 224x224 RGB, ImageNet normalization — same size in training and production.\n" +
+          "- **SER:** 16 kHz mono, silence trimmed. Training clips were up to 4 s; production analyses up to 3.0 s " +
+          "after a 0.5 s offset.\n" +
+          "- **LER:** XLM-RoBERTa tokenizer, 128 tokens max; training texts de-duplicated and ambiguous labels removed.",
+        verification: "verified",
         source: "src/ai/fer/fer_service.py",
         codeRef: "fer_service.py:95-112",
         tags: ["defense", "q6", "preprocessing"],
@@ -885,19 +898,26 @@ export const guideSections: GuideSection[] = [
         id: "q7-data-leakage",
         title: "Q7: How was data leakage prevented?",
         content:
-          "**MISSING EVIDENCE.** No train/test split documentation found.",
-        verification: "missing-evidence",
-        tags: ["defense", "q7", "data-leakage", "missing"],
+          "Each model used separate train/validation/test splits (seed 42), and the test set was only used for the " +
+          "final evaluation. LER removed duplicate texts before splitting.\n\n" +
+          "FER's test set is the official test portion of FER2013 and RAF-DB; LER has only 7 test texts (0.1%) also in training.\n\n" +
+          "**Be ready to acknowledge:** SER's split is by file, not by speaker — all 121 speakers are in both training " +
+          "and test, so its 90.5% is likely optimistic for a new voice.",
+        verification: "verified",
+        source: "docs/evaluation/README.md",
+        tags: ["defense", "q7", "data-leakage"],
       },
       {
         id: "q8-model-evaluation",
         title: "Q8: How were models evaluated?",
         content:
-          "**MISSING EVIDENCE.** No evaluation results in repository. " +
-          "Evaluation scripts exist but results not committed. " +
-          "This is the most critical gap for thesis defense.",
-        verification: "missing-evidence",
-        tags: ["defense", "q8", "evaluation", "critical"],
+          "On held-out test sets, with accuracy, per-class precision/recall/F1 and confusion matrices:\n" +
+          "SER 90.54%, LER 74.97%, FER 61.15% accuracy (macro F1 0.905 / 0.731 / 0.588).\n\n" +
+          "In real interviews, the AI is also compared with the patient's own report (mood check, feeling words) " +
+          "via `npm run eval:self-report`.",
+        verification: "verified",
+        source: "docs/evaluation/README.md",
+        tags: ["defense", "q8", "evaluation"],
       },
       {
         id: "q9-confidence-scores",
@@ -967,9 +987,9 @@ export const guideSections: GuideSection[] = [
         id: "q15-main-limitations",
         title: "Q15: What are the main limitations?",
         content:
-          "Missing evaluation metrics, training provenance undocumented, " +
-          "architecture mismatch between training scripts and production, " +
-          "no language-specific evaluation.",
+          "FER is the weakest model (61% test accuracy). Models were trained on public, mostly English and acted " +
+          "data, not Davao patients; SER's split is not speaker-independent; there is no Tagalog/Bisaya-specific " +
+          "evaluation; accuracy on real patients is only measured indirectly (agreement with self-report).",
         verification: "verified",
         tags: ["defense", "q15", "limitations"],
       },
@@ -986,19 +1006,25 @@ export const guideSections: GuideSection[] = [
         id: "q17-evidence-system-works",
         title: "Q17: What evidence demonstrates the system works?",
         content:
-          "**MISSING EVIDENCE.** No evaluation metrics, no user studies, no comparison with manual assessment. " +
-          "The system's existence is not evidence of its effectiveness.",
-        verification: "missing-evidence",
-        tags: ["defense", "q17", "evidence", "critical"],
+          "**Model level:** test-set accuracy, precision, recall, F1 and confusion matrices for all three models " +
+          "(`docs/evaluation/`).\n\n" +
+          "**Real interviews:** agreement between the AI and the patient's own report — mood before/after and " +
+          "feeling words per question — computed by `npm run eval:self-report` once interviews are collected.\n\n" +
+          "**Still missing:** a user study with therapists (usability and usefulness), and comparison with a " +
+          "clinician's own assessment.",
+        verification: "partially-verified",
+        source: "docs/evaluation/README.md",
+        tags: ["defense", "q17", "evidence"],
       },
       {
         id: "q18-improvements",
         title: "Q18: What improvements remain?",
         content:
-          "1. Run evaluation scripts and commit results\n" +
-          "2. Document training pipeline\n" +
-          "3. Fix RecommendationPage\n" +
-          "4. Update BACKEND_GUIDE.md (fusion weights 50/50/0, not 40/40/20)",
+          "1. Re-evaluate SER with a speaker-independent split\n" +
+          "2. Improve FER (more varied face data, or fine-tuning on local faces with consent)\n" +
+          "3. Collect real interviews and report agreement with patients' self-report\n" +
+          "4. Therapist user study\n" +
+          "5. Update BACKEND_GUIDE.md (fusion weights 50/50/0, not 40/40/20)",
         verification: "verified",
         tags: ["defense", "q18", "improvements", "roadmap"],
       },
@@ -1006,15 +1032,16 @@ export const guideSections: GuideSection[] = [
         id: "defense-readiness-summary",
         title: "Defense Readiness Summary",
         content:
-          "**Verified strengths:** Complete pipeline, multimodal fusion, confidence guards, spike detection, hedging reports.\n\n" +
-          "**Unresolved:** Architecture mismatch (TF training vs PyTorch production), zero evaluation metrics, no training provenance.\n\n" +
-          "**Missing evidence:** Accuracy, F1, confusion matrices, train/test splits, dataset documentation.\n\n" +
+          "**Verified strengths:** Complete pipeline, multimodal fusion, confidence guards, spike detection, hedging reports. " +
+          "Test-set results for all three models (SER 90.5%, LER 75.0%, FER 61.2%) with training settings documented.\n\n" +
+          "**Be ready to explain:** FER's lower accuracy (and why fusion leans on voice); SER's speaker-dependent split; " +
+          "public English training data vs Davao patients.\n\n" +
+          "**Still missing:** agreement with patients' self-report on real interviews (script ready), therapist user study.\n\n" +
           "**Claims to qualify:** \"4 emotions\" (thesis says 3), fusion weights (docs say 40/40/20, code says 50/50/0).\n\n" +
           "**Recommended next steps:**\n" +
-          "1. Run evaluation scripts and commit results\n" +
-          "2. Document training pipeline\n" +
-          "3. Fix RecommendationPage\n" +
-          "4. Update BACKEND_GUIDE.md",
+          "1. Collect interviews and run `npm run eval:self-report`\n" +
+          "2. Update the thesis with the evaluation results\n" +
+          "3. Update BACKEND_GUIDE.md",
         verification: "verified",
         tags: ["defense", "readiness", "summary"],
       },
@@ -1030,25 +1057,24 @@ export const guideSections: GuideSection[] = [
     icon: "AlertCircle",
     items: [
       {
-        id: "issue-training-architecture-mismatch",
-        title: "Training/Production Architecture Mismatch",
+        id: "issue-ser-speaker-dependent-split",
+        title: "SER Test Split Is Speaker-Dependent",
         content:
-          "TF/Keras scripts vs PyTorch inference. Factory scripts would produce .h5, " +
-          "production loads .pth/.pt.",
+          "SER's train/test split is by file, so the same actors appear in both. Its 90.5% test accuracy is likely " +
+          "optimistic for new speakers; a split that holds out whole actors would give a stricter figure.",
         verification: "verified",
-        source: "fer-factory/ml/train_model.py",
-        codeRef: "vs src/ai/fer/fer_service.py",
-        tags: ["issues", "critical", "architecture-mismatch"],
+        source: "docs/evaluation/README.md",
+        tags: ["issues", "ser", "evaluation", "leakage"],
       },
       {
-        id: "issue-zero-evaluation-metrics",
-        title: "Zero Evaluation Metrics",
+        id: "issue-real-patient-evaluation",
+        title: "No Evaluation on Real Patients Yet",
         content:
-          "FER_Training/results/ and SER_Training/results/ are empty. " +
-          "No accuracy, F1, confusion matrices anywhere in repo.",
+          "Test-set results exist for all three models (`docs/evaluation/`), but performance on real interviews is " +
+          "not yet measured. The self-report comparison (`npm run eval:self-report`) needs collected interviews.",
         verification: "verified",
-        source: "FER_Training/results/",
-        tags: ["issues", "critical", "evaluation", "metrics"],
+        source: "docs/evaluation/README.md",
+        tags: ["issues", "evaluation", "self-report"],
       },
       {
         id: "issue-stale-documentation",
@@ -1097,14 +1123,6 @@ export const guideSections: GuideSection[] = [
         verification: "verified",
         source: "src/ai/stt/stt_service.py",
         tags: ["issues", "stt", "whisper", "proposal"],
-      },
-      {
-        id: "issue-no-training-hyperparameters",
-        title: "No Training Hyperparameters Documented",
-        content:
-          "Epochs, learning rate, batch size, optimizer unknown for production models.",
-        verification: "missing-evidence",
-        tags: ["issues", "training", "hyperparameters"],
       },
     ],
   },

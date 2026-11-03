@@ -1,7 +1,44 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { Heart, Shield, Users } from "lucide-react";
+import { Shield, Users } from "lucide-react";
 import { emotionApi, type EmotionResult } from "../../../shared/api/emotionApi";
+import HelpLines from "../components/HelpLines";
+import { appointmentWhen } from "../hooks/conversationLines";
+
+/** When the patient next sees their therapist, saved by the interview room (null if none is booked). */
+function readNextAppointment(token: string | undefined): string | null {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(`amumata_result_${token}`) ?? "{}");
+    return typeof saved.nextAppointmentAt === "string" ? saved.nextAppointmentAt : null;
+  } catch {
+    return null;
+  }
+}
+
+/** "What happens next", with the appointment date when one is booked. */
+function NextSteps({ nextAppointmentAt }: { nextAppointmentAt: string | null }) {
+  return (
+    <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-6 text-left">
+      <div className="flex items-start gap-3">
+        <Users size={20} className="mt-0.5 shrink-0 text-teal-600" />
+        <div>
+          <p className="font-semibold text-teal-900">What happens next</p>
+          <p className="mt-1 text-sm leading-relaxed text-teal-800">
+            {nextAppointmentAt ? (
+              <>
+                Your therapist will go over your answers with you at your next session on{" "}
+                <strong>{appointmentWhen(nextAppointmentAt)}</strong>.
+              </>
+            ) : (
+              "Your therapist will go over your answers with you and get in touch about your next session."
+            )}{" "}
+            This summary supports that conversation — it does not replace your therapist&apos;s judgment.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ResultsPage() {
   const { token } = useParams();
@@ -86,12 +123,16 @@ export default function ResultsPage() {
   if (error || !analysis) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F1F5F9] px-4">
-        <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 text-center shadow-md">
-          <h1 className="text-xl font-bold text-slate-900">Thank you</h1>
-          <p className="mt-3 text-sm leading-relaxed text-slate-500">
-            Your interview has been recorded. Your therapist will review the results with you.
-          </p>
-          <p className="mt-6 text-xs text-slate-400">You may now close this window.</p>
+        <div className="w-full max-w-md space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-md">
+            <h1 className="text-xl font-bold text-slate-900">Thank you</h1>
+            <p className="mt-3 text-sm leading-relaxed text-slate-500">
+              Your interview has been recorded. Sharing how you feel takes courage.
+            </p>
+          </div>
+          <NextSteps nextAppointmentAt={readNextAppointment(token)} />
+          <HelpLines />
+          <p className="text-center text-xs text-slate-400">You may now close this window.</p>
         </div>
       </div>
     );
@@ -116,7 +157,7 @@ export default function ResultsPage() {
           </div>
           <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Thank you for completing the interview</h1>
           <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-slate-500">
-            Your responses have been recorded. Your therapist will review the summary before your session.
+            Your responses have been recorded. Sharing how you feel takes courage — thank you.
           </p>
         </div>
 
@@ -175,32 +216,12 @@ export default function ResultsPage() {
           )}
         </div>
 
-        {/* What happens next */}
-        <div className="mb-6 rounded-xl border border-teal-200 bg-teal-50/50 p-6">
-          <div className="flex items-start gap-3">
-            <Users size={20} className="mt-0.5 shrink-0 text-teal-600" />
-            <div>
-              <p className="font-semibold text-teal-900">What happens next</p>
-              <p className="mt-1 text-sm leading-relaxed text-teal-800">
-                Your therapist will review this summary together with your session. This summary supports
-                the conversation — it does not replace professional judgment.
-              </p>
-            </div>
-          </div>
+        {/* What happens next, and who to call meanwhile */}
+        <div className="mb-6">
+          <NextSteps nextAppointmentAt={readNextAppointment(token)} />
         </div>
-
-        {/* Support note */}
-        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5">
-          <div className="flex items-start gap-3">
-            <Heart size={20} className="mt-0.5 shrink-0 text-teal-600" />
-            <div>
-              <p className="font-semibold text-slate-900">Take care of yourself</p>
-              <p className="mt-1 text-sm leading-relaxed text-slate-500">
-                If you feel overwhelmed, reach out to someone you trust. In the Philippines, Hopeline is
-                available at 0917-558-4673.
-              </p>
-            </div>
-          </div>
+        <div className="mb-6">
+          <HelpLines />
         </div>
 
         {/* Disclaimer */}

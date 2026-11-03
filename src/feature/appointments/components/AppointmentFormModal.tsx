@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ChevronLeft, ChevronRight, Clock, UserPlus, Users } from "lucide-react";
-import { appointmentsApi, type Appointment } from "../../../shared/api/appointmentsApi";
+import { AlertTriangle, ChevronLeft, ChevronRight, Clock, Repeat, UserPlus, Users } from "lucide-react";
+import { appointmentsApi, type Appointment, type SessionType } from "../../../shared/api/appointmentsApi";
+import { ApiError } from "../../../shared/api/httpClient";
 import { usePatients } from "../../context/patients/usePatients";
 import ChoiceInput from "../../../shared/components/ChoiceInput";
 import { APPOINTMENT_REASONS } from "../../../shared/constants/choices";
-import { formatDayHeading, formatTime, manilaDateOf, manilaToday } from "../utils/appointmentUtils";
+import { formatDayHeading, formatMinutes, formatTime, manilaDateOf, manilaToday } from "../utils/appointmentUtils";
 import NewPatientFields from "./NewPatientFields";
 import { EMPTY_PATIENT, isPatientDraftComplete, type NewPatientDraft } from "../utils/newPatient";
 
@@ -32,7 +33,9 @@ interface PatientOption {
 }
 
 interface SlotResult {
-  date: string;
+  /** The day and session type these slots were fetched for. */
+  key: string;
+  minutes?: number;
   slots: string[];
   error?: string;
 }
@@ -47,6 +50,17 @@ function shiftDate(date: string, days: number): string {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Something went wrong.";
+}
+
+const SERIES_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** "6 sessions, Mondays at 9:00 AM, until Monday, December 14" — the series at a glance. */
+function seriesSummary(firstSlot: string, everyWeeks: number, count: number): string {
+  const last = new Date(Date.parse(firstSlot) + (count - 1) * everyWeeks * WEEK_MS).toISOString();
+  const weekday = formatDayHeading(manilaDateOf(firstSlot)).split(",")[0];
+  const cadence = everyWeeks === 1 ? `${weekday}s` : `every other ${weekday}`;
+  return `${count} sessions, ${cadence} at ${formatTime(firstSlot)}, until ${formatDayHeading(manilaDateOf(last))}.`;
 }
 
 export default function AppointmentFormModal({ mode, onClose, onSaved }: AppointmentFormModalProps) {
@@ -80,26 +94,56 @@ export default function AppointmentFormModal({ mode, onClose, onSaved }: Appoint
   const [slotResult, setSlotResult] = useState<SlotResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Recurring series (new bookings only): every 1 or 2 weeks, for a number of sessions.
+  const [repeatEvery, setRepeatEvery] = useState<"none" | "1" | "2">("none");
+  const [repeatCount, setRepeatCount] = useState(6);
+  // Some dates of the series aren't free: ask before booking the rest.
+  const [seriesConflict, setSeriesConflict] = useState<{ message: string; unavailable: string[]; availableCount: number } | null>(null);
+  const repeating = !editing && repeatEvery !== "none";
+  // The therapist's session types (new bookings only); "" books the default length.
+  const [sessionTypes, setSessionTypes] = useState<SessionType[]>([]);
+  const [sessionTypeId, setSessionTypeId] = useState("");
 
-  const excludeId = editing?.appointment_id;
+  const isBooking = !editing;
   useEffect(() => {
+    if (!isBooking) return;
     let cancelled = false;
-    appointmentsApi.freeSlots(date, excludeId).then(
-      (result) => !cancelled && setSlotResult({ date, slots: result.slots }),
-      (err: unknown) => !cancelled && setSlotResult({ date, slots: [], error: errorMessage(err) }),
+    // Without the list the form still books at the default length, so a failure here is not shown.
+    appointmentsApi.getSchedule().then(
+      (schedule) => !cancelled && setSessionTypes(schedule.session_types ?? []),
+      () => undefined,
     );
     return () => {
       cancelled = true;
     };
-  }, [date, excludeId]);
+  }, [isBooking]);
 
-  // Result for the currently chosen day, or null while it is loading.
-  const current = slotResult && slotResult.date === date ? slotResult : null;
+  const excludeId = editing?.appointment_id;
+  const typeId = sessionTypeId ? Number(sessionTypeId) : undefined;
+  const slotKey = `${date}|${sessionTypeId}`;
+  useEffect(() => {
+    let cancelled = false;
+    appointmentsApi.freeSlots(date, excludeId, typeId).then(
+      (result) => !cancelled && setSlotResult({ key: slotKey, minutes: result.slot_minutes, slots: result.slots }),
+      (err: unknown) => !cancelled && setSlotResult({ key: slotKey, slots: [], error: errorMessage(err) }),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [date, excludeId, typeId, slotKey]);
+
+  // Result for the currently chosen day and type, or null while it is loading.
+  const current = slotResult && slotResult.key === slotKey ? slotResult : null;
   const slots = current?.slots ?? [];
 
   const changeDate = (next: string) => {
     if (!next || next < today) return;
     setDate(next);
+    setSelectedSlot(null);
+  };
+
+  const changeSessionType = (next: string) => {
+    setSessionTypeId(next);
     setSelectedSlot(null);
   };
 
@@ -130,10 +174,11 @@ export default function AppointmentFormModal({ mode, onClose, onSaved }: Appoint
     return id;
   };
 
-  const submit = async () => {
+  const submit = async (skipUnavailable = false) => {
     if (!selectedSlot) return;
     setBusy(true);
     setError(null);
+    setSeriesConflict(null);
     let patientCreated = false;
     try {
       if (editing) {
@@ -154,14 +199,27 @@ export default function AppointmentFormModal({ mode, onClose, onSaved }: Appoint
         bookFor = id;
         patientCreated = true;
       }
-      await appointmentsApi.book({
+      const result = await appointmentsApi.book({
         patient_id: bookFor,
         start_at: selectedSlot,
         reason: reason.trim() || undefined,
         follow_up_id: followUp?.id,
+        ...(typeId ? { session_type_id: typeId } : {}),
+        ...(repeating ? { repeat: { every_weeks: Number(repeatEvery) as 1 | 2, count: repeatCount }, skip_unavailable: skipUnavailable } : {}),
       });
-      onSaved(patientCreated ? "Patient added and appointment booked" : "Appointment booked");
+      if ("appointments" in result) {
+        const skipped = result.skipped.length ? ` (${result.skipped.length} skipped)` : "";
+        onSaved(`${patientCreated ? "Patient added and " : ""}${result.appointments.length} sessions booked${skipped}`);
+      } else {
+        onSaved(patientCreated ? "Patient added and appointment booked" : "Appointment booked");
+      }
     } catch (err) {
+      const details = err instanceof ApiError ? (err.details as { unavailable?: string[]; available_count?: number } | undefined) : undefined;
+      if (err instanceof ApiError && err.code === "RECURRENCE_CONFLICT" && details?.unavailable) {
+        setSeriesConflict({ message: err.message, unavailable: details.unavailable, availableCount: details.available_count ?? 0 });
+        setBusy(false);
+        return;
+      }
       const message = errorMessage(err);
       setError(patientCreated ? `The patient record was created, but the booking failed: ${message} Pick another time and try again.` : message);
       setBusy(false);
@@ -222,6 +280,20 @@ export default function AppointmentFormModal({ mode, onClose, onSaved }: Appoint
             )}
           </div>
 
+          {!editing && sessionTypes.length > 0 && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600">Session type</label>
+              <select value={sessionTypeId} onChange={(e) => changeSessionType(e.target.value)} className={field} aria-label="Session type">
+                <option value="">Standard session</option>
+                {sessionTypes.map((t) => (
+                  <option key={t.session_type_id} value={t.session_type_id}>
+                    {t.name} · {formatMinutes(t.duration_minutes)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-600">Day</label>
             <div className="flex items-center gap-2">
@@ -246,7 +318,10 @@ export default function AppointmentFormModal({ mode, onClose, onSaved }: Appoint
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-600">Free times</label>
+            <label className="mb-1 block text-sm font-medium text-slate-600">
+              Free times
+              {current?.minutes && <span className="font-normal text-slate-400"> · {formatMinutes(current.minutes)} each</span>}
+            </label>
             {!current ? (
               <p className="text-sm text-slate-400">Loading free times…</p>
             ) : current.error ? (
@@ -291,7 +366,73 @@ export default function AppointmentFormModal({ mode, onClose, onSaved }: Appoint
               className={field}
             />
           </div>
+
+          {!editing && (
+            <div>
+              <label className="mb-1 flex items-center gap-1.5 text-sm font-medium text-slate-600">
+                <Repeat size={14} /> Repeat
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <select
+                  value={repeatEvery}
+                  onChange={(e) => setRepeatEvery(e.target.value as "none" | "1" | "2")}
+                  aria-label="Repeat"
+                  className={`${field} sm:w-auto`}
+                >
+                  <option value="none">Does not repeat</option>
+                  <option value="1">Every week</option>
+                  <option value="2">Every 2 weeks</option>
+                </select>
+                {repeating && (
+                  <select
+                    value={repeatCount}
+                    onChange={(e) => setRepeatCount(Number(e.target.value))}
+                    aria-label="Number of sessions"
+                    className={`${field} sm:w-auto`}
+                  >
+                    {SERIES_SIZES.map((n) => (
+                      <option key={n} value={n}>
+                        {n} sessions
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              {repeating && selectedSlot && (
+                <p className="mt-1 text-xs text-slate-500">
+                  {seriesSummary(selectedSlot, Number(repeatEvery), repeatCount)}
+                </p>
+              )}
+            </div>
+          )}
         </div>
+
+        {seriesConflict && (
+          <div role="alert" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="flex items-center gap-2 font-medium">
+              <AlertTriangle size={16} className="shrink-0" /> {seriesConflict.message}
+            </p>
+            <ul className="mt-1 list-inside list-disc text-amber-800">
+              {seriesConflict.unavailable.map((d) => (
+                <li key={d}>
+                  {formatDayHeading(manilaDateOf(d))}, {formatTime(d)}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                onClick={() => void submit(true)}
+                disabled={busy}
+                className="rounded-xl bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                Book the other {seriesConflict.availableCount}, skip {seriesConflict.unavailable.length === 1 ? "this one" : "these"}
+              </button>
+              <button onClick={() => setSeriesConflict(null)} className="rounded-xl border border-amber-300 px-3 py-1.5 text-sm text-amber-800 hover:bg-amber-100">
+                Choose another time
+              </button>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
@@ -305,11 +446,11 @@ export default function AppointmentFormModal({ mode, onClose, onSaved }: Appoint
             Close
           </button>
           <button
-            onClick={submit}
+            onClick={() => void submit()}
             disabled={!canSubmit}
             className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
           >
-            {busy ? "Saving…" : editing ? "Save changes" : "Book appointment"}
+            {busy ? "Saving…" : editing ? "Save changes" : repeating ? `Book ${repeatCount} sessions` : "Book appointment"}
           </button>
         </div>
       </div>

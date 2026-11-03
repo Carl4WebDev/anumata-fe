@@ -15,13 +15,16 @@ export default function CancelAppointmentModal({ appt, onClose, onSaved }: Cance
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // In a recurring series with later sessions: this one only, or this and all following.
+  const hasLaterSessions = Boolean(appt.series_id && appt.series_index && appt.series_total && appt.series_index < appt.series_total);
+  const [scope, setScope] = useState<"one" | "following">("one");
 
   const submit = async () => {
     setBusy(true);
     setError(null);
     try {
-      await appointmentsApi.cancel(appt.appointment_id, reason.trim() || undefined);
-      onSaved("Appointment cancelled");
+      const result = await appointmentsApi.cancel(appt.appointment_id, reason.trim() || undefined, scope);
+      onSaved("cancelled" in result ? `${result.cancelled} sessions cancelled` : "Appointment cancelled");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setBusy(false);
@@ -34,7 +37,21 @@ export default function CancelAppointmentModal({ appt, onClose, onSaved }: Cance
         <h3 className="mb-1 text-lg font-semibold text-[#08132E]">Cancel appointment</h3>
         <p className="mb-4 text-sm text-slate-500">
           {appt.patient_name} · {formatDateTime(appt.start_at)}
+          {appt.series_index && appt.series_total ? ` · session ${appt.series_index} of ${appt.series_total}` : ""}
         </p>
+        {hasLaterSessions && (
+          <fieldset className="mb-4 space-y-1.5 rounded-xl border border-slate-200 p-3 text-sm text-slate-700">
+            <legend className="px-1 text-xs font-medium text-slate-500">This is part of a recurring series</legend>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="cancel-scope" checked={scope === "one"} onChange={() => setScope("one")} className="accent-rose-600" />
+              Only this session
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="cancel-scope" checked={scope === "following"} onChange={() => setScope("following")} className="accent-rose-600" />
+              This and all following sessions
+            </label>
+          </fieldset>
+        )}
         <label className="mb-1 block text-sm font-medium text-slate-600">
           Reason <span className="font-normal text-slate-400">(optional)</span>
         </label>

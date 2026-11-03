@@ -3,11 +3,14 @@ import { QuestionSetsContext } from "./QuestionSetsContext";
 import { questionSetsApi } from "../../../shared/api/questionSetsApi";
 import { ApiError } from "../../../shared/api/httpClient";
 import { optimistic, removeItems } from "../../../shared/utils/optimistic";
-import type { QuestionSetItemsData } from "./QuestionSetsContext";
+import type { QuestionSetData, QuestionSetItemsData } from "./QuestionSetsContext";
 
 function mapQuestionSet(qs: any) {
   const legacyQuestions = Array.isArray(qs.questions)
     ? qs.questions.map((q: any) => (typeof q === "string" ? q : q.text))
+    : [];
+  const followUps: string[] = Array.isArray(qs.questions)
+    ? qs.questions.map((q: any) => (typeof q === "string" ? "" : (q.follow_up ?? "")))
     : [];
   // Use item_count from question_set_items if available, otherwise fall back to legacy questions
   const questionCount = (qs.item_count ?? 0) > 0 ? qs.item_count : legacyQuestions.length;
@@ -16,9 +19,18 @@ function mapQuestionSet(qs: any) {
     name: qs.name,
     description: qs.description || "",
     questions: legacyQuestions,
+    followUps,
     questionCount,
     sourceType: qs.source_type || "custom",
   };
+}
+
+/** Questions as the API takes them, each with its follow-up when there is one. */
+function toQuestionPayload({ questions, followUps }: QuestionSetData) {
+  return questions.map((text, order) => {
+    const followUp = followUps?.[order]?.trim();
+    return followUp ? { text, order, follow_up: followUp } : { text, order };
+  });
 }
 
 export const QuestionSetsProvider = ({ children }: { children: React.ReactNode }) => {
@@ -47,12 +59,12 @@ export const QuestionSetsProvider = ({ children }: { children: React.ReactNode }
 
   const clearError = useCallback(() => setError(null), []);
 
-  const addQuestionSet = useCallback(async (data: { name: string; description: string; questions: string[] }) => {
+  const addQuestionSet = useCallback(async (data: QuestionSetData) => {
     try {
       const res = await questionSetsApi.create({
         name: data.name,
         description: data.description,
-        questions: data.questions,
+        questions: toQuestionPayload(data),
       });
       const mapped = mapQuestionSet(res.data);
       setQuestionSets((prev) => [mapped, ...prev]);
@@ -78,12 +90,12 @@ export const QuestionSetsProvider = ({ children }: { children: React.ReactNode }
     }
   }, []);
 
-  const updateQuestionSet = useCallback(async (id: number, data: { name: string; description: string; questions: string[] }) => {
+  const updateQuestionSet = useCallback(async (id: number, data: QuestionSetData) => {
     try {
       const res = await questionSetsApi.update(id, {
         name: data.name,
         description: data.description,
-        questions: data.questions,
+        questions: toQuestionPayload(data),
       });
       const mapped = mapQuestionSet(res.data);
       setQuestionSets((prev) => prev.map((qs) => (qs.id === id ? mapped : qs)));

@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { MessageSquare, AlertTriangle, AlertCircle } from "lucide-react";
+import { MessageSquare, AlertTriangle, AlertCircle, CornerDownRight } from "lucide-react";
 import ModelSubCard from "./ModelSubCard";
 import FusionResultCard from "./FusionResultCard";
 import PerQuestionNotes from "./PerQuestionNotes";
@@ -7,6 +7,7 @@ import EvidenceSnapshot from "./EvidenceSnapshot";
 import EmotionTag from "../../../shared/components/EmotionTag";
 import CollapsibleSection from "../../../shared/components/CollapsibleSection";
 import type { QuestionData } from "../hooks/useSessionComputed";
+import { feelingLabel } from "../../interview/hooks/feelingWords";
 
 interface QuestionCardProps {
   data: QuestionData;
@@ -36,7 +37,31 @@ function QuestionCardInner({ data, note, onNoteChange }: QuestionCardProps) {
               </span>
             )}
           </div>
-          <EmotionTag emotion={data.fusionEmotion} size="sm" />
+          {data.followUpAsked && (
+            <p className="mt-1 flex items-start gap-1 text-xs text-slate-500">
+              <CornerDownRight size={12} className="mt-0.5 shrink-0 text-teal-500" />
+              <span>
+                <span className="font-medium text-teal-700">Follow-up asked:</span> {data.followUpAsked}
+                <span className="text-slate-400"> — the reply is included in the transcript below</span>
+              </span>
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <EmotionTag emotion={data.fusionEmotion} size="sm" />
+            {data.feelingsTapped.length > 0 && (
+              <span className="flex flex-wrap items-center gap-1 text-[11px] text-slate-500">
+                <span>Patient tapped:</span>
+                {data.feelingsTapped.map((key) => {
+                  const word = feelingLabel(key);
+                  return (
+                    <span key={key} className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-teal-800">
+                      {word ? `${word.face} ${word.label}` : key}
+                    </span>
+                  );
+                })}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

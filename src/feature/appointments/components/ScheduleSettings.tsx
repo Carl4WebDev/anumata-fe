@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { Clock, Plus, Trash2, Save, Ban, Timer, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, Plus, Trash2, Save, Ban, Timer, ChevronDown, ChevronUp, ListChecks } from "lucide-react";
 import { appointmentsApi, type Schedule } from "../../../shared/api/appointmentsApi";
-import { useToast } from "../../../shared/context/ToastContext";
-import { WEEKDAYS, formatDateTime, manilaInputToIso } from "../utils/appointmentUtils";
+import { WEEKDAYS, formatDateTime, formatMinutes, manilaInputToIso } from "../utils/appointmentUtils";
 import ChoiceInput from "../../../shared/components/ChoiceInput";
-import { BLOCKED_PERIOD_REASONS, SESSION_LENGTHS, formatClock, timeOptions } from "../../../shared/constants/choices";
+import { BLOCKED_PERIOD_REASONS, formatClock, timeOptions } from "../../../shared/constants/choices";
+import { useScheduleAction } from "./useScheduleAction";
+import { SessionLengthEditor, SessionTypesEditor } from "./SessionSettings";
 
-type Tab = "hours" | "blocked" | "length";
+type Tab = "hours" | "blocked" | "types" | "length";
 
 interface ScheduleSettingsProps {
   schedule: Schedule;
@@ -17,41 +18,22 @@ const inputClass = "rounded-lg border border-slate-200 px-2 py-1.5 text-sm outli
 const saveBtn =
   "flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50";
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : "Something went wrong.";
-}
-
-/** Runs a schedule change, refreshes the page data and reports via toast. */
-function useScheduleAction(onChanged: () => Promise<void>) {
-  const { success, error } = useToast();
-  const [busy, setBusy] = useState(false);
-  const run = async (fn: () => Promise<unknown>, message: string): Promise<boolean> => {
-    setBusy(true);
-    try {
-      await fn();
-      await onChanged();
-      success(message);
-      return true;
-    } catch (err) {
-      error(errorMessage(err));
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  };
-  return { busy, run };
-}
-
 export default function ScheduleSettings({ schedule, onChanged }: ScheduleSettingsProps) {
   const { availability, settings } = schedule;
+  const sessionTypes = schedule.session_types ?? [];
   const [open, setOpen] = useState(availability.length === 0);
   const [tab, setTab] = useState<Tab>("hours");
 
   const workingDays = [...new Set(availability.map((w) => w.weekday))].sort((a, b) => a - b);
+  const sessions =
+    sessionTypes.length > 0
+      ? `${sessionTypes.length} session type${sessionTypes.length > 1 ? "s" : ""}`
+      : `${formatMinutes(settings.slot_minutes)} sessions`;
+  const breakNote = settings.break_minutes ? ` · ${formatMinutes(settings.break_minutes)} break` : "";
   const summary =
     availability.length === 0
       ? "No working hours yet — set them up before booking appointments."
-      : `${workingDays.map((d) => WEEKDAYS[d]).join(", ")} · ${settings.slot_minutes}-minute sessions`;
+      : `${workingDays.map((d) => WEEKDAYS[d]).join(", ")} · ${sessions}${breakNote}`;
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -71,7 +53,8 @@ export default function ScheduleSettings({ schedule, onChanged }: ScheduleSettin
             {([
               ["hours", "Working hours", Clock],
               ["blocked", "Blocked periods", Ban],
-              ["length", "Session length", Timer],
+              ["types", "Session types", ListChecks],
+              ["length", "Length & break", Timer],
             ] as const).map(([key, label, Icon]) => (
               <button
                 key={key}
@@ -86,6 +69,7 @@ export default function ScheduleSettings({ schedule, onChanged }: ScheduleSettin
           </div>
           {tab === "hours" && <WorkingHoursEditor schedule={schedule} onChanged={onChanged} />}
           {tab === "blocked" && <BlockedPeriodsEditor schedule={schedule} onChanged={onChanged} />}
+          {tab === "types" && <SessionTypesEditor schedule={{ ...schedule, session_types: sessionTypes }} onChanged={onChanged} />}
           {tab === "length" && <SessionLengthEditor schedule={schedule} onChanged={onChanged} />}
         </div>
       )}
@@ -110,7 +94,7 @@ function TimeSelect({ value, onChange, label }: { value: string; onChange: (v: s
 }
 
 function WorkingHoursEditor({ schedule, onChanged }: ScheduleSettingsProps) {
-  const { busy, run } = useScheduleAction(onChanged);
+  const { busy, run, conflictWarning } = useScheduleAction(onChanged);
   const [windows, setWindows] = useState(() =>
     schedule.availability.map((w) => ({
       weekday: w.weekday,
@@ -157,48 +141,52 @@ function WorkingHoursEditor({ schedule, onChanged }: ScheduleSettingsProps) {
         })}
       </div>
       {invalid && <p className="mt-2 text-xs text-rose-600">Each start time must be before its end time.</p>}
-      <p className="mt-2 text-xs text-slate-400">Changing hours does not move or cancel appointments already booked.</p>
+      <p className="mt-2 text-xs text-slate-400">
+        Changing hours does not move or cancel appointments already booked — you'll be warned if any would fall outside
+        the new hours.
+      </p>
       <button
-        onClick={() => run(() => appointmentsApi.setAvailability(windows), "Working hours saved")}
+        onClick={() => run((confirm) => appointmentsApi.setAvailability(windows, confirm), "Working hours saved")}
         disabled={busy || invalid}
         className={`mt-4 ${saveBtn}`}
       >
         <Save size={15} /> {busy ? "Saving…" : "Save working hours"}
       </button>
+      {conflictWarning}
     </div>
   );
 }
 
 function BlockedPeriodsEditor({ schedule, onChanged }: ScheduleSettingsProps) {
-  const { busy, run } = useScheduleAction(onChanged);
+  const { busy, run, conflictWarning } = useScheduleAction(onChanged);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [reason, setReason] = useState("");
 
   const invalid = !start || !end || start >= end;
 
-  const add = async () => {
-    const ok = await run(
-      () =>
+  const add = () =>
+    run(
+      (confirm) =>
         appointmentsApi.addUnavailable({
           start_at: manilaInputToIso(start),
           end_at: manilaInputToIso(end),
           reason: reason.trim() || undefined,
+          confirm,
         }),
       "Blocked period added",
+      () => {
+        setStart("");
+        setEnd("");
+        setReason("");
+      },
     );
-    if (ok) {
-      setStart("");
-      setEnd("");
-      setReason("");
-    }
-  };
 
   return (
     <div>
       <p className="mb-3 text-xs text-slate-400">
         Block leave, holidays or meetings so no appointment can be booked then. Appointments already booked in that
-        period are not cancelled automatically.
+        period are not cancelled automatically — you'll see them listed before the period is saved.
       </p>
       {schedule.unavailable.length === 0 ? (
         <p className="mb-4 text-sm text-slate-400">No upcoming blocked periods.</p>
@@ -244,51 +232,11 @@ function BlockedPeriodsEditor({ schedule, onChanged }: ScheduleSettingsProps) {
             />
           </div>
         </div>
-        <button onClick={add} disabled={busy || invalid} className={`${saveBtn} justify-center`}>
+        <button onClick={() => void add()} disabled={busy || invalid} className={`${saveBtn} justify-center`}>
           <Plus size={15} /> Block
         </button>
       </div>
-    </div>
-  );
-}
-
-function formatMinutes(minutes: number): string {
-  if (minutes < 60) return `${minutes} minutes`;
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return `${hours} hour${hours > 1 ? "s" : ""}${rest ? ` ${rest} min` : ""}`;
-}
-
-function SessionLengthEditor({ schedule, onChanged }: ScheduleSettingsProps) {
-  const { busy, run } = useScheduleAction(onChanged);
-  const saved = schedule.settings.slot_minutes;
-  const [minutes, setMinutes] = useState(saved);
-  const choices: number[] = SESSION_LENGTHS.includes(saved as (typeof SESSION_LENGTHS)[number])
-    ? [...SESSION_LENGTHS]
-    : [...SESSION_LENGTHS, saved].sort((a, b) => a - b);
-
-  return (
-    <div>
-      <label className="block max-w-xs text-sm text-slate-600">
-        Session length
-        <select value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} className={`${inputClass} mt-1 w-full`}>
-          {choices.map((m) => (
-            <option key={m} value={m}>
-              {formatMinutes(m)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p className="mt-1 text-xs text-slate-400">
-        Working hours are divided into slots of this length. Existing appointments keep their length.
-      </p>
-      <button
-        onClick={() => run(() => appointmentsApi.updateSettings({ slot_minutes: minutes }), "Session length saved")}
-        disabled={busy || minutes === saved}
-        className={`mt-4 ${saveBtn}`}
-      >
-        <Save size={15} /> {busy ? "Saving…" : "Save"}
-      </button>
+      {conflictWarning}
     </div>
   );
 }

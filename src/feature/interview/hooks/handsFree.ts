@@ -27,6 +27,20 @@ export const QUESTION_TIMING: TurnTiming = {
   afterAnswer: "confirm",
 };
 
+// "More time to think" (comfort option): people pause longer when something is
+// hard to say, so wait 7 s before the notice and give a longer countdown.
+export const RELAXED_QUESTION_TIMING: TurnTiming = {
+  ...QUESTION_TIMING,
+  answeredSilenceMs: 7000,
+  noAnswerSilenceMs: 25000,
+  confirmTimeoutMs: 5000,
+};
+
+/** Timing for the formal questions, with or without "More time to think". */
+export function questionTiming(moreTime: boolean): TurnTiming {
+  return moreTime ? RELAXED_QUESTION_TIMING : QUESTION_TIMING;
+}
+
 export const WARMUP_TIMING: TurnTiming = {
   answeredSilenceMs: 2500,
   noAnswerSilenceMs: 20000,

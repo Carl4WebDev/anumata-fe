@@ -26,6 +26,14 @@ export function formatDateTime(iso: string): string {
   });
 }
 
+/** 30 → "30 min", 90 → "1 hr 30 min", 120 → "2 hr" */
+export function formatMinutes(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return `${hours} hr${rest ? ` ${rest} min` : ""}`;
+}
+
 export function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-US", { timeZone: TIME_ZONE, hour: "numeric", minute: "2-digit" });
 }
@@ -58,6 +66,20 @@ export function manilaInputToIso(value: string): string {
 /** Completed / no-show can only be recorded once the appointment has started. */
 export function hasStarted(appt: Pick<Appointment, "start_at">, now: Date = new Date()): boolean {
   return new Date(appt.start_at).getTime() <= now.getTime();
+}
+
+/** How long after completed / no-show / cancelled it can still be undone (matches the server). */
+export const UNDO_WINDOW_MINUTES = 15;
+
+/**
+ * Milliseconds left to undo a closed appointment's outcome; 0 when it is
+ * scheduled or too late. A closed appointment is never edited, so its
+ * updated_at is when it was closed.
+ */
+export function undoTimeLeft(appt: Pick<Appointment, "status" | "updated_at">, now: Date = new Date()): number {
+  if (appt.status === "scheduled") return 0;
+  const left = Date.parse(appt.updated_at) + UNDO_WINDOW_MINUTES * 60000 - now.getTime();
+  return Number.isNaN(left) ? 0 : Math.max(0, left);
 }
 
 export interface AppointmentGroups {

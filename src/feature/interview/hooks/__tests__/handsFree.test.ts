@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { decideTurn, QUESTION_TIMING, WARMUP_TIMING, type TurnClock } from "../handsFree";
+import { decideTurn, questionTiming, QUESTION_TIMING, RELAXED_QUESTION_TIMING, WARMUP_TIMING, type TurnClock } from "../handsFree";
 
 const base: TurnClock = {
   now: 0,
@@ -45,5 +45,15 @@ describe("decideTurn — warm-up questions", () => {
 
   test("still nudges a silent patient", () => {
     expect(decideTurn({ ...base, now: 20000 }, WARMUP_TIMING)).toBe("ask_confirm");
+  });
+});
+
+describe("more time to think", () => {
+  test("waits 7 s after an answer instead of 3 s", () => {
+    const clock: TurnClock = { now: 0, silenceSince: 0, hasAnswer: true, voiceActive: false, pendingTranscripts: 0, confirmAskedAt: null };
+    expect(questionTiming(true)).toBe(RELAXED_QUESTION_TIMING);
+    expect(questionTiming(false)).toBe(QUESTION_TIMING);
+    expect(decideTurn({ ...clock, now: 3000 }, RELAXED_QUESTION_TIMING)).toBe("wait");
+    expect(decideTurn({ ...clock, now: 7000 }, RELAXED_QUESTION_TIMING)).toBe("ask_confirm");
   });
 });

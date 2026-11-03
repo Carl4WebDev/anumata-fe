@@ -5,6 +5,7 @@ import {
   emotionApi,
   StagedFilesMissingError,
   type AnalysisStatus,
+  type InterviewExtras,
 } from "../../../shared/api/emotionApi";
 import { getFiles, deleteFiles } from "../../../shared/utils/fileStorage";
 import { clearStagedNames, splitStaged } from "../../../shared/utils/earlyUpload";
@@ -27,6 +28,20 @@ function readAnsweredQuestions(token: string | undefined): string[] {
     return Array.isArray(responses) ? responses.map((r: { question?: unknown }) => String(r?.question ?? "")) : [];
   } catch {
     return [];
+  }
+}
+
+/** The mood check and follow-ups asked, saved by the interview room, to send with the recordings. */
+function readExtras(token: string): InterviewExtras {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(`amumata_result_${token}`) ?? "{}");
+    return {
+      selfReport: saved.selfReport ?? null,
+      followUpsAsked: Array.isArray(saved.followUpsAsked) ? saved.followUpsAsked : [],
+      feelingsTapped: saved.feelingsTapped && typeof saved.feelingsTapped === "object" ? saved.feelingsTapped : {},
+    };
+  } catch {
+    return {};
   }
 }
 
@@ -127,11 +142,12 @@ export default function ProcessingPage() {
         });
         // Answers sent early during the interview don't need uploading again.
         const { staged, toUpload } = splitStaged(token, files);
-        return emotionApi.startAnalysis(token, toUpload, staged).catch((err: unknown) => {
+        const extras = readExtras(token);
+        return emotionApi.startAnalysis(token, toUpload, staged, extras).catch((err: unknown) => {
           if (!(err instanceof StagedFilesMissingError)) throw err;
           // The server lost them (e.g. it restarted): send everything.
           clearStagedNames(token);
-          return emotionApi.startAnalysis(token, files);
+          return emotionApi.startAnalysis(token, files, [], extras);
         });
       })
       .then(() => {

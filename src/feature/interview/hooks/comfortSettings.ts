@@ -1,9 +1,10 @@
 import { useCallback, useState } from "react";
 
 /**
- * Patient comfort options: larger text and a slower voice (e.g. for older
- * patients). Remembered in this browser only; if storage is blocked (private
- * mode) the choice simply lasts for this visit.
+ * Patient comfort options: larger text, a slower voice (e.g. for older
+ * patients), more time to think, and hiding their own video. Remembered in
+ * this browser only; if storage is blocked (private mode) the choice simply
+ * lasts for this visit.
  */
 
 export const NORMAL_VOICE_RATE = 0.9;
@@ -14,14 +15,23 @@ const STORAGE_KEY = "amumata_comfort";
 interface ComfortChoice {
   largeText: boolean;
   slowVoice: boolean;
+  /** Hide the patient's own camera preview (recording carries on). */
+  hideSelfView: boolean;
+  /** Wait longer in silence before moving on to the next question. */
+  moreTime: boolean;
 }
 
-const DEFAULTS: ComfortChoice = { largeText: false, slowVoice: false };
+const DEFAULTS: ComfortChoice = { largeText: false, slowVoice: false, hideSelfView: false, moreTime: false };
 
 function load(): ComfortChoice {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
-    return { largeText: saved?.largeText === true, slowVoice: saved?.slowVoice === true };
+    return {
+      largeText: saved?.largeText === true,
+      slowVoice: saved?.slowVoice === true,
+      hideSelfView: saved?.hideSelfView === true,
+      moreTime: saved?.moreTime === true,
+    };
   } catch {
     return DEFAULTS;
   }
@@ -51,5 +61,7 @@ export function useComfortSettings() {
     voiceRate: choice.slowVoice ? SLOW_VOICE_RATE : NORMAL_VOICE_RATE,
     toggleLargeText: useCallback(() => toggle("largeText"), [toggle]),
     toggleSlowVoice: useCallback(() => toggle("slowVoice"), [toggle]),
+    toggleSelfView: useCallback(() => toggle("hideSelfView"), [toggle]),
+    toggleMoreTime: useCallback(() => toggle("moreTime"), [toggle]),
   };
 }

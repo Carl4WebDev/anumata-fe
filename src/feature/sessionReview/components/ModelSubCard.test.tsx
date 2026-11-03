@@ -89,3 +89,47 @@ describe("ModelSubCard — emotion cues", () => {
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 });
+
+describe("ModelSubCard — measured in this answer (face and words)", () => {
+  test("face card shows what the photos showed, compared with the patient's usual", () => {
+    render(
+      <ModelSubCard
+        evidence={evidence({
+          emotion: "Sad",
+          faceMeasures: {
+            frames: { analysed: 5, face_found: 4, counts: { Sad: 3, Neutral: 1 }, changes: 2 },
+            percent: 59,
+            usualPercent: 30,
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText("Photos checked").nextSibling).toHaveTextContent("5, face found in 4");
+    expect(screen.getByText("Seen most").nextSibling).toHaveTextContent("Sad in 3 of 4 photos");
+    expect(screen.getByText("Expression changes").nextSibling).toHaveTextContent("2 times");
+    expect(screen.getByText("Sad likelihood").nextSibling).toHaveTextContent("59% +29 pts vs usual");
+  });
+
+  test("older sessions without frame data still show the likelihood", () => {
+    render(<ModelSubCard evidence={evidence({ emotion: "Sad", faceMeasures: { frames: null, percent: 59, usualPercent: null } })} />);
+    expect(screen.queryByText("Photos checked")).not.toBeInTheDocument();
+    expect(screen.getByText("Sad likelihood").nextSibling).toHaveTextContent("59%");
+  });
+
+  test("words card shows the words, language and likelihood", () => {
+    render(
+      <ModelSubCard
+        evidence={evidence({
+          model: "LER",
+          emotion: "Happy",
+          languageDetected: "Bisaya",
+          wordMeasures: { wordCount: 12, percent: 95, usualPercent: 60 },
+        })}
+      />,
+    );
+    expect(screen.getByText("Words spoken").nextSibling).toHaveTextContent("12");
+    expect(screen.getByText("Language").nextSibling).toHaveTextContent("Bisaya");
+    expect(screen.getByText("Happy likelihood").nextSibling).toHaveTextContent("95% +35 pts vs usual");
+    expect(screen.getByText("Experimental — Not Included in Fusion")).toBeInTheDocument();
+  });
+});

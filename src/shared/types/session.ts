@@ -1,3 +1,5 @@
+import type { FaceFrames } from '../api/sessionsApi';
+
 export type Emotion = 'Angry' | 'Happy' | 'Neutral' | 'Sad';
 
 export interface FacialDetails {
@@ -109,6 +111,8 @@ export interface MappedSession {
   duration: string;
   riskLevel: string;
   indicators: string[];
+  /** The faces the patient tapped before / after the interview (1 = very bad … 5 = very good). */
+  selfReport: { mood_before: number | null; mood_after: number | null } | null;
   emotions: Record<string, number>;
   spikes: {
     questionIndex: number;
@@ -142,6 +146,11 @@ export interface MappedSession {
     audio_duration: number | null;
     rms_level: number | null;
     is_silence: boolean | null;
+    face_frames: FaceFrames | null;
+    /** The follow-up asked after a short answer (its reply is part of the answer), or null. */
+    follow_up_asked: string | null;
+    /** Feeling words the patient tapped during this question (their own report). */
+    feelings_tapped: string[];
     frame_image: string | null;
     evidence_frames: {
       frame_image: string;

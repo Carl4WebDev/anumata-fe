@@ -79,6 +79,19 @@ export interface TranscriptEntry {
   audio_duration?: number;
   rms_level?: number;
   is_silence?: boolean;
+  face_frames?: FaceFrames | null;
+  /** The therapist's follow-up, when it was asked after this question's (short) answer. */
+  follow_up_asked?: string;
+  /** Feeling words the patient tapped during this question. */
+  feelings_tapped?: string[];
+}
+
+/** What the AI read across every frame of one answer (sessions analysed after this was added). */
+export interface FaceFrames {
+  analysed: number;
+  face_found: number;
+  counts: Record<string, number>;
+  changes: number;
 }
 
 export interface SessionData {
@@ -89,7 +102,16 @@ export interface SessionData {
   therapist_id: number;
   template_name: string;
   transcript: TranscriptEntry[];
-  emotion_summary: { distribution?: Record<string, number>; indicators?: string[]; happy?: number; sad?: number; angry?: number; neutral?: number };
+  emotion_summary: {
+    distribution?: Record<string, number>;
+    indicators?: string[];
+    /** The faces the patient tapped before / after the interview (1–5). */
+    self_report?: { mood_before: number | null; mood_after: number | null };
+    happy?: number;
+    sad?: number;
+    angry?: number;
+    neutral?: number;
+  };
   risk_level: string;
   emotional_spikes: {
     questionIndex?: number;

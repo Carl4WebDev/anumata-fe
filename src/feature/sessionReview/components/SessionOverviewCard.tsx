@@ -1,5 +1,6 @@
-import { Activity, Shield, BarChart3, AlertTriangle, FileText, CheckCircle, XCircle } from "lucide-react";
+import { Activity, Shield, BarChart3, AlertTriangle, FileText, CheckCircle, XCircle, Smile, ArrowRight } from "lucide-react";
 import EmotionTag from "../../../shared/components/EmotionTag";
+import { MOOD_SCALE } from "../../interview/hooks/moodCheck";
 import ConfidenceBadge from "../../../shared/components/ConfidenceBadge";
 import type { SessionOverviewData } from "../hooks/useSessionComputed";
 
@@ -11,6 +12,46 @@ const RISK_STYLES: Record<string, string> = {
 
 interface SessionOverviewCardProps {
   data: SessionOverviewData;
+}
+
+function MoodFace({ value }: { value: number | null }) {
+  const mood = MOOD_SCALE.find((m) => m.value === value);
+  if (!mood) return <span className="text-xs text-slate-400">Skipped</span>;
+  return (
+    <span className="inline-flex items-center gap-1 text-sm text-slate-800">
+      <span aria-hidden="true">{mood.face}</span>
+      {mood.label.en}
+    </span>
+  );
+}
+
+/** "Before 🙁 Not good → After 🙂 Good · better": the patient's self-report, next to what the AI read. */
+function SelfReportMood({ report }: { report: NonNullable<SessionOverviewData["selfReport"]> }) {
+  const { mood_before: before, mood_after: after } = report;
+  const change =
+    before !== null && after !== null
+      ? after > before
+        ? { text: "felt better after", className: "text-green-700" }
+        : after < before
+          ? { text: "felt worse after", className: "text-amber-700" }
+          : { text: "no change", className: "text-slate-500" }
+      : null;
+  return (
+    <div className="space-y-1 md:col-span-2">
+      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+        <Smile size={12} />
+        <span>Patient's own mood</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] text-slate-500">Before</span>
+        <MoodFace value={before} />
+        <ArrowRight size={12} className="text-slate-400" />
+        <span className="text-[11px] text-slate-500">After</span>
+        <MoodFace value={after} />
+      </div>
+      {change && <p className={`text-[11px] font-medium ${change.className}`}>{change.text}</p>}
+    </div>
+  );
 }
 
 export default function SessionOverviewCard({ data }: SessionOverviewCardProps) {
@@ -75,6 +116,9 @@ export default function SessionOverviewCard({ data }: SessionOverviewCardProps) 
             </ul>
           )}
         </div>
+
+        {/* The patient's own mood, tapped before and after */}
+        {data.selfReport && <SelfReportMood report={data.selfReport} />}
 
         {/* Highest Spike */}
         <div className="space-y-1">

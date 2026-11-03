@@ -74,6 +74,7 @@ function mapSession(s: SessionData): MappedSession {
     duration: s.duration || "N/A",
     riskLevel: s.risk_level ? s.risk_level.charAt(0).toUpperCase() + s.risk_level.slice(1) : "N/A",
     indicators: s.emotion_summary?.indicators ?? [],
+    selfReport: s.emotion_summary?.self_report ?? null,
     emotions: {
       sad: dist.Sad ?? dist.sad ?? 0,
       happy: dist.Happy ?? dist.happy ?? 0,
@@ -110,6 +111,9 @@ function mapSession(s: SessionData): MappedSession {
       audio_duration: t.audio_duration ?? null,
       rms_level: t.rms_level ?? null,
       is_silence: t.is_silence ?? null,
+      face_frames: t.face_frames ?? null,
+      follow_up_asked: t.follow_up_asked ?? null,
+      feelings_tapped: Array.isArray(t.feelings_tapped) ? t.feelings_tapped : [],
       frame_image: t.frame_image ?? null,
       evidence_frames: t.evidence_frames ?? null,
     })),

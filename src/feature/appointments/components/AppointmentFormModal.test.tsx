@@ -3,10 +3,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import AppointmentFormModal from "./AppointmentFormModal";
-import { appointmentsApi, type Appointment } from "../../../shared/api/appointmentsApi";
+import { appointmentsApi, type Appointment, type Schedule } from "../../../shared/api/appointmentsApi";
+import { ApiError } from "../../../shared/api/httpClient";
 
 vi.mock("../../../shared/api/appointmentsApi", () => ({
-  appointmentsApi: { freeSlots: vi.fn(), book: vi.fn(), update: vi.fn() },
+  appointmentsApi: { freeSlots: vi.fn(), book: vi.fn(), update: vi.fn(), getSchedule: vi.fn() },
 }));
 
 const addPatient = vi.fn();
@@ -35,7 +36,8 @@ function renderModal(mode: Parameters<typeof AppointmentFormModal>[0]["mode"], o
 
 beforeEach(() => {
   vi.clearAllMocks();
-  api.freeSlots.mockResolvedValue({ date: "2026-11-02", slot_minutes: 60, slots: [SLOT_9, SLOT_10] });
+  api.freeSlots.mockResolvedValue({ date: "2026-11-02", slot_minutes: 60, break_minutes: 0, slots: [SLOT_9, SLOT_10] });
+  api.getSchedule.mockResolvedValue({ session_types: [] } as unknown as Schedule);
 });
 
 describe("AppointmentFormModal — booking", () => {
@@ -76,7 +78,7 @@ describe("AppointmentFormModal — booking", () => {
   });
 
   test("explains an empty day", async () => {
-    api.freeSlots.mockResolvedValue({ date: "2026-11-02", slot_minutes: 60, slots: [] });
+    api.freeSlots.mockResolvedValue({ date: "2026-11-02", slot_minutes: 60, break_minutes: 0, slots: [] });
     renderModal({ kind: "book" });
     expect(await screen.findByText(/No free times on this day/)).toBeInTheDocument();
   });
@@ -161,6 +163,40 @@ describe("AppointmentFormModal — new patient", () => {
   });
 });
 
+describe("AppointmentFormModal — session types", () => {
+  const types = [
+    { session_type_id: 7, name: "Consultation", duration_minutes: 30 },
+    { session_type_id: 8, name: "Initial assessment", duration_minutes: 90 },
+  ];
+
+  test("choosing a type fetches free times for its length and books with it", async () => {
+    const user = userEvent.setup();
+    api.getSchedule.mockResolvedValue({ session_types: types } as unknown as Schedule);
+    api.book.mockResolvedValue({} as Appointment);
+    const onSaved = renderModal({ kind: "book" });
+
+    await user.selectOptions(screen.getByLabelText("Patient"), "9");
+    const typeSelect = await screen.findByLabelText("Session type");
+    expect(typeSelect).toHaveTextContent("Initial assessment · 1 hr 30 min");
+
+    api.freeSlots.mockResolvedValue({ date: "2026-11-02", slot_minutes: 90, break_minutes: 0, slots: [SLOT_9] });
+    await user.selectOptions(typeSelect, "8");
+    expect(api.freeSlots).toHaveBeenLastCalledWith("2026-11-02", undefined, 8);
+    expect(await screen.findByText(/1 hr 30 min each/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /9:00\s?AM/ }));
+    await user.click(screen.getByRole("button", { name: "Book appointment" }));
+    expect(api.book).toHaveBeenCalledWith({ patient_id: 9, start_at: SLOT_9, session_type_id: 8 });
+    expect(onSaved).toHaveBeenCalledWith("Appointment booked");
+  });
+
+  test("with no session types there is no type choice", async () => {
+    renderModal({ kind: "book" });
+    await screen.findByRole("button", { name: /9:00\s?AM/ });
+    expect(screen.queryByLabelText("Session type")).not.toBeInTheDocument();
+  });
+});
+
 describe("AppointmentFormModal — booking from a follow-up", () => {
   test("pre-fills patient, recommended day and note, and links the follow-up", async () => {
     const user = userEvent.setup();
@@ -174,7 +210,7 @@ describe("AppointmentFormModal — booking from a follow-up", () => {
 
     expect(screen.getByText("MARIA SANTOS")).toBeInTheDocument();
     expect(screen.queryByLabelText("Patient")).not.toBeInTheDocument(); // patient is fixed
-    expect(api.freeSlots).toHaveBeenCalledWith("2026-11-02", undefined);
+    expect(api.freeSlots).toHaveBeenCalledWith("2026-11-02", undefined, undefined);
     expect(screen.getByDisplayValue("Check sleep")).toBeInTheDocument();
 
     await user.click(await screen.findByRole("button", { name: /9:00\s?AM/ }));
@@ -200,7 +236,7 @@ describe("AppointmentFormModal — editing", () => {
     api.update.mockResolvedValue(appt);
     const onSaved = renderModal({ kind: "edit", appt });
 
-    expect(api.freeSlots).toHaveBeenCalledWith("2026-11-02", 5);
+    expect(api.freeSlots).toHaveBeenCalledWith("2026-11-02", 5, undefined);
     expect(await screen.findByText("(current)")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /10:00\s?AM/ }));
     await user.click(screen.getByRole("button", { name: "Save changes" }));
@@ -218,5 +254,58 @@ describe("AppointmentFormModal — editing", () => {
     await user.type(reason, "Sleep follow-up");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     expect(api.update).toHaveBeenCalledWith(5, { reason: "Sleep follow-up" });
+  });
+});
+
+describe("AppointmentFormModal — recurring series", () => {
+  test("weekly for 4 sessions: sends the series, shows a summary, and reports how many were booked", async () => {
+    const user = userEvent.setup();
+    api.book.mockResolvedValue({ appointments: [{}, {}, {}, {}] as Appointment[], skipped: [] });
+    const onSaved = renderModal({ kind: "book" });
+
+    await user.selectOptions(screen.getByLabelText("Patient"), "9");
+    await user.click(await screen.findByRole("button", { name: /9:00\s?AM/ }));
+    await user.selectOptions(screen.getByLabelText("Repeat"), "1");
+    await user.selectOptions(screen.getByLabelText("Number of sessions"), "4");
+    expect(screen.getByText(/4 sessions, Mondays at 9:00\s?AM, until Monday, November 23/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Book 4 sessions" }));
+    expect(api.book).toHaveBeenCalledWith({
+      patient_id: 9,
+      start_at: SLOT_9,
+      repeat: { every_weeks: 1, count: 4 },
+      skip_unavailable: false,
+    });
+    expect(onSaved).toHaveBeenCalledWith("4 sessions booked");
+  });
+
+  test("some dates taken: lists them, and 'Book the other …' books the rest", async () => {
+    const user = userEvent.setup();
+    const taken = "2026-11-16T01:00:00.000Z";
+    api.book
+      .mockRejectedValueOnce(new ApiError("1 of the 4 dates isn't free.", 409, "RECURRENCE_CONFLICT", { unavailable: [taken], available_count: 3 }))
+      .mockResolvedValueOnce({ appointments: [{}, {}, {}] as Appointment[], skipped: [taken] });
+    const onSaved = renderModal({ kind: "book" });
+
+    await user.selectOptions(screen.getByLabelText("Patient"), "9");
+    await user.click(await screen.findByRole("button", { name: /9:00\s?AM/ }));
+    await user.selectOptions(screen.getByLabelText("Repeat"), "1");
+    await user.selectOptions(screen.getByLabelText("Number of sessions"), "4");
+    await user.click(screen.getByRole("button", { name: "Book 4 sessions" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("1 of the 4 dates isn't free.");
+    expect(alert).toHaveTextContent(/Monday, November 16/);
+    expect(onSaved).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /Book the other 3, skip this one/ }));
+    expect(api.book).toHaveBeenLastCalledWith(expect.objectContaining({ skip_unavailable: true, repeat: { every_weeks: 1, count: 4 } }));
+    expect(onSaved).toHaveBeenCalledWith("3 sessions booked (1 skipped)");
+  });
+
+  test("editing an appointment offers no repeat option", async () => {
+    renderModal({ kind: "edit", appt: { appointment_id: 1, patient_id: 9, patient_name: "MARIA SANTOS", start_at: SLOT_9, end_at: SLOT_10, status: "scheduled", reason: null } as Appointment });
+    await screen.findByRole("button", { name: /9:00\s?AM/ });
+    expect(screen.queryByLabelText("Repeat")).not.toBeInTheDocument();
   });
 });

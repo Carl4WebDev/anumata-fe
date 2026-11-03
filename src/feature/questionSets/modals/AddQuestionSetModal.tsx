@@ -1,53 +1,37 @@
 import { useState } from "react";
-import { X, Plus, Trash2 } from "lucide-react";
+import { X } from "lucide-react";
+import QuestionRows from "./QuestionRows";
+import { MIN_QUESTIONS, emptyQuestions, toQuestionSetData, type DraftQuestion } from "./questionDrafts";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { name: string; description: string; questions: string[] }) => void;
+  onSave: (data: { name: string; description: string; questions: string[]; followUps: string[] }) => void;
 }
 
 export default function AddQuestionSetModal({ isOpen, onClose, onSave }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [questions, setQuestions] = useState(["", "", "", "", "", ""]);
+  const [questions, setQuestions] = useState<DraftQuestion[]>(() => emptyQuestions(6));
   const [error, setError] = useState("");
 
   if (!isOpen) return null;
-
-  const updateQuestion = (index: number, value: string) => {
-    const updated = [...questions];
-    updated[index] = value;
-    setQuestions(updated);
-  };
-
-  const addQuestionField = () => {
-    if (questions.length < 10) {
-      setQuestions([...questions, ""]);
-    }
-  };
-
-  const removeQuestionField = (index: number) => {
-    if (questions.length > 3) {
-      setQuestions(questions.filter((_, i) => i !== index));
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    const filled = questions.filter((q) => q.trim());
+    const data = toQuestionSetData(questions);
     if (!name.trim()) {
       setError("Template name is required");
       return;
     }
-    if (filled.length < 3) {
-      setError("At least 3 questions are required");
+    if (data.questions.length < MIN_QUESTIONS) {
+      setError(`At least ${MIN_QUESTIONS} questions are required`);
       return;
     }
 
-    onSave({ name: name.trim(), description: description.trim(), questions: filled });
+    onSave({ name: name.trim(), description: description.trim(), ...data });
     resetForm();
     onClose();
   };
@@ -55,7 +39,7 @@ export default function AddQuestionSetModal({ isOpen, onClose, onSave }: Props) 
   const resetForm = () => {
     setName("");
     setDescription("");
-    setQuestions(["", "", "", "", "", ""]);
+    setQuestions(emptyQuestions(6));
     setError("");
   };
 
@@ -97,44 +81,7 @@ export default function AddQuestionSetModal({ isOpen, onClose, onSave }: Props) 
             />
           </div>
 
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <label className="text-sm font-medium text-slate-700">Questions</label>
-              <button
-                type="button"
-                onClick={addQuestionField}
-                disabled={questions.length >= 10}
-                className="flex items-center gap-1 text-xs font-medium text-teal-600 hover:underline disabled:opacity-40"
-              >
-                <Plus size={14} />
-                Add Question
-              </button>
-            </div>
-            <div className="space-y-2">
-              {questions.map((q, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="w-6 shrink-0 text-right text-xs text-slate-400">{i + 1}.</span>
-                  <input
-                    type="text"
-                    value={q}
-                    onChange={(e) => updateQuestion(i, e.target.value)}
-                    placeholder={`Question ${i + 1}`}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-                  />
-                  {questions.length > 3 && (
-                    <button
-                      type="button"
-                      onClick={() => removeQuestionField(i)}
-                      className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-slate-400">Minimum 3, maximum 10 questions.</p>
-          </div>
+          <QuestionRows questions={questions} onChange={setQuestions} />
 
           {error && <p className="text-center text-sm text-red-600">{error}</p>}
 

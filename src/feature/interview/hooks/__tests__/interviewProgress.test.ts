@@ -53,3 +53,13 @@ describe("interview progress", () => {
     expect(loadProgress("tok", 2_000)).toBeNull();
   });
 });
+
+describe("interview progress — mood before", () => {
+  test("keeps a valid mood and drops an invalid one", () => {
+    const base = { nextIndex: 1, answers: {}, lang: "en" as const, elapsed: 5, rapportResponses: [], crisis: false, savedAt: Date.now() };
+    saveProgress("t1", { ...base, moodBefore: 2 });
+    expect(loadProgress("t1")?.moodBefore).toBe(2);
+    saveProgress("t2", { ...base, moodBefore: 9 });
+    expect(loadProgress("t2")?.moodBefore).toBeUndefined();
+  });
+});

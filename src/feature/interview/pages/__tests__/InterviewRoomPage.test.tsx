@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, act, fireEvent } from "@testing-library/react";
+import { render, screen, act, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import InterviewRoom from "../InterviewRoomPage";
 import type { CaptionPhrase, CaptionActivity } from "../../hooks/useLiveCaptions";
@@ -56,18 +56,22 @@ vi.mock("../../hooks/useLiveCaptions", () => ({
   },
 }));
 
+// The interview link's questions (tests may give some a therapist follow-up).
+const DEFAULT_QUESTIONS = ["How have you been sleeping?", "What helps you relax?"];
+const link = { questions: DEFAULT_QUESTIONS as unknown[] };
 vi.mock("../../../../shared/api/interviewLinksApi", () => ({
   interviewLinksApi: {
     getByToken: () =>
       Promise.resolve({
         data: {
-          questions: ["How have you been sleeping?", "What helps you relax?"],
+          questions: link.questions,
           patient_name: "Maria",
           question_set_name: "Intake",
         },
       }),
   },
 }));
+vi.mock("../../../../shared/api/healthApi", () => ({ fetchSystemHealth: () => Promise.resolve({}) }));
 vi.mock("../../../../shared/api/translateApi", () => ({ translateQuestion: () => Promise.resolve(null) }));
 // The real face check runs MediaPipe (WASM), which jsdom can't: control its hint directly.
 const faceCheck = { hint: null as null | "no_face" | "too_far" | "too_dark", lastActive: false };
@@ -120,10 +124,19 @@ async function say(text: string) {
   await act(async () => mic.onPhrase?.({ turn: mic.turn, text, language: "en" }));
 }
 
+// Most tests aren't about the mood check: skip it whenever the faces appear (mood tests turn this off).
+const moodCheck = { autoSkip: true };
+
 async function wait(ms: number) {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms);
   });
+  if (moodCheck.autoSkip && screen.queryByRole("group", { name: "How are you feeling?" })) {
+    fireEvent.click(screen.getByRole("button", { name: /^(Skip|Laktawan)$/ }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+  }
 }
 
 function renderRoom() {
@@ -140,6 +153,8 @@ function renderRoom() {
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: false });
   spoken.length = 0;
+  link.questions = DEFAULT_QUESTIONS;
+  moodCheck.autoSkip = true;
   mic.turn = 0;
   mic.activity = { lastVoiceAt: null, voiceActive: false, pending: 0 };
   storeFiles.mockClear();
@@ -227,7 +242,7 @@ describe("InterviewRoom — hands-free voice flow", () => {
     await say("I want to kill myself");
     await wait(10);
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(screen.queryByText(/therapist/i)).not.toBeInTheDocument();
+    expect(within(screen.getByRole("alert")).queryByText(/therapist/i)).not.toBeInTheDocument();
   });
 
   test("face hints appear on the video in the patient's language, and pause during a break", async () => {
@@ -414,7 +429,9 @@ describe("InterviewRoom — hands-free voice flow", () => {
     await say("Music");
     await say("Tapos na");
     await wait(50);
-    expect(spoken).toContain("Maraming salamat, Maria. Ang galing mo. Sine-save ko na ang mga sagot mo.");
+    expect(spoken).toContain(
+      "Maraming salamat, Maria. Hindi madaling ibahagi ang nararamdaman mo. Sine-save ko na ang mga sagot mo. Pag-uusapan ninyo ito ng therapist mo.",
+    );
     expect(screen.getByText("Processing page")).toBeInTheDocument();
   });
 
@@ -573,5 +590,161 @@ describe("InterviewRoom — hands-free voice flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /Done — next question/ }));
     await wait(100);
     expect(screen.getByText("Question 2 of 2")).toBeInTheDocument();
+  });
+});
+
+describe("InterviewRoom — therapist follow-ups", () => {
+  const FOLLOW_UP = "What did that feel like for you?";
+
+  test("a short answer gets the follow-up once; the reply belongs to the same question", async () => {
+    link.questions = [{ text: "How have you been sleeping?", follow_up: FOLLOW_UP }, "What helps you relax?"];
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+
+    await say("Hindi masyado");
+    await wait(3500);
+    expect(spoken.filter((s) => s === FOLLOW_UP)).toHaveLength(1);
+    expect(screen.getByText(FOLLOW_UP)).toBeInTheDocument();
+    expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
+
+    // The reply to the follow-up, then the usual "moving on" — no second follow-up.
+    await say("Mabigat sa dibdib");
+    await wait(3500);
+    await wait(3500);
+    expect(spoken.filter((s) => s === FOLLOW_UP)).toHaveLength(1);
+    expect(screen.getByText("Question 2 of 2")).toBeInTheDocument();
+  });
+
+  test("a long answer is not asked for more", async () => {
+    link.questions = [{ text: "How have you been sleeping?", follow_up: FOLLOW_UP }, "What helps you relax?"];
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    await say(Array.from({ length: 45 }, () => "salita").join(" "));
+    await wait(3500);
+    await wait(3500);
+    expect(spoken).not.toContain(FOLLOW_UP);
+    expect(screen.getByText("Question 2 of 2")).toBeInTheDocument();
+  });
+
+  test("saying you're done skips the follow-up", async () => {
+    link.questions = [{ text: "How have you been sleeping?", follow_up: FOLLOW_UP }, "What helps you relax?"];
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    await say("Okay lang");
+    await say("Tapos na");
+    await wait(10);
+    expect(spoken).not.toContain(FOLLOW_UP);
+    expect(screen.getByText("Question 2 of 2")).toBeInTheDocument();
+  });
+});
+
+describe("InterviewRoom — mood check before and after", () => {
+  test("asks how the patient feels before the first question and after the last, and saves both", async () => {
+    moodCheck.autoSkip = false;
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+
+    // Before: asked in the patient's language, and the interview waits for a face.
+    expect(spoken).toContain("Bago tayo magsimula — ano ang pakiramdam mo ngayon? Pumili ng mukha.");
+    expect(screen.queryByText("Question 1 of 2")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Hindi maganda" }));
+    await wait(10);
+    expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
+
+    await say("Tapos na");
+    await wait(10);
+    await say("Tapos na");
+    await wait(10);
+
+    // After the last answer: asked again before the goodbye.
+    expect(spoken).toContain("At ngayong tapos na tayo — ano ang pakiramdam mo? Pumili ng mukha.");
+    fireEvent.click(screen.getByRole("button", { name: "Mabuti" }));
+    await wait(100);
+
+    const saved = JSON.parse(sessionStorage.getItem("amumata_result_tok") ?? "{}");
+    expect(saved.selfReport).toEqual({ mood_before: 2, mood_after: 4 });
+    expect(screen.getByText("Processing page")).toBeInTheDocument();
+  });
+
+  test("the patient can skip it", async () => {
+    moodCheck.autoSkip = false;
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    fireEvent.click(screen.getByRole("button", { name: "Laktawan" }));
+    await wait(10);
+    expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
+  });
+});
+
+describe("InterviewRoom — feeling at ease", () => {
+  test("before starting, Amumata says there are no wrong answers and only the therapist sees them", async () => {
+    await startAndWarmUp();
+    expect(spoken).toContain(
+      "Bago tayo magsimula: walang tama o maling sagot, at ang therapist mo lang ang makakakita nito. Magsalita ka hangga't gusto mo, sa kahit anong wika. Puwede mong sabihing “tapos na” para lumipat sa susunod na tanong, o humingi ng pahinga anumang oras.",
+    );
+  });
+
+  test("a calm recording label: no red light, no running clock", async () => {
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    expect(screen.getByText("Recording for your therapist")).toBeInTheDocument();
+    expect(screen.queryByText(/^\d\d:\d\d$/)).not.toBeInTheDocument();
+  });
+
+  test("'More time to think' waits longer before moving on, and the tip says so", async () => {
+    await startAndWarmUp();
+    fireEvent.click(screen.getByRole("button", { name: "More time to think" }));
+    await say("Oo");
+    await wait(10);
+    expect(screen.getByText(/Huminto ng 7 segundo/)).toBeInTheDocument();
+
+    await say("Hindi masyado");
+    await wait(3500);
+    expect(screen.queryByRole("timer")).not.toBeInTheDocument(); // 3 s would already have shown "moving on"
+    await wait(4000);
+    expect(screen.getByRole("timer")).toBeInTheDocument();
+  });
+});
+
+describe("InterviewRoom — feeling words", () => {
+  test("tapped words are kept per question and saved with the interview", async () => {
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+
+    // Question 1: two words, in the patient's language (Tagalog).
+    fireEvent.click(screen.getByRole("button", { name: /Nag-aalala/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Pagod/ }));
+    expect(screen.getByText("Salamat. Kung kaya mo, ikuwento mo nang kaunti.")).toBeInTheDocument();
+    await say("Tapos na");
+    await wait(10);
+
+    // Question 2 starts with nothing selected.
+    expect(screen.getByRole("button", { name: /Nag-aalala/ })).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(screen.getByRole("button", { name: /May pag-asa/ }));
+    await say("Tapos na");
+    await wait(100);
+
+    const saved = JSON.parse(sessionStorage.getItem("amumata_result_tok") ?? "{}");
+    expect(saved.feelingsTapped).toEqual({ 0: ["worried", "tired"], 1: ["hopeful"] });
+  });
+
+  test("tapping during the 'moving on' countdown keeps the question open", async () => {
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    await say("Hindi ko alam");
+    await wait(3500);
+    expect(screen.getByRole("timer")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Malungkot/ }));
+    await wait(10);
+    expect(screen.queryByRole("timer")).not.toBeInTheDocument();
+    expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
   });
 });

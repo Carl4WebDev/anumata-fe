@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Shield, Camera, Mic, FileText, AlertTriangle, Captions } from "lucide-react";
 import { browserCaptionsAllowed } from "../hooks/browserSpeech";
 import { interviewLinksApi } from "../../../shared/api/interviewLinksApi";
+import { useKeepAiAwake } from "../../../shared/hooks/useKeepAiAwake";
 
 /** "12 questions" / "1 question" / "a few questions" (count unknown). */
 function questionCountText(count: number | null): string {
@@ -17,6 +18,8 @@ export default function ConsentPage() {
   const [error, setError] = useState("");
   const [questionCount, setQuestionCount] = useState<number | null>(null);
   const usesBrowserCaptions = browserCaptionsAllowed();
+  // Start waking the AI now, so it's ready by the time the interview ends.
+  useKeepAiAwake();
 
   // How many questions this interview has (general wording until / unless known).
   useEffect(() => {

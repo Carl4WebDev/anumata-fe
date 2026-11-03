@@ -54,6 +54,9 @@ export const FOLLOW_UP_REASONS = [
 
 export const SESSION_LENGTHS = [15, 20, 30, 45, 50, 60, 75, 90, 120] as const;
 
+/** Break kept free after every session, in minutes. */
+export const BREAK_LENGTHS = [0, 5, 10, 15, 20, 30] as const;
+
 /** "HH:MM" times from `from` to `to` (inclusive) every `stepMinutes`. */
 export function timeOptions(from = "06:00", to = "22:00", stepMinutes = 30): string[] {
   const toMinutes = (t: string) => {

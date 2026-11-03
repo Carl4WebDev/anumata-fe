@@ -4,6 +4,8 @@ import ConfidenceBadge from "../../../shared/components/ConfidenceBadge";
 import EmotionTag from "../../../shared/components/EmotionTag";
 import EmotionCues from "../../../shared/components/EmotionCues";
 import VoiceMeasurements from "./VoiceMeasurements";
+import FaceMeasurements from "./FaceMeasurements";
+import WordMeasurements from "./WordMeasurements";
 import { hasVoiceMeasurements } from "../utils/voiceMeasurements";
 import type { ModelEvidence } from "../hooks/useSessionComputed";
 
@@ -50,6 +52,12 @@ export default function ModelSubCard({ evidence }: ModelSubCardProps) {
       {evidence.model === "SER" && hasVoiceMeasurements(evidence.details) && (
         <VoiceMeasurements details={evidence.details} />
       )}
+      {evidence.model === "FER" && evidence.emotion && evidence.faceMeasures && (
+        <FaceMeasurements emotion={evidence.emotion} measures={evidence.faceMeasures} />
+      )}
+      {evidence.model === "LER" && evidence.emotion && evidence.wordMeasures && (
+        <WordMeasurements emotion={evidence.emotion} language={evidence.languageDetected} measures={evidence.wordMeasures} />
+      )}
 
       {/* Details line */}
       {evidence.details &&
@@ -65,8 +73,8 @@ export default function ModelSubCard({ evidence }: ModelSubCardProps) {
       {evidence.model === "FER" && <EmotionCues emotion={evidence.emotion} kind="face" />}
       {evidence.model === "SER" && <EmotionCues emotion={evidence.emotion} kind="voice" />}
 
-      {/* Language detected for LER */}
-      {evidence.model === "LER" && evidence.languageDetected && (
+      {/* Language detected for LER (shown in the measured box when there is one) */}
+      {evidence.model === "LER" && evidence.languageDetected && !evidence.wordMeasures && (
         <p className="mt-1 text-[11px] text-slate-500">
           Language: <span className="font-medium">{evidence.languageDetected}</span>
         </p>

@@ -132,31 +132,63 @@ export function transitionLine({
   return ANSWER_ACKNOWLEDGMENTS[answeredIndex % ANSWER_ACKNOWLEDGMENTS.length][lang];
 }
 
-const CLOSING_LINES: Record<ResponseLanguage, { named: string; plain: string }> = {
+/** Thanks (acknowledging that it took courage), then what happens next — with the appointment date when there is one. */
+const CLOSING_LINES: Record<ResponseLanguage, { named: string; plain: string; next: string; nextOn: string }> = {
   en: {
-    named: "Thank you so much, {name}. You did really well. I'm saving your answers now.",
-    plain: "Thank you so much. You did really well. I'm saving your answers now.",
+    named: "Thank you so much, {name}. Sharing how you feel takes courage. I'm saving your answers now.",
+    plain: "Thank you so much. Sharing how you feel takes courage. I'm saving your answers now.",
+    next: "Your therapist will go over them with you.",
+    nextOn: "Your therapist will go over them with you on {date}.",
   },
   tl: {
-    named: "Maraming salamat, {name}. Ang galing mo. Sine-save ko na ang mga sagot mo.",
-    plain: "Maraming salamat. Ang galing mo. Sine-save ko na ang mga sagot mo.",
+    named: "Maraming salamat, {name}. Hindi madaling ibahagi ang nararamdaman mo. Sine-save ko na ang mga sagot mo.",
+    plain: "Maraming salamat. Hindi madaling ibahagi ang nararamdaman mo. Sine-save ko na ang mga sagot mo.",
+    next: "Pag-uusapan ninyo ito ng therapist mo.",
+    nextOn: "Pag-uusapan ninyo ito ng therapist mo sa {date}.",
   },
   ceb: {
-    named: "Daghang salamat, {name}. Maayo kaayo ang imong gibuhat. Gi-save na nako ang imong mga tubag.",
-    plain: "Daghang salamat. Maayo kaayo ang imong gibuhat. Gi-save na nako ang imong mga tubag.",
+    named: "Daghang salamat, {name}. Dili sayon ang pag-ambit sa imong gibati. Gi-save na nako ang imong mga tubag.",
+    plain: "Daghang salamat. Dili sayon ang pag-ambit sa imong gibati. Gi-save na nako ang imong mga tubag.",
+    next: "Hisgutan ninyo kini sa imong therapist.",
+    nextOn: "Hisgutan ninyo kini sa imong therapist sa {date}.",
   },
 };
 
-/** Amumata's goodbye after the last question. */
-export function closingLine(name: string, lang: ResponseLanguage): string {
-  const trimmed = name.trim();
-  const { named, plain } = CLOSING_LINES[lang];
-  return trimmed ? named.replace("{name}", trimmed) : plain;
+/** "Monday, November 16 at 9:00 AM" in Philippine time (the clinic's clock). */
+export function appointmentWhen(iso: string): string {
+  const d = new Date(iso);
+  const day = d.toLocaleDateString("en-US", { timeZone: "Asia/Manila", weekday: "long", month: "long", day: "numeric" });
+  const time = d.toLocaleTimeString("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" });
+  return `${day} at ${time}`;
 }
 
-/** Spoken hint shown under the captions, so patients know they can talk to Amumata. */
-export const VOICE_TIPS: Record<ResponseLanguage, string> = {
-  en: "Pause for 3 seconds when you're done · say “repeat” to hear the question again · “wait” for more time",
-  tl: "Huminto ng 3 segundo kapag tapos na · “ulitin” para marinig ulit · “teka” kung kailangan mo pa ng oras",
-  ceb: "Hunong og 3 segundos kung human na · “usba” aron madungog pag-usab · “kadali” kung kinahanglan pa nimo og oras",
+/** Amumata's goodbye after the last question, saying when the patient sees their therapist next (if booked). */
+export function closingLine(name: string, lang: ResponseLanguage, nextAppointmentAt?: string | null): string {
+  const trimmed = name.trim();
+  const { named, plain, next, nextOn } = CLOSING_LINES[lang];
+  const thanks = trimmed ? named.replace("{name}", trimmed) : plain;
+  const after = nextAppointmentAt ? nextOn.replace("{date}", appointmentWhen(nextAppointmentAt)) : next;
+  return `${thanks} ${after}`;
+}
+
+const VOICE_TIPS: Record<ResponseLanguage, string> = {
+  en: "Pause for {s} seconds when you're done · say “repeat” to hear the question again · “wait” for more time",
+  tl: "Huminto ng {s} segundo kapag tapos na · “ulitin” para marinig ulit · “teka” kung kailangan mo pa ng oras",
+  ceb: "Hunong og {s} segundos kung human na · “usba” aron madungog pag-usab · “kadali” kung kinahanglan pa nimo og oras",
+};
+
+/** Hint shown under the captions, so patients know they can talk to Amumata. `pauseSeconds` follows "More time to think". */
+export function voiceTips(lang: ResponseLanguage, pauseSeconds: number): string {
+  return VOICE_TIPS[lang].replace("{s}", String(pauseSeconds));
+}
+
+/**
+ * Said once before the interview starts: no right or wrong answers, who sees
+ * them, and that the patient can skip or rest. Feeling safe and in control is
+ * what helps people say how they really feel.
+ */
+export const REASSURANCE_LINE: LocalizedLine = {
+  en: "Before we start: there are no right or wrong answers, and only your therapist will see this. Say as much or as little as you like, in any language. You can say “next” to skip a question, or ask for a break anytime.",
+  tl: "Bago tayo magsimula: walang tama o maling sagot, at ang therapist mo lang ang makakakita nito. Magsalita ka hangga't gusto mo, sa kahit anong wika. Puwede mong sabihing “tapos na” para lumipat sa susunod na tanong, o humingi ng pahinga anumang oras.",
+  ceb: "Sa dili pa ta magsugod: walay sakto o sayop nga tubag, ug ang imong therapist ra ang makakita niini. Pagsulti kutob sa imong gusto, bisan unsang pinulongan. Pwede nimong isulti ang “sunod” aron molaktaw sa pangutana, o mangayo og pahulay bisan kanus-a.",
 };

@@ -6,6 +6,8 @@ import { useToast } from "../../../shared/context/ToastContext";
 import { fetchSystemHealth, type SystemHealth } from "../../../shared/api/healthApi";
 import Avatar from "../../../shared/components/Avatar";
 import AIModelGuide from "../components/AIModelGuide";
+import ModelEvaluation from "../components/ModelEvaluation";
+import SystemUpdates from "../components/SystemUpdates";
 import ChangePasswordModal from "../components/ChangePasswordModal";
 
 /** "starting" = the AI is waking up on Modal (it sleeps when unused). */
@@ -592,6 +594,16 @@ export default function SettingsPage() {
             </p>
           </div>
         </div>
+      </section>
+
+      {/* What changed recently */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+        <SystemUpdates />
+      </section>
+
+      {/* The models' real test-set results */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+        <ModelEvaluation />
       </section>
 
       {/* AI Model & Project Guide */}

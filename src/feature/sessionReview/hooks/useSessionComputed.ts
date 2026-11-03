@@ -3,6 +3,13 @@ import type { MappedSession } from "../../../shared/types/session";
 import type { AgreementResult } from "../../../shared/utils/agreementCalculator";
 import { calculateAgreement } from "../../../shared/utils/agreementCalculator";
 import { generateExplanation } from "../../../shared/utils/fusionExplanation";
+import {
+  countWords,
+  percentOf,
+  usualPercent,
+  type FaceMeasures,
+  type WordMeasures,
+} from "../utils/faceAndWordMeasurements";
 
 export interface ModelEvidence {
   model: "FER" | "SER" | "LER";
@@ -12,6 +19,9 @@ export interface ModelEvidence {
   probabilities: Record<string, number> | null;
   details: Record<string, unknown> | null;
   languageDetected?: string | null;
+  /** "Measured in this answer" numbers for the face (FER) and word (LER) cards. */
+  faceMeasures?: FaceMeasures;
+  wordMeasures?: WordMeasures;
 }
 
 export interface QuestionData {
@@ -26,6 +36,10 @@ export interface QuestionData {
   ser: ModelEvidence;
   ler: ModelEvidence;
   isSpike: boolean;
+  /** The therapist's follow-up, when it was asked after a short answer. */
+  followUpAsked: string | null;
+  /** Feeling words the patient tapped during this question. */
+  feelingsTapped: string[];
   languageDetected: string | null;
   frameImage: string | null;
   evidenceFrames: {
@@ -43,6 +57,8 @@ export interface SessionOverviewData {
   riskReasons: string[];
   highestSpikeIndex: number | null;
   modelsUsed: { fer: boolean; ser: boolean; ler: boolean };
+  /** The faces the patient tapped before / after the interview (1–5), if asked. */
+  selfReport: { mood_before: number | null; mood_after: number | null } | null;
   reportStatus: "available" | "generating" | "unavailable" | "failed";
   questionCount: number;
   completedAnalyses: number;
@@ -82,6 +98,9 @@ export function useSessionComputed(session: MappedSession | null | undefined) {
 
     const responses = session.responses || [];
     const spikes = session.spikes || [];
+    // Every answer's readings, so one answer can be compared with the patient's usual this session.
+    const allFer = responses.map((r) => (r.fer_confidence > 0 ? r.fer_probabilities : null));
+    const allLer = responses.map((r) => (r.ler_confidence > 0 ? r.ler_probabilities : null));
 
     // Per-question data
     const perQuestion: QuestionData[] = responses.map((r, i) => {
@@ -95,6 +114,20 @@ export function useSessionComputed(session: MappedSession | null | undefined) {
       const fer = buildModelEvidence("FER", r.fer_confidence, ferEmotion, r.fer_probabilities, r.facial_details);
       const ser = buildModelEvidence("SER", r.ser_confidence, serEmotion, r.ser_probabilities, r.audio_details);
       const ler = buildModelEvidence("LER", r.ler_confidence, lerEmotion, r.ler_probabilities, null, r.language_detected);
+      if (fer.available && fer.emotion) {
+        fer.faceMeasures = {
+          frames: r.face_frames ?? null,
+          percent: percentOf(r.fer_probabilities, fer.emotion),
+          usualPercent: usualPercent(allFer, fer.emotion),
+        };
+      }
+      if (ler.available && ler.emotion) {
+        ler.wordMeasures = {
+          wordCount: countWords(r.answer),
+          percent: percentOf(r.ler_probabilities, ler.emotion),
+          usualPercent: usualPercent(allLer, ler.emotion),
+        };
+      }
 
       const fusionEmotion = (r.emotion || "neutral").charAt(0).toUpperCase() + (r.emotion || "neutral").slice(1);
       const fusionConfidence = (r.emotionPct || 0) / 100;
@@ -121,6 +154,8 @@ export function useSessionComputed(session: MappedSession | null | undefined) {
         ser,
         ler,
         isSpike,
+        followUpAsked: r.follow_up_asked ?? null,
+        feelingsTapped: r.feelings_tapped ?? [],
         languageDetected: r.language_detected ?? null,
         frameImage: r.frame_image ?? null,
         evidenceFrames: r.evidence_frames ?? null,
@@ -187,6 +222,7 @@ export function useSessionComputed(session: MappedSession | null | undefined) {
       riskReasons,
       highestSpikeIndex: highestSpike?.questionIndex ?? null,
       modelsUsed: { fer: hasFer, ser: hasSer, ler: hasLer },
+      selfReport: session.selfReport ?? null,
       reportStatus: hasReport ? "available" : "unavailable",
       questionCount: responses.length,
       completedAnalyses,

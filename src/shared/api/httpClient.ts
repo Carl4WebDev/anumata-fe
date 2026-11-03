@@ -10,12 +10,15 @@ interface ApiResponse<T> {
 class ApiError extends Error {
   status: number;
   code?: string;
+  /** Extra structured info from the server (e.g. the appointments a schedule change clashes with). */
+  details?: unknown;
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(message: string, status: number, code?: string, details?: unknown) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -45,7 +48,8 @@ async function request<T>(
     throw new ApiError(
       data.message || "Request failed",
       response.status,
-      data.code
+      data.code,
+      data.details
     );
   }
 

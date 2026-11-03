@@ -44,3 +44,25 @@ describe("useComfortSettings", () => {
     expect(result.current.slowVoice).toBe(true);
   });
 });
+
+describe("useComfortSettings — hiding your own video", () => {
+  test("starts shown, can be hidden, and is remembered", () => {
+    const first = renderHook(() => useComfortSettings());
+    expect(first.result.current.hideSelfView).toBe(false);
+    act(() => first.result.current.toggleSelfView());
+    expect(first.result.current.hideSelfView).toBe(true);
+    first.unmount();
+
+    const { result } = renderHook(() => useComfortSettings());
+    expect(result.current.hideSelfView).toBe(true);
+  });
+});
+
+describe("useComfortSettings — more time to think", () => {
+  test("starts off and can be switched on", () => {
+    const { result } = renderHook(() => useComfortSettings());
+    expect(result.current.moreTime).toBe(false);
+    act(() => result.current.toggleMoreTime());
+    expect(result.current.moreTime).toBe(true);
+  });
+});

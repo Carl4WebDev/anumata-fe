@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { X, Sparkles, CheckCircle, AlertTriangle, RefreshCw, Trash2, Plus, ChevronDown, ChevronUp, Pencil } from "lucide-react";
+import { X, Sparkles, CheckCircle, AlertTriangle, RefreshCw, Trash2, Plus, ChevronDown, ChevronUp, Pencil, CornerDownRight } from "lucide-react";
 import { questionSetsApi } from "../../../shared/api/questionSetsApi";
 import type {
   AiGeneratedQuestion,
@@ -149,6 +149,10 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
     setDraftQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, text } : q)));
   };
 
+  const updateQuestionFollowUp = (index: number, follow_up: string) => {
+    setDraftQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, follow_up } : q)));
+  };
+
   const updateQuestionCategory = (index: number, category: string) => {
     setDraftQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, category } : q)));
   };
@@ -186,6 +190,7 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
         name: draftTitle.trim() || title.trim(),
         description: draftDescription.trim() || description.trim(),
         questions: filled.map((q) => q.text.trim()),
+        followUps: filled.map((q) => q.follow_up?.trim() ?? ""),
       });
       success("Question set created successfully");
       handleClose();
@@ -361,6 +366,7 @@ export default function AiQuestionSetBuilderModal({ isOpen, onClose }: Props) {
                     expanded={expandedQuestions.has(i)}
                     onToggle={() => toggleExpand(i)}
                     onTextChange={(text) => updateQuestionText(i, text)}
+                    onFollowUpChange={(text) => updateQuestionFollowUp(i, text)}
                     onCategoryChange={(cat) => updateQuestionCategory(i, cat)}
                     onDelete={() => removeQuestion(i)}
                     onRefine={() => handleRefine(i)}
@@ -496,6 +502,7 @@ interface DraftQuestionCardProps {
   expanded: boolean;
   onToggle: () => void;
   onTextChange: (text: string) => void;
+  onFollowUpChange: (text: string) => void;
   onCategoryChange: (category: string) => void;
   onDelete: () => void;
   onRefine: () => void;
@@ -509,6 +516,7 @@ function DraftQuestionCard({
   expanded,
   onToggle,
   onTextChange,
+  onFollowUpChange,
   onCategoryChange,
   onDelete,
   onRefine,
@@ -560,6 +568,18 @@ function DraftQuestionCard({
         rows={2}
         className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
       />
+      <div className="mt-1.5 flex items-center gap-2">
+        <CornerDownRight size={13} className="shrink-0 text-slate-300" />
+        <input
+          type="text"
+          value={question.follow_up ?? ""}
+          onChange={(e) => onFollowUpChange(e.target.value)}
+          maxLength={300}
+          placeholder="Follow-up (optional), asked once if the answer is short"
+          aria-label={`Follow-up for question ${question.order}`}
+          className="w-full rounded-lg border border-dashed border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+        />
+      </div>
 
       {expanded && (
         <div className="mt-3 space-y-2">
