@@ -1,6 +1,7 @@
 import { memo, useState, useCallback } from "react";
 import { FileText, BookOpen, Tag, HelpCircle, Loader2, AlertCircle, RefreshCw, Search, AlertTriangle, Target, ShieldCheck, Crosshair } from "lucide-react";
 import CollapsibleSection from "../../../shared/components/CollapsibleSection";
+import { withTextLists } from "../../../shared/utils/textList";
 
 interface AiReportSectionProps {
   report: {
@@ -21,7 +22,14 @@ interface AiReportSectionProps {
   onRegenerate?: () => Promise<void>;
 }
 
-function AiReportSection({ report, reportStatus = "available", onRegenerate }: AiReportSectionProps) {
+// The LLM's list fields; saved reports may hold a sentence instead of a list.
+const SESSION_LIST_FIELDS = [
+  "topics_discussed", "keywords", "suggested_follow_ups", "suggested_therapist_focus",
+  "key_emotional_findings", "areas_for_attention", "limitations",
+] as const;
+
+function AiReportSection({ report: savedReport, reportStatus = "available", onRegenerate }: AiReportSectionProps) {
+  const report = savedReport && withTextLists(savedReport, SESSION_LIST_FIELDS);
   const [regenerating, setRegenerating] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
 

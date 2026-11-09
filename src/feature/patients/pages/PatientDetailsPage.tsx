@@ -10,6 +10,7 @@ import type { FollowUp } from "../../../shared/api/followUpsApi";
 import type { Patient } from "../../../shared/api/patientsApi";
 import type { LongitudinalReport, DeterministicAnalysis } from "../../../shared/types/session";
 import type { MappedSession } from "../../../shared/types/session";
+import { withTextLists } from "../../../shared/utils/textList";
 import CollapsibleSection from "../../../shared/components/CollapsibleSection";
 import Avatar from "../../../shared/components/Avatar";
 import EmotionTransitionHeatmap from "../components/EmotionTransitionHeatmap";
@@ -931,7 +932,14 @@ interface LongitudinalReportContentProps {
   toggleSection: (key: string) => void;
 }
 
-function LongitudinalReportContent({ report, expandedSections, toggleSection }: LongitudinalReportContentProps) {
+// The LLM's list fields; saved reports may hold a sentence instead of a list.
+const LONGITUDINAL_LIST_FIELDS = [
+  "emotional_patterns", "session_changes", "recurring_indicators", "areas_for_attention",
+  "therapist_focus", "suggested_follow_up_questions", "session_highlights", "limitations",
+] as const;
+
+function LongitudinalReportContent({ report: savedReport, expandedSections, toggleSection }: LongitudinalReportContentProps) {
+  const report = withTextLists(savedReport, LONGITUDINAL_LIST_FIELDS);
   // Use structured data when available (from deterministic analysis)
   const analysis = report._deterministic_analysis;
 
