@@ -1510,7 +1510,8 @@ export default function InterviewRoom() {
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Left: Amumata, with the patient's own video small in the corner */}
-      <section className="relative h-[40dvh] shrink-0 overflow-hidden bg-linear-to-b from-slate-900 via-slate-900 to-teal-950/60 lg:h-full lg:w-1/2">
+      {/* On phones this stays short (about 30% of the screen) so the question and caption have room. */}
+      <section className="relative h-[30dvh] min-h-44 shrink-0 overflow-hidden bg-linear-to-b from-slate-900 via-slate-900 to-teal-950/60 sm:h-[36dvh] lg:h-full lg:w-1/2">
         <div className="flex h-full items-center justify-center pb-6">
           <AmumataPresence mood={presenceMood} label={presenceLabel} getLevel={captions.getLevel} />
         </div>
@@ -1579,7 +1580,7 @@ export default function InterviewRoom() {
       </section>
 
       {/* Right: conversation, live caption, optional buttons */}
-      <section className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 lg:w-1/2 lg:gap-4 lg:p-6">
+      <section className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] lg:w-1/2 lg:gap-4 lg:p-6">
         {/* Progress + status */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
@@ -1601,7 +1602,7 @@ export default function InterviewRoom() {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs" role="status">
               <span className={`h-2 w-2 rounded-full ${statusColor} ${working ? "" : "animate-pulse"}`} />
               {statusLabel}

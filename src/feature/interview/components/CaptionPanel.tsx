@@ -40,7 +40,12 @@ export default function CaptionPanel({
   }, [segments, interim]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-white/5">
+    // Fills the free space but never shrinks below a readable height: when the
+    // column is full it scrolls instead, so nothing below can draw over the caption.
+    <div
+      className={`flex shrink-0 grow basis-0 flex-col rounded-2xl border border-white/10 bg-white/5 ${largeText ? "min-h-56" : "min-h-44"}`}
+      data-testid="caption-panel"
+    >
       <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-2.5">
         <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-400">
           <Captions size={14} /> Live caption
@@ -51,7 +56,7 @@ export default function CaptionPanel({
         </div>
       </div>
 
-      <div ref={scrollRef} className="min-h-32 flex-1 overflow-y-auto px-4 py-3" aria-live="polite">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-3" aria-live="polite">
         {!hasText ? (
           <p className={`${largeText ? "text-lg" : "text-sm"} italic text-slate-500`}>{voiceActive ? "Listening…" : placeholder}</p>
         ) : (
