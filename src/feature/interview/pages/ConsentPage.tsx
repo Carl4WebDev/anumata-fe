@@ -4,6 +4,7 @@ import { Shield, Camera, Mic, FileText, AlertTriangle, Captions } from "lucide-r
 import { browserCaptionsAllowed } from "../hooks/browserSpeech";
 import { interviewLinksApi } from "../../../shared/api/interviewLinksApi";
 import { useKeepAiAwake } from "../../../shared/hooks/useKeepAiAwake";
+import AmumataLogo from "../../../shared/components/AmumataLogo";
 
 /** "12 questions" / "1 question" / "a few questions" (count unknown). */
 function questionCountText(count: number | null): string {
@@ -53,9 +54,7 @@ export default function ConsentPage() {
       <div className="w-full max-w-xl rounded-xl bg-white p-6 shadow-md border border-slate-200 md:p-8">
         {/* Header */}
         <div className="mb-6 flex items-center gap-3 justify-center">
-          <div className="w-12 h-12 rounded-xl bg-teal-500 flex items-center justify-center text-xl font-bold text-white">
-            A
-          </div>
+          <AmumataLogo size={48} />
           <div>
             <h1 className="text-xl font-bold text-slate-900">Amumata</h1>
             <p className="text-sm text-slate-500">AI-Assisted Emotional Pre-Evaluation</p>

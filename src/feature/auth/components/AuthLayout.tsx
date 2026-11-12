@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft, FileText, ScanFace, ShieldCheck, Video } from "lucide-react";
+import AmumataLogo from "../../../shared/components/AmumataLogo";
 
 const HIGHLIGHTS = [
   { icon: Video, title: "Guided video interviews", text: "Patients answer by voice, with live captions, in English, Tagalog, or Bisaya." },
@@ -26,7 +27,7 @@ export default function AuthLayout({ title, subtitle, children }: AuthLayoutProp
         <div className="pointer-events-none absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-teal-300/10 blur-3xl" />
 
         <Link to="/" className="relative flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-lg font-bold text-teal-700 shadow-lg">A</div>
+          <AmumataLogo size={44} variant="white" className="drop-shadow-lg" />
           <div>
             <p className="text-xl font-bold">Amumata</p>
             <p className="text-xs text-teal-100">AI-assisted emotional pre-evaluation</p>
@@ -65,7 +66,7 @@ export default function AuthLayout({ title, subtitle, children }: AuthLayoutProp
         <div className="w-full max-w-lg">
           {/* Compact brand header (mobile / tablet) */}
           <Link to="/" className="mb-6 flex items-center justify-center gap-3 lg:hidden">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-500 text-lg font-bold text-white">A</div>
+            <AmumataLogo size={44} />
             <div>
               <p className="text-xl font-bold text-slate-900">Amumata</p>
               <p className="text-xs text-slate-500">AI-assisted emotional pre-evaluation</p>

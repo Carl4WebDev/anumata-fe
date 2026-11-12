@@ -16,6 +16,7 @@ import {
   CalendarCheck,
   Captions,
 } from "lucide-react";
+import AmumataLogo from "../../../shared/components/AmumataLogo";
 
 const steps = [
   { num: "01", label: "Therapist prepares a question set and sends the patient a private link", tag: "Setup", color: "bg-teal-50 text-teal-600" },
@@ -98,9 +99,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 md:px-8">
           <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500 text-lg font-bold text-white">
-              A
-            </div>
+            <AmumataLogo size={40} />
             <div>
               <h1 className="text-lg font-bold text-slate-900">Amumata</h1>
               <p className="hidden text-xs text-slate-500 sm:block">AI-assisted emotional pre-evaluation</p>
@@ -376,9 +375,7 @@ export default function LandingPage() {
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 md:flex-row md:px-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500 text-sm font-bold text-white">
-              A
-            </div>
+            <AmumataLogo size={32} />
             <span className="text-sm font-medium text-slate-700">Amumata</span>
           </div>
           <p className="text-center text-xs text-slate-400">

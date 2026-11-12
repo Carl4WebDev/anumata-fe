@@ -55,6 +55,7 @@ import {
   type ConversationLine,
 } from "../hooks/conversationLines";
 import CaptionPanel from "../components/CaptionPanel";
+import AmumataLogo from "../../../shared/components/AmumataLogo";
 import { useLeaveWarning, useScreenWakeLock } from "../hooks/interviewGuards";
 import { useMicCheck } from "../hooks/useMicCheck";
 import MicCheckPanel from "../components/MicCheckPanel";
@@ -1538,7 +1539,7 @@ export default function InterviewRoom() {
           </button>
         </div>
         <div className="absolute left-3 top-3 flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500 text-sm font-bold shadow-lg">A</div>
+          <AmumataLogo size={32} className="drop-shadow-lg" />
           <span className="text-sm font-semibold drop-shadow-lg">Amumata</span>
         </div>
         {/* Honest but calm: it says it's recording, without a red light or a running clock. */}

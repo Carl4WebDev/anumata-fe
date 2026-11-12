@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useUser } from "../../context/users/useUser";
 import { LayoutDashboard, Users, CalendarDays, FileQuestion, Link2, BarChart3, Settings, LogOut, Menu, X } from "lucide-react";
 import Avatar from "../../../shared/components/Avatar";
+import AmumataLogo from "../../../shared/components/AmumataLogo";
 
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -57,9 +58,7 @@ export default function Sidebar() {
       >
         <div className="p-6">
           <Link to="/dashboard" className="flex items-center gap-4" onClick={handleNav}>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-500 text-xl font-bold">
-              A
-            </div>
+            <AmumataLogo size={48} />
             <div>
               <h1 className="text-xl font-bold">Amumata</h1>
               <p className="text-sm text-slate-400">Therapist Portal</p>
