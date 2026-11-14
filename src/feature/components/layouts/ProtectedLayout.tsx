@@ -3,12 +3,19 @@ import Sidebar from "../Sidebar/Sidebar";
 import NotificationBell from "../../../shared/components/NotificationBell";
 import OfflineBanner from "../../../shared/components/OfflineBanner";
 import AiWakeBanner from "../../../shared/components/AiWakeBanner";
+import LicenseBanner from "../../../shared/components/LicenseBanner";
+import { storedRole } from "../../context/users/homePath";
 
 export default function ProtectedLayout() {
   const token = localStorage.getItem("user_token");
 
   if (!token) {
     return <Navigate to="/" replace />;
+  }
+
+  // The admin has no patients or interviews — only the admin page.
+  if (storedRole() === "ADMIN") {
+    return <Navigate to="/admin" replace />;
   }
 
   return (
@@ -21,6 +28,7 @@ export default function ProtectedLayout() {
         </div>
         <OfflineBanner />
         <AiWakeBanner />
+        <LicenseBanner />
         <Outlet />
       </main>
     </div>

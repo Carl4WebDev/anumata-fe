@@ -5,6 +5,9 @@ import { MemoryRouter } from "react-router-dom";
 import RegisterPage from "./RegisterPage";
 import { TERMS_VERSION } from "../agreement";
 
+// The form has many fields to type into; under a full test run that takes over 5s.
+vi.setConfig({ testTimeout: 20_000 });
+
 const register = vi.fn();
 vi.mock("../../context/users/useUser", () => ({
   useUser: () => ({ register, loading: false, error: null }),
@@ -18,9 +21,12 @@ function renderPage() {
   );
 }
 
-async function fillForm(user: ReturnType<typeof userEvent.setup>) {
+async function fillForm(user: ReturnType<typeof userEvent.setup>, licenseNumber = "0012345") {
   await user.type(screen.getByLabelText("First name"), "Ana");
   await user.type(screen.getByLabelText("Last name"), "Cruz");
+  await user.selectOptions(screen.getByLabelText("Profession"), "psychologist");
+  await user.type(screen.getByLabelText("PRC license number"), licenseNumber);
+  await user.type(screen.getByLabelText("Name on your PRC ID"), "ANA M. CRUZ");
   await user.type(screen.getByLabelText("Email"), "ana@clinic.ph");
   await user.type(screen.getByLabelText("Password"), "Kalamansi#Tree8");
   await user.type(screen.getByLabelText("Confirm password"), "Kalamansi#Tree8");
@@ -102,6 +108,29 @@ describe("RegisterPage — User Consent and Agreement Validation", () => {
     await user.click(box);
     await user.click(box);
     expect(screen.getByRole("button", { name: "Create Account" })).toBeDisabled();
+    expect(register).not.toHaveBeenCalled();
+  });
+});
+
+describe("RegisterPage — PRC license", () => {
+  test("profession, license number and the name on the PRC ID are sent with the account", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await fillForm(user);
+    await user.click(screen.getByRole("checkbox", { name: /I have read and agree/ }));
+    await user.click(screen.getByRole("button", { name: "Create Account" }));
+    expect(register).toHaveBeenCalledWith(
+      expect.objectContaining({ profession: "psychologist", license_number: "0012345", license_name: "ANA M. CRUZ" }),
+    );
+  });
+
+  test("a license number with letters is caught before sending", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await fillForm(user, "PRC-12AB");
+    await user.click(screen.getByRole("checkbox", { name: /I have read and agree/ }));
+    await user.click(screen.getByRole("button", { name: "Create Account" }));
+    expect(screen.getByText(/digits only/)).toBeInTheDocument();
     expect(register).not.toHaveBeenCalled();
   });
 });

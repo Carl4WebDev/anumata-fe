@@ -44,6 +44,13 @@ async function request<T>(
 
   const data = await response.json();
 
+  // An admin deactivated this account while it was signed in: sign out and go to login.
+  if (response.status === 403 && data.code === "ACCOUNT_DEACTIVATED" && token) {
+    localStorage.removeItem("user_token");
+    localStorage.removeItem("user");
+    window.location.assign("/login");
+  }
+
   if (!response.ok) {
     throw new ApiError(
       data.message || "Request failed",

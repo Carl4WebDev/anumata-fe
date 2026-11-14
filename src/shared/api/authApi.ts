@@ -1,4 +1,7 @@
 import { httpClient } from "./httpClient";
+import type { LicenseStatus } from "../constants/professions";
+
+export type AccountRole = "THERAPIST" | "ADMIN";
 
 export interface TherapistProfile {
   user_id: number;
@@ -13,11 +16,28 @@ export interface TherapistProfile {
   license_number: string | null;
   affiliation: string | null;
   created_at?: string;
+  role?: AccountRole;
+  /** PRC license: profession and the name exactly as on the PRC ID. */
+  profession?: string | null;
+  license_name?: string | null;
+  /** Checked by an admin on the PRC verification site. */
+  license_status?: LicenseStatus;
+  /** Why the admin marked it "not matched". */
+  license_note?: string | null;
+  license_checked_at?: string | null;
 }
 
 export interface LoginResponse {
   token: string;
-  user: { user_id: number; email: string; f_name: string; m_name: string | null; l_name: string };
+  user: {
+    user_id: number;
+    email: string;
+    f_name: string;
+    m_name: string | null;
+    l_name: string;
+    role?: AccountRole;
+    license_status?: LicenseStatus;
+  };
 }
 
 export interface RegisterResponse {
@@ -36,6 +56,8 @@ export interface UpdateProfileData {
   phone?: string;
   specialization?: string;
   license_number?: string;
+  profession?: string;
+  license_name?: string;
   affiliation?: string;
 }
 
@@ -53,6 +75,10 @@ export const authApi = {
     /** User Consent and Agreement Validation — required by the server. */
     accepted_terms: boolean;
     terms_version: string;
+    /** PRC license — required; checked later by an admin. */
+    profession: string;
+    license_number: string;
+    license_name: string;
   }) {
     return httpClient.post<RegisterResponse>("/api/auth/register", data);
   },

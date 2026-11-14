@@ -25,6 +25,9 @@ export interface RegisterPayload {
   password: string;
   accepted_terms: boolean;
   terms_version: string;
+  profession: string;
+  license_number: string;
+  license_name: string;
 }
 
 export interface UserContextValue {

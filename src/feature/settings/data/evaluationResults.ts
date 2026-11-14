@@ -1,7 +1,8 @@
 /**
- * Test-set evaluation of the three emotion models (run 2026-07-17), copied
- * from the training projects' classification reports. Same numbers as
- * anumata-be/docs/evaluation/ — update both together if a model is retrained.
+ * Test-set evaluation of the three emotion models (SER/LER run 2026-07-17; FER
+ * retrained and evaluated 2026-11-13), copied from the training projects'
+ * classification reports. Same numbers as anumata-be/docs/evaluation/ — update
+ * both together if a model is retrained.
  */
 
 export const EMOTION_LABELS = ["Angry", "Happy", "Neutral", "Sad"] as const;
@@ -99,32 +100,36 @@ export const MODEL_EVALUATIONS: ModelEvaluation[] = [
   {
     key: "fer",
     name: "Facial expression (FER)",
-    input: "Face photo, 224×224",
+    input: "Grayscale face, 224×224",
     backbone: "EfficientNet-B0",
     inFusion: true,
-    datasets: "Face photos: FER2013 26,217 · RAF-DB 12,488 · CK+ 426 images",
-    split: "Train 26,703 · validation 4,711 · test 7,717 images — the test set is FER2013's and RAF-DB's official test images",
-    accuracy: 0.6115,
-    macroF1: 0.5883,
-    weightedF1: 0.6203,
-    testSamples: 7717,
+    datasets:
+      "Cleaned face photos: FER2013 24,573 · RAF-DB 12,295 · CK+ 142 · Davao (Filipino) 151 — duplicates, blank images, conflicting labels and test-image copies removed",
+    split:
+      "Train 25,234 · validation 4,287 · test 7,640 images — the test set is FER2013's and RAF-DB's official test images (duplicates removed) plus 23 Davao photos",
+    accuracy: 0.7715,
+    macroF1: 0.7463,
+    weightedF1: 0.7742,
+    testSamples: 7640,
     perClass: [
-      { label: "Angry", precision: 0.5463, recall: 0.4634, f1: 0.5014, support: 1120 },
-      { label: "Happy", precision: 0.8603, recall: 0.6617, f1: 0.748, support: 2959 },
-      { label: "Neutral", precision: 0.5488, recall: 0.6027, f1: 0.5745, support: 1913 },
-      { label: "Sad", precision: 0.4556, recall: 0.6313, f1: 0.5293, support: 1725 },
+      { label: "Angry", precision: 0.6792, recall: 0.7078, f1: 0.6932, support: 1095 },
+      { label: "Happy", precision: 0.9343, recall: 0.8633, f1: 0.8974, support: 2949 },
+      { label: "Neutral", precision: 0.6719, recall: 0.7495, f1: 0.7086, support: 1888 },
+      { label: "Sad", precision: 0.6942, recall: 0.678, f1: 0.686, support: 1708 },
     ],
     confusion: [
-      [519, 76, 175, 350],
-      [183, 1958, 405, 413],
-      [90, 132, 1153, 538],
-      [158, 110, 368, 1089],
+      [775, 41, 133, 146],
+      [93, 2546, 230, 80],
+      [110, 79, 1415, 284],
+      [163, 59, 328, 1158],
     ],
-    training: "Head 10 epochs (LR 1e-3), then fine-tuning 15 epochs (LR 1e-5); batch 16; dropout 0.4; best at epoch 14.",
+    training:
+      "3 stages from ImageNet: head 10 epochs (LR 1e-3); last block 15 epochs (LR 1e-5); last 3 blocks 20 epochs (LR 1e-4, early stop 5); batch 16; dropout 0.4; best at stage 3, epoch 6 (validation 75.79%).",
     notes: [
-      "Weakest model. Most mistakes are faces read as Sad (350 angry, 413 happy, 538 neutral test faces).",
-      "FER2013 is hard, low-resolution, in-the-wild data; 85–89% in the literature is mostly on controlled datasets.",
-      "That's why the fused result also uses the voice, the strongest model.",
+      "Retrained on a cleaned dataset with Filipino (Davao) faces: 77.15%, up from the previous model's 61.15% (that model scores 54.27% on this cleaned test set).",
+      "Davao test photos: 65.22% (23 photos). Sad is the weak spot there — 0 of 4 Davao sad photos were read as sad; more Davao angry and sad photos would help most.",
+      "Most remaining mistakes are sad faces read as neutral (328) and neutral faces read as sad (284).",
+      "Faces are made grayscale before classifying, the same as in training.",
     ],
   },
 ];

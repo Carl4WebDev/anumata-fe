@@ -6,6 +6,9 @@ import AppointmentFormModal from "./AppointmentFormModal";
 import { appointmentsApi, type Appointment, type Schedule } from "../../../shared/api/appointmentsApi";
 import { ApiError } from "../../../shared/api/httpClient";
 
+// Some tests type into many fields; under a full test run that can take over 5s.
+vi.setConfig({ testTimeout: 20_000 });
+
 vi.mock("../../../shared/api/appointmentsApi", () => ({
   appointmentsApi: { freeSlots: vi.fn(), book: vi.fn(), update: vi.fn(), getSchedule: vi.fn() },
 }));

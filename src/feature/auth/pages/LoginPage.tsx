@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import { useUser } from "../../context/users/useUser";
+import { homePathFor } from "../../context/users/homePath";
 import AuthLayout from "../components/AuthLayout";
 import AuthField from "../components/AuthField";
 import { authInputClass as inputClass, authSubmitClass } from "../components/authStyles";
@@ -17,7 +18,7 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const res = await login(email, password);
-    if (res?.ok) navigate("/dashboard");
+    if (res?.ok) navigate(homePathFor(res.data.user.role));
   };
 
   return (

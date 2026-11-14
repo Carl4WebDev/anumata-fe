@@ -385,11 +385,13 @@ export const guideSections: GuideSection[] = [
         id: "fer-training",
         title: "FER Training",
         content:
-          "**Model:** EfficientNet-B0 (ImageNet-pretrained), 224x224 RGB, 4 classes.\n\n" +
-          "**Data:** FER2013 + RAF-DB + CK+ merged. Train 26,703 / validation 4,711 / test 7,717 images.\n\n" +
-          "**Settings:** batch 16; head training 10 epochs at LR 1e-3, then fine-tuning 15 epochs at LR 1e-5 " +
-          "(cosine decay); dropout 0.4; weight decay 1e-4; early stopping 5; seed 42. " +
-          "Best checkpoint: epoch 14, validation accuracy 61.5%.",
+          "**Model:** EfficientNet-B0 (ImageNet-pretrained), grayscale faces at 224x224, 4 classes.\n\n" +
+          "**Data:** FER2013 + RAF-DB + CK+ plus Davao (Filipino) photos, cleaned: duplicates, blank images, " +
+          "conflicting labels and copies of test images removed; Davao faces cropped like the app (Haar cascade). " +
+          "Train 25,234 / validation 4,287 / test 7,640 images (23 Davao test photos).\n\n" +
+          "**Settings:** 3 stages — head 10 epochs at LR 1e-3; last block 15 epochs at LR 1e-5; last 3 blocks " +
+          "20 epochs at LR 1e-4 (cosine decay, early stopping 5); batch 16; dropout 0.4; weight decay 1e-4; seed 42. " +
+          "Best checkpoint: stage 3, epoch 6, validation accuracy 75.8%.",
         verification: "verified",
         source: "docs/evaluation/fer/training_config.py",
         tags: ["training", "fer", "efficientnet", "datasets"],
@@ -452,7 +454,7 @@ export const guideSections: GuideSection[] = [
           "Each model was evaluated on a held-out test split it never saw in training:\n\n" +
           "- **SER (voice):** accuracy **90.54%**, macro F1 0.905 (1,121 clips)\n" +
           "- **LER (words):** accuracy **74.97%**, macro F1 0.731 (6,987 texts)\n" +
-          "- **FER (face):** accuracy **61.15%**, macro F1 0.588 (7,717 images)\n\n" +
+          "- **FER (face):** accuracy **77.15%**, macro F1 0.746 (7,640 images; Davao photos alone 65.22%)\n\n" +
           "Classification reports and confusion matrices (CSV + PNG) are in `docs/evaluation/{fer,ser,ler}/`.",
         verification: "verified",
         source: "docs/evaluation/README.md",
@@ -464,7 +466,7 @@ export const guideSections: GuideSection[] = [
         content:
           "- SER (voice): Angry 0.92 · Happy 0.90 · Neutral 0.89 · Sad 0.91\n" +
           "- LER (words): Angry 0.64 · Happy 0.83 · Neutral 0.64 · Sad 0.81\n" +
-          "- FER (face): Angry 0.50 · Happy 0.75 · Neutral 0.57 · Sad 0.53\n\n" +
+          "- FER (face): Angry 0.69 · Happy 0.90 · Neutral 0.71 · Sad 0.69\n\n" +
           "Full tables and confusion matrices: the Model Evaluation panel above.\n\n" +
           "Happy is the easiest emotion for all three models; Angry and Neutral are the hardest for FER and LER.",
         verification: "verified",
@@ -912,7 +914,8 @@ export const guideSections: GuideSection[] = [
         title: "Q8: How were models evaluated?",
         content:
           "On held-out test sets, with accuracy, per-class precision/recall/F1 and confusion matrices:\n" +
-          "SER 90.54%, LER 74.97%, FER 61.15% accuracy (macro F1 0.905 / 0.731 / 0.588).\n\n" +
+          "SER 90.54%, LER 74.97%, FER 77.15% accuracy (macro F1 0.905 / 0.731 / 0.746). " +
+          "FER was retrained on a cleaned dataset with Davao photos (previously 61.15%).\n\n" +
           "In real interviews, the AI is also compared with the patient's own report (mood check, feeling words) " +
           "via `npm run eval:self-report`.",
         verification: "verified",
@@ -1033,8 +1036,9 @@ export const guideSections: GuideSection[] = [
         title: "Defense Readiness Summary",
         content:
           "**Verified strengths:** Complete pipeline, multimodal fusion, confidence guards, spike detection, hedging reports. " +
-          "Test-set results for all three models (SER 90.5%, LER 75.0%, FER 61.2%) with training settings documented.\n\n" +
-          "**Be ready to explain:** FER's lower accuracy (and why fusion leans on voice); SER's speaker-dependent split; " +
+          "Test-set results for all three models (SER 90.5%, LER 75.0%, FER 77.2%) with training settings documented.\n\n" +
+          "**Be ready to explain:** how the FER dataset was cleaned and why the test set changed (old 61.15% vs new 77.15%); " +
+          "FER on Davao photos (65.2%, only 23 photos); SER's speaker-dependent split; " +
           "public English training data vs Davao patients.\n\n" +
           "**Still missing:** agreement with patients' self-report on real interviews (script ready), therapist user study.\n\n" +
           "**Claims to qualify:** \"4 emotions\" (thesis says 3), fusion weights (docs say 40/40/20, code says 50/50/0).\n\n" +

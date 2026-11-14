@@ -1,22 +1,83 @@
 /**
- * "What's new" in Settings: changes to the system, newest first. Add a new
- * entry at the top for each update.
+ * "What's new": changes to the system, newest first. Add a new entry at the top
+ * for each update. Therapists (Settings) see only the groups that affect their
+ * work; the admin page shows everything, including the server steps.
  */
 
 export interface UpdateGroup {
   area: string;
   changes: string[];
+  /** "admin": technical or admin-only — shown on the admin page, hidden from therapists. */
+  audience?: "admin";
 }
 
 export interface SystemUpdate {
   date: string; // YYYY-MM-DD
   title: string;
   groups: UpdateGroup[];
-  /** One-time steps needed before the update works on the live server. */
+  /** One-time steps needed before the update works on the live server (admin page only). */
   deploySteps?: string[];
 }
 
 export const SYSTEM_UPDATES: SystemUpdate[] = [
+  {
+    date: "2026-11-14",
+    title: "A more accurate face-emotion model",
+    groups: [
+      {
+        area: "Session review",
+        changes: [
+          "Face readings (FER) come from a new model: 77% accurate on its test set, up from 61%, and trained with Filipino (Davao) faces as well.",
+          "It is still weakest at telling sad from neutral faces, so read those together with the voice result.",
+        ],
+      },
+      {
+        area: "Face model (FER)",
+        audience: "admin",
+        changes: [
+          "Retrained on a cleaned dataset: FER2013 + RAF-DB + CK+ with 155 Davao photos; duplicates, blank images, conflicting labels and test-image copies removed; all faces grayscale.",
+          "Test set 7,640 images: accuracy 77.15%, macro F1 0.746 (previous model: 61.15% on the old test set, 54.27% on this one). Davao photos alone: 65.22% (23 photos).",
+          "The AI service now makes the face crop grayscale before classifying, as in training.",
+          "Previous model kept as src/ai/models/fer_best_model_old_61pct.pth; its evaluation files are in docs/evaluation/fer/previous_61pct/.",
+        ],
+      },
+    ],
+    deploySteps: [
+      "Upload the new model to Modal: modal volume put anumata-models src/ai/models/fer_best_model.pth /fer_best_model.pth --force",
+      "Redeploy the AI service (grayscale change): modal deploy src/ai/modal_app.py",
+      "Deploy the frontend (updated Model Evaluation numbers).",
+    ],
+  },
+  {
+    date: "2026-11-13",
+    title: "PRC license verification",
+    groups: [
+      {
+        area: "Accounts",
+        changes: [
+          "Registering asks for your profession (Psychologist, Psychometrician, Guidance Counselor, Psychiatrist or Social Worker), your PRC license number and the name on your PRC ID.",
+          "Your license is checked against the PRC verification service by the Amumata administrator. You can keep using Amumata while it's being checked.",
+          "Until it's verified, a banner and one notification a day remind you. If the details didn't match, the reminder says why.",
+          "Settings has a new “PRC License” card showing the status. Changing your details sends them for checking again.",
+        ],
+      },
+      {
+        area: "Administrator",
+        audience: "admin",
+        changes: [
+          "A new admin page lists therapist accounts with their license details and verification status. It shows account details and counts only — never patient information.",
+          "The admin can mark a license verified or not matched (with a reason), and deactivate or reactivate an account. Every action is logged.",
+          "An Overview tab shows the system's status (database, AI service and each model) and how Amumata is used: interviews sent and completed, AI analyses ready or failed, average time to results, and interviews per week — counts only.",
+          "A System tab holds everything about the system: every update with its server steps, System Info, Model Evaluation, Interview Room Features and the AI Model & Project Guide. Therapists' Settings now keeps only what affects their work, and their What's New lists only changes to their work.",
+        ],
+      },
+    ],
+    deploySteps: [
+      "Run migrations/manual/add_admin_and_license_verification.sql on the Render database.",
+      "Register the admin account, then run: UPDATE users SET role = 'ADMIN' WHERE email = '…';",
+      "Then deploy the backend and frontend.",
+    ],
+  },
   {
     date: "2026-11-03",
     title: "Gentle check-ins when a patient struggles, and patient contacts",
@@ -101,8 +162,9 @@ export const SYSTEM_UPDATES: SystemUpdate[] = [
       },
       {
         area: "Model evaluation",
+        audience: "admin",
         changes: [
-          "The models' real test-set results (accuracy, precision, recall, F1, confusion matrices) are now in Settings → Model Evaluation and in anumata-be/docs/evaluation/.",
+          "The models' real test-set results (accuracy, precision, recall, F1, confusion matrices) are now in Admin → System → Model Evaluation and in anumata-be/docs/evaluation/.",
           "The AI guide's “missing evidence” entries were updated with the documented training data and settings.",
           "New backend command npm run eval:self-report compares the AI with patients' own report.",
         ],
@@ -115,3 +177,16 @@ export const SYSTEM_UPDATES: SystemUpdate[] = [
     ],
   },
 ];
+
+export type UpdatesAudience = "therapist" | "admin";
+
+/**
+ * The updates a reader should see. Therapists: only groups that affect their work,
+ * no server steps, and no entries left empty. Admin: everything.
+ */
+export function updatesFor(audience: UpdatesAudience, updates: SystemUpdate[] = SYSTEM_UPDATES): SystemUpdate[] {
+  if (audience === "admin") return updates;
+  return updates
+    .map((u) => ({ ...u, groups: u.groups.filter((g) => g.audience !== "admin"), deploySteps: undefined }))
+    .filter((u) => u.groups.length > 0);
+}

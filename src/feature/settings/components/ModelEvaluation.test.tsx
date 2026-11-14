@@ -25,12 +25,12 @@ describe("ModelEvaluation panel", () => {
     render(<ModelEvaluation />);
     expect(screen.getByText("90.54%")).toBeInTheDocument();
     expect(screen.getByText("74.97%")).toBeInTheDocument();
-    expect(screen.getByText("61.15%")).toBeInTheDocument();
+    expect(screen.getByText("77.15%")).toBeInTheDocument();
     expect(screen.getByText("Experimental — not in the session result")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Facial expression \(FER\)/ }));
     expect(screen.getByRole("table", { name: "Facial expression (FER) confusion matrix" })).toBeInTheDocument();
-    expect(screen.getByText("1,958")).toBeInTheDocument();
+    expect(screen.getByText("2,546")).toBeInTheDocument();
   });
 
   test("explains the terms on request", () => {
@@ -41,15 +41,38 @@ describe("ModelEvaluation panel", () => {
 });
 
 describe("SystemUpdates panel", () => {
-  test("the latest update is open; older ones open on tap, with the steps needed on the live server", () => {
-    render(<SystemUpdates />);
-    expect(screen.getByText("Tuesday, November 3, 2026")).toBeInTheDocument();
+  test("admin: the latest update is open; older ones open on tap, with the steps needed on the live server", () => {
+    render(<SystemUpdates audience="admin" />);
+    expect(screen.getByText("Saturday, November 14, 2026")).toBeInTheDocument();
+    expect(screen.getByText("Face model (FER)")).toBeInTheDocument();
+    expect(screen.getByText(/modal volume put anumata-models/)).toBeInTheDocument();
+    expect(screen.queryByText(/checked against the PRC verification service/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Friday, November 13, 2026/ }));
+    expect(screen.getByText(/checked against the PRC verification service/)).toBeInTheDocument();
+    expect(screen.getByText("Administrator")).toBeInTheDocument();
+    expect(screen.getByText(/add_admin_and_license_verification\.sql/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Tuesday, November 3, 2026/ }));
     expect(screen.getByText(/Okay ka pa ba mopadayon/)).toBeInTheDocument();
-    expect(screen.queryByText(/Undo Completed \/ No-show \/ Cancelled within 15 minutes/)).not.toBeInTheDocument();
+    expect(screen.getByText(/add_patient_contacts_and_reminders\.sql/)).toBeInTheDocument();
+  });
+
+  test("therapist: only changes to their work — no admin sections, no server steps", () => {
+    render(<SystemUpdates audience="therapist" />);
+    expect(screen.getByText(/77% accurate on its test set/)).toBeInTheDocument();
+    expect(screen.queryByText("Face model (FER)")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Before it works on the live server/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/modal volume put/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Friday, November 13, 2026/ }));
+    expect(screen.getByText(/checked against the PRC verification service/)).toBeInTheDocument();
+    expect(screen.queryByText("Administrator")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\.sql/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Monday, November 2, 2026/ }));
     expect(screen.getByText(/Undo Completed \/ No-show \/ Cancelled within 15 minutes/)).toBeInTheDocument();
-    expect(screen.getByText(/add_session_types_and_break\.sql/)).toBeInTheDocument();
+    expect(screen.queryByText("Model evaluation")).not.toBeInTheDocument();
   });
 });
 

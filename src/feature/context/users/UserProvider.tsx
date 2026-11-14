@@ -18,7 +18,7 @@ function toDisplayUser(p: TherapistProfile): DisplayUser {
     id: p.user_id,
     email: p.email,
     name: formatName(p.f_name, p.m_name, p.l_name),
-    role: "THERAPIST",
+    role: p.role ?? "THERAPIST",
     profileImage: p.profile_image ?? null,
   };
 }
@@ -83,7 +83,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         id: res.data.user.user_id,
         email: res.data.user.email,
         name: formatName(res.data.user.f_name, res.data.user.m_name, res.data.user.l_name),
-        role: "THERAPIST",
+        role: res.data.user.role ?? "THERAPIST",
         profileImage: null,
       };
       localStorage.setItem("user_token", res.data.token);
@@ -113,6 +113,9 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         l_name: payload.l_name,
         accepted_terms: payload.accepted_terms,
         terms_version: payload.terms_version,
+        profession: payload.profession,
+        license_number: payload.license_number,
+        license_name: payload.license_name,
       });
 
       const loginRes = await authApi.login(payload.email, payload.password);
@@ -120,7 +123,7 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
         id: loginRes.data.user.user_id,
         email: loginRes.data.user.email,
         name: formatName(loginRes.data.user.f_name, loginRes.data.user.m_name, loginRes.data.user.l_name),
-        role: "THERAPIST",
+        role: loginRes.data.user.role ?? "THERAPIST",
         profileImage: null,
       };
       localStorage.setItem("user_token", loginRes.data.token);

@@ -9,6 +9,7 @@ import AuthLayout from "../components/AuthLayout";
 import AuthField from "../components/AuthField";
 import { authInputClass as inputClass, authSubmitClass } from "../components/authStyles";
 import { TERMS_VERSION } from "../agreement";
+import { PROFESSIONS } from "../../../shared/constants/professions";
 
 export default function RegisterPage() {
   const { register, loading, error } = useUser();
@@ -17,6 +18,9 @@ export default function RegisterPage() {
   const [fName, setFName] = useState("");
   const [mName, setMName] = useState("");
   const [lName, setLName] = useState("");
+  const [profession, setProfession] = useState("");
+  const [licenseNumber, setLicenseNumber] = useState("");
+  const [licenseName, setLicenseName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -33,6 +37,14 @@ export default function RegisterPage() {
     e.preventDefault();
     setLocalError("");
 
+    if (!profession) {
+      setLocalError("Please choose your profession.");
+      return;
+    }
+    if (!/^\d{4,10}$/.test(licenseNumber.replace(/[\s-]/g, ""))) {
+      setLocalError("Enter your PRC license number using digits only, e.g. 0012345.");
+      return;
+    }
     if (!agreed) {
       setLocalError("Please read and agree to the user agreement to create an account.");
       return;
@@ -54,6 +66,9 @@ export default function RegisterPage() {
       password,
       accepted_terms: true,
       terms_version: TERMS_VERSION,
+      profession,
+      license_number: licenseNumber.trim(),
+      license_name: licenseName.trim(),
     });
     if (res?.ok) navigate("/dashboard");
   };
@@ -79,6 +94,32 @@ export default function RegisterPage() {
               </AuthField>
             </div>
           </div>
+        </fieldset>
+
+        {/* PRC license — checked by the administrator on the PRC verification service */}
+        <fieldset className="space-y-3">
+          <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">PRC license</legend>
+          <AuthField id="reg-profession" label="Profession">
+            <select id="reg-profession" value={profession} onChange={(e) => setProfession(e.target.value)} required className={inputClass}>
+              <option value="">Choose your profession…</option>
+              {PROFESSIONS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </AuthField>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <AuthField id="reg-license" label="PRC license number">
+              <input id="reg-license" value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} required inputMode="numeric" maxLength={14} placeholder="0012345" className={inputClass} />
+            </AuthField>
+            <AuthField id="reg-license-name" label="Name on your PRC ID">
+              <input id="reg-license-name" value={licenseName} onChange={(e) => setLicenseName(e.target.value)} required maxLength={150} placeholder="MARIA S. REYES" className={inputClass} />
+            </AuthField>
+          </div>
+          <p className="text-xs text-slate-500">
+            We check your license on the PRC verification service. You can use Amumata while it's being checked.
+          </p>
         </fieldset>
 
         {/* Account */}

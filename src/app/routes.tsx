@@ -24,6 +24,7 @@ const SessionReviewPage = lazy(() => import("../feature/sessionReview/pages/Sess
 const ReportsPage = lazy(() => import("../feature/reports/pages/ReportsPage"));
 const SettingsPage = lazy(() => import("../feature/settings/pages/SettingsPage"));
 const AppointmentsPage = lazy(() => import("../feature/appointments/pages/AppointmentsPage"));
+const AdminPage = lazy(() => import("../feature/admin/pages/AdminPage"));
 
 // Interview flow — public, no auth required
 const ConsentPage = lazy(() => import("../feature/interview/pages/ConsentPage"));
@@ -60,6 +61,9 @@ export default function AppRoutes() {
               <Route path="/login" element={<SuspenseWrap><LoginPage /></SuspenseWrap>} />
               <Route path="/register" element={<SuspenseWrap><RegisterPage /></SuspenseWrap>} />
             </Route>
+
+            {/* Admin — therapist accounts and PRC license checks (guards itself: admins only) */}
+            <Route path="/admin" element={<SuspenseWrap><AdminPage /></SuspenseWrap>} />
 
             {/* Protected routes */}
             <Route element={

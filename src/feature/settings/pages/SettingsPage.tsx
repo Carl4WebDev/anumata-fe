@@ -5,11 +5,10 @@ import { Save, LogOut, Lock, User, Brain, Cpu, Eye, Mic, Languages, Zap, FileTex
 import { useToast } from "../../../shared/context/ToastContext";
 import { fetchSystemHealth, type SystemHealth } from "../../../shared/api/healthApi";
 import Avatar from "../../../shared/components/Avatar";
-import AIModelGuide from "../components/AIModelGuide";
-import ModelEvaluation from "../components/ModelEvaluation";
 import SystemUpdates from "../components/SystemUpdates";
 import InterviewFeatures from "../components/InterviewFeatures";
 import ChangePasswordModal from "../components/ChangePasswordModal";
+import LicenseCard from "../components/LicenseCard";
 
 /** "starting" = the AI is waking up on Modal (it sleeps when unused). */
 type ComponentStatus = "ready" | "not_ready" | "checking" | "starting";
@@ -157,7 +156,6 @@ export default function SettingsPage() {
   const [lName, setLName] = useState("");
   const [phone, setPhone] = useState("");
   const [specialization, setSpecialization] = useState("");
-  const [licenseNumber, setLicenseNumber] = useState("");
   const [affiliation, setAffiliation] = useState("");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -177,7 +175,6 @@ export default function SettingsPage() {
     setLName(profile.l_name ?? "");
     setPhone(profile.phone ?? "");
     setSpecialization(profile.specialization ?? "");
-    setLicenseNumber(profile.license_number ?? "");
     setAffiliation(profile.affiliation ?? "");
   }, [profile]);
 
@@ -247,7 +244,6 @@ export default function SettingsPage() {
       l_name: lName.trim(),
       phone: phone.trim(),
       specialization: specialization.trim(),
-      license_number: licenseNumber.trim(),
       affiliation: affiliation.trim(),
     });
     setSaving(false);
@@ -382,27 +378,15 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div>
-                <FieldLabel hint="(optional)">Specialization</FieldLabel>
-                <input
-                  type="text"
-                  value={specialization}
-                  onChange={(e) => setSpecialization(e.target.value)}
-                  placeholder="e.g. Cognitive Behavioral Therapy"
-                  className={fieldClass}
-                />
-              </div>
-              <div>
-                <FieldLabel hint="(optional)">License Number</FieldLabel>
-                <input
-                  type="text"
-                  value={licenseNumber}
-                  onChange={(e) => setLicenseNumber(e.target.value)}
-                  placeholder="e.g. PRC 123456"
-                  className={fieldClass}
-                />
-              </div>
+            <div className="mt-4">
+              <FieldLabel hint="(optional)">Specialization</FieldLabel>
+              <input
+                type="text"
+                value={specialization}
+                onChange={(e) => setSpecialization(e.target.value)}
+                placeholder="e.g. Cognitive Behavioral Therapy"
+                className={fieldClass}
+              />
             </div>
 
             <div className="mt-4">
@@ -427,6 +411,8 @@ export default function SettingsPage() {
               </button>
             </div>
           </form>
+
+          <LicenseCard />
 
           {/* AI Components */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
@@ -529,7 +515,12 @@ export default function SettingsPage() {
                 { label: "Email", value: profile?.email ?? "—" },
                 { label: "Phone", value: profile?.phone || "—" },
                 { label: "Specialization", value: profile?.specialization || "—" },
-                { label: "License", value: profile?.license_number || "—" },
+                {
+                  label: "PRC License",
+                  value: profile?.license_number
+                    ? `${profile.license_number} · ${profile.license_status === "verified" ? "verified" : profile.license_status === "not_matched" ? "didn't match" : "pending"}`
+                    : "—",
+                },
                 { label: "Affiliation", value: profile?.affiliation || "—" },
                 {
                   label: "Member Since",
@@ -545,28 +536,6 @@ export default function SettingsPage() {
                 <div key={item.label} className="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
                   <span className="shrink-0 text-slate-500">{item.label}</span>
                   <span className="truncate text-right font-medium text-slate-700">{item.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* System Info */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
-            <h2 className="mb-4 text-base font-semibold text-slate-900">System Info</h2>
-            <div className="space-y-3 text-sm">
-              {[
-                { label: "System", value: "Amumata v1.0" },
-                { label: "FER", value: "EfficientNet-B0 (4-class)" },
-                { label: "SER", value: "Wav2Vec2 (4-class)" },
-                { label: "LER", value: "XLM-RoBERTa (4-class)" },
-                { label: "STT", value: "Faster-Whisper large-v3" },
-                { label: "Summary", value: "Llama 3.2:3B via Ollama" },
-                { label: "Fusion", value: "Confidence-Adaptive Weighted" },
-                { label: "Privacy", value: "RA 10173 Compliant" },
-              ].map((item) => (
-                <div key={item.label} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2">
-                  <span className="text-slate-500">{item.label}</span>
-                  <span className="font-medium text-slate-700">{item.value}</span>
                 </div>
               ))}
             </div>
@@ -597,24 +566,15 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* What changed recently */}
+      {/* What changed recently — only what affects the therapist's work. The full
+          list, model details, test results and the technical guide are on the admin page. */}
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
-        <SystemUpdates />
+        <SystemUpdates audience="therapist" />
       </section>
 
       {/* Everything the patient's interview room does */}
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
         <InterviewFeatures />
-      </section>
-
-      {/* The models' real test-set results */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
-        <ModelEvaluation />
-      </section>
-
-      {/* AI Model & Project Guide */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
-        <AIModelGuide />
       </section>
 
       {showChangePassword && (
