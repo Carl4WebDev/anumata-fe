@@ -129,6 +129,11 @@ export const INTERVIEW_FEATURES: FeatureGroup[] = [
         name: "On-device face checks",
         what: "Face position, head-down and stillness are measured on the patient's own device; only the recordings and photos for the analysis are uploaded.",
       },
+      {
+        name: "Live viewing by the therapist",
+        what: "The therapist can watch the interview as it happens: the patient's camera and microphone, the current question, live captions, and check-ins, breaks and crisis alerts. The therapist is invisible and silent, and live viewing isn't recorded.",
+        how: "One click on “Watch live” (Interview Links) or on the “… started the interview” notification. The live video is a lighter copy (about 360p, 20 frames per second) so it stays smooth on phones and slow connections; the recording for the analysis keeps full quality.",
+      },
     ],
   },
   {

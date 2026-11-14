@@ -358,6 +358,39 @@ export const DEFENSE_QA: DefenseQA[] = [
       "No. Questions the patient skipped are marked \"Skipped by patient\" and left out of the session's emotion mix, risk level and spikes, so a skip never looks like an emotion.",
     tags: ["skip", "results"],
   },
+  {
+    id: "live-viewing",
+    category: "Interview room",
+    question: "Can the therapist watch the interview live?",
+    answer:
+      "Yes, with one click. When the patient opens their interview, the therapist gets a \"… started the interview\" notification, and the interview link shows a \"Watch live\" button. The live view shows:\n" +
+      "- the patient's camera and microphone,\n" +
+      "- the current question and the patient's live captions,\n" +
+      "- check-ins, breaks and crisis alerts as they happen.\n" +
+      "The therapist is invisible and silent to the patient, and live viewing is not recorded. The AI analysis still runs after the interview.",
+    keyNumbers: ["1 click"],
+    tags: ["watch live", "real time", "observe", "monitor", "webrtc"],
+  },
+  {
+    id: "live-viewing-how",
+    category: "Interview room",
+    question: "How does live viewing work, and is the video private?",
+    answer:
+      "It uses WebRTC, the technology behind video calls. The video goes directly between the patient's and the therapist's browsers; the backend only introduces them and relays the interview's progress, so no video passes through or is stored on the server.\n" +
+      "- Only the therapist who owns the interview link can watch; finished or expired links can't go live; other websites are refused.\n" +
+      "- The live copy is about 360p at 20 frames per second (≈ 600 kbps) to stay smooth on phones; the recording for the analysis keeps full quality.\n" +
+      "- On some strict networks a relay (TURN) server is needed; it relays the video without storing it.",
+    keyNumbers: ["360p", "20 fps", "≈ 600 kbps"],
+    tags: ["webrtc", "privacy", "stream", "turn", "bandwidth"],
+  },
+  {
+    id: "live-viewing-lag",
+    category: "Interview room",
+    question: "What if the live video lags or a caption is missing?",
+    answer:
+      "The live video lowers its sharpness on a weak connection instead of freezing. Captions come from speech-to-text; if a phrase can't be transcribed in time (for example when the AI server is busy), the live view says how many phrases were missed so the therapist listens with sound on. Missing live captions don't affect the analysis, which transcribes the full recording after the interview.",
+    tags: ["lag", "delay", "captions", "network", "internet"],
+  },
 
   // ── Questions & question sets ───────────────────────────────────────────
   {

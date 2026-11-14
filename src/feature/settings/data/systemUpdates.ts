@@ -22,6 +22,38 @@ export interface SystemUpdate {
 export const SYSTEM_UPDATES: SystemUpdate[] = [
   {
     date: "2026-11-14",
+    title: "Watch your patient's interview live",
+    groups: [
+      {
+        area: "Interview links",
+        changes: [
+          "When a patient opens their interview, you get a notification “… started the interview” — one click opens the live view.",
+          "Interview links with the patient in the room show a red “Watch live” button.",
+          "The live view shows the patient's camera and microphone (unmute with one click), the current question, live captions, and check-ins, breaks and crisis alerts as they happen.",
+          "The patient can't see or hear you, and live viewing isn't recorded. The AI analysis still runs after the interview.",
+          "The live video is kept light (about 360p, 20 frames per second) so it stays smooth on phones and slow connections; on a weak connection the picture gets softer instead of freezing.",
+          "If a phrase couldn't be turned into a caption (speech-to-text was busy), the live view says so — listen with sound on for those parts.",
+        ],
+      },
+      {
+        area: "Live viewing (technical)",
+        audience: "admin",
+        changes: [
+          "WebRTC: video goes directly between the patient's and the therapist's browsers. The backend only introduces them (WebSocket at /ws/live) and relays progress.",
+          "Only the therapist who owns the interview link can watch; finished or expired links can't go live; other websites are refused.",
+          "The live copy is capped at about 360p, 20 fps and 600 kbps with “maintain framerate”; the recording for the AI keeps full quality.",
+          "Caption gaps: the room reports how many phrases of the current question failed to transcribe; the live view shows the count. Failures come from speech-to-text load (e.g. Whisper on a busy laptop), not from live viewing.",
+          "Testing on one laptop (both windows, backend and AI service) is slower than real use; test with the patient on a phone and the deployed AI on Modal.",
+        ],
+      },
+    ],
+    deploySteps: [
+      "Deploy the backend (it now includes the ws package) and the frontend. No SQL needed.",
+      "Optional, for patients on strict mobile or Wi-Fi networks: set TURN_URLS, TURN_USERNAME and TURN_CREDENTIAL on Render (e.g. a free Metered or Cloudflare TURN account).",
+    ],
+  },
+  {
+    date: "2026-11-14",
     title: "A more accurate face-emotion model",
     groups: [
       {

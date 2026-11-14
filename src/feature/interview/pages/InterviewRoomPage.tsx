@@ -43,6 +43,7 @@ import {
   type ResponseLanguage,
 } from "../hooks/rapportUtils";
 import { useLiveCaptions, type CaptionPhrase } from "../hooks/useLiveCaptions";
+import { useLiveShare } from "../hooks/useLiveShare";
 import { isExplicitDone, parseVoiceCommand } from "../hooks/voiceCommands";
 import { decideTurn, questionTiming, WARMUP_TIMING } from "../hooks/handsFree";
 import {
@@ -297,6 +298,22 @@ export default function InterviewRoom() {
   const captionsRef = useRef(captions);
   useEffect(() => {
     captionsRef.current = captions;
+  });
+
+  // Live viewing: the therapist can watch this interview as it happens.
+  const inInterview = state === "recording";
+  useLiveShare(token, stream, {
+    stage: inInterview ? "interview" : state.startsWith("rapport") ? "warmup" : "waiting",
+    questionIndex: inInterview ? currentIndex : undefined,
+    questionTotal: questions.length || undefined,
+    question: inInterview ? questions[currentIndex] : undefined,
+    caption: [...captions.turnSegments.filter((s) => s.status === "done").map((s) => s.text), captions.interim].join(" ").trim(),
+    captionGaps: captions.turnSegments.filter((s) => s.status === "failed").length,
+    onBreak,
+    checkIn: checkInOpen,
+    crisis: Boolean(crisis),
+    cameraOn,
+    micOn,
   });
 
   // ─── Interview data ───

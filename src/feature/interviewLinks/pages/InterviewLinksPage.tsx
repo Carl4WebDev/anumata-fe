@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Link2, Copy, Check, Trash2, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Link2, Copy, Check, Trash2, ExternalLink, Radio } from "lucide-react";
 import { useInterviewLinks } from "../../context/interviewLinks/useInterviewLinks";
+import { useLiveInterviews } from "../hooks/useLiveInterviews";
 import GenerateLinkModal from "../modals/GenerateLinkModal";
 import { ListPageSkeleton } from "../../../shared/components/Skeleton";
 import EmptyState from "../../../shared/components/EmptyState";
@@ -11,8 +13,21 @@ export default function InterviewLinksPage() {
   const { success } = useToast();
   const [showModal, setShowModal] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const live = useLiveInterviews();
 
   const activeLinks = links.filter((link) => link.status !== "Completed");
+
+  // One click to watch: shown while the patient is in the interview room.
+  const watchLive = (id: number, name: string) =>
+    live.has(id) && (
+      <Link
+        to={`/interview-links/${id}/live`}
+        className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+        aria-label={`Watch ${name}'s interview live`}
+      >
+        <Radio size={13} className="animate-pulse" /> Watch live
+      </Link>
+    );
 
   const handleCopy = async (token: string, id: number) => {
     const url = `${window.location.origin}/interview/${token}`;
@@ -105,6 +120,7 @@ export default function InterviewLinksPage() {
                 <td className="p-4 text-sm text-slate-500">{link.createdAt}</td>
                 <td className="p-4">
                   <div className="flex items-center gap-2">
+                    {watchLive(link.id, link.patientName)}
                     <a
                       href={`/interview/${link.token}`}
                       target="_blank"
@@ -178,7 +194,8 @@ export default function InterviewLinksPage() {
               </span>
             </div>
             <p className="mt-2 text-xs text-slate-400">Created: {link.createdAt}</p>
-            <div className="mt-3 flex items-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {watchLive(link.id, link.patientName)}
               <a
                 href={`/interview/${link.token}`}
                 target="_blank"

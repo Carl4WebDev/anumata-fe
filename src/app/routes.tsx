@@ -25,6 +25,7 @@ const ReportsPage = lazy(() => import("../feature/reports/pages/ReportsPage"));
 const SettingsPage = lazy(() => import("../feature/settings/pages/SettingsPage"));
 const AppointmentsPage = lazy(() => import("../feature/appointments/pages/AppointmentsPage"));
 const AdminPage = lazy(() => import("../feature/admin/pages/AdminPage"));
+const LiveViewPage = lazy(() => import("../feature/interviewLinks/pages/LiveViewPage"));
 
 // Interview flow — public, no auth required
 const ConsentPage = lazy(() => import("../feature/interview/pages/ConsentPage"));
@@ -85,6 +86,7 @@ export default function AppRoutes() {
               <Route path="/patients/:id" element={<SuspenseWrap><PatientDetailsPage /></SuspenseWrap>} />
               <Route path="/question-sets" element={<SuspenseWrap><QuestionSetsPage /></SuspenseWrap>} />
               <Route path="/interview-links" element={<SuspenseWrap><InterviewLinksPage /></SuspenseWrap>} />
+              <Route path="/interview-links/:id/live" element={<SuspenseWrap><LiveViewPage /></SuspenseWrap>} />
               <Route path="/sessions/:id" element={<SuspenseWrap><SessionReviewPage /></SuspenseWrap>} />
               <Route path="/reports" element={<SuspenseWrap><ReportsPage /></SuspenseWrap>} />
               <Route path="/settings" element={<SuspenseWrap><SettingsPage /></SuspenseWrap>} />

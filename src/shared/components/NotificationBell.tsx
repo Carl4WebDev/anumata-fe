@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Bell, BellRing, CheckCheck, ClipboardCheck, Siren, UserCheck } from "lucide-react";
+import { AlertTriangle, Bell, BellRing, CheckCheck, ClipboardCheck, Radio, Siren, UserCheck } from "lucide-react";
 import type { AppNotification, NotificationType } from "../api/notificationsApi";
 import { useNotifications, timeAgo } from "../hooks/useNotifications";
 import { useToast } from "../context/ToastContext";
 
 const TYPE_STYLE: Record<NotificationType, { icon: typeof Bell; className: string }> = {
+  // Opens the live view: one click to watch the interview.
+  interview_started: { icon: Radio, className: "bg-red-50 text-red-600" },
   interview_finished: { icon: UserCheck, className: "bg-teal-50 text-teal-600" },
   results_ready: { icon: ClipboardCheck, className: "bg-emerald-50 text-emerald-600" },
   analysis_failed: { icon: AlertTriangle, className: "bg-rose-50 text-rose-600" },

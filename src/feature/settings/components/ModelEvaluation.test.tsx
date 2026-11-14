@@ -75,7 +75,11 @@ describe("filterUpdates (admin search and filters)", () => {
 describe("SystemUpdates panel", () => {
   test("admin: the latest update is open; older ones open on tap, with the steps needed on the live server", () => {
     render(<SystemUpdates audience="admin" />);
-    expect(screen.getByText("Saturday, November 14, 2026")).toBeInTheDocument();
+    expect(screen.getByText("Live viewing (technical)")).toBeInTheDocument();
+    expect(screen.getByText(/TURN_URLS/)).toBeInTheDocument();
+    expect(screen.queryByText("Face model (FER)")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /A more accurate face-emotion model/ }));
     expect(screen.getByText("Face model (FER)")).toBeInTheDocument();
     expect(screen.getByText(/modal volume put anumata-models/)).toBeInTheDocument();
     expect(screen.queryByText(/checked against the PRC verification service/)).not.toBeInTheDocument();
@@ -93,6 +97,10 @@ describe("SystemUpdates panel", () => {
 
   test("therapist: only changes to their work — no admin sections, no server steps", () => {
     render(<SystemUpdates audience="therapist" />);
+    expect(screen.getByText(/one click opens the live view/)).toBeInTheDocument();
+    expect(screen.queryByText("Live viewing (technical)")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /A more accurate face-emotion model/ }));
     expect(screen.getByText(/77% accurate on its test set/)).toBeInTheDocument();
     expect(screen.queryByText("Face model (FER)")).not.toBeInTheDocument();
     expect(screen.queryByText(/Before it works on the live server/)).not.toBeInTheDocument();
