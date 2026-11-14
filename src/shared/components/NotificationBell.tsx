@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, Bell, BellRing, CheckCheck, ClipboardCheck, Radio, Siren, UserCheck } from "lucide-react";
-import type { AppNotification, NotificationType } from "../api/notificationsApi";
+import { liveViewRoute, type AppNotification, type NotificationType } from "../api/notificationsApi";
 import { useNotifications, timeAgo } from "../hooks/useNotifications";
 import { useToast } from "../context/ToastContext";
+import CrisisAlertDialog from "./CrisisAlertDialog";
 
 const TYPE_STYLE: Record<NotificationType, { icon: typeof Bell; className: string }> = {
   // Opens the live view: one click to watch the interview.
@@ -24,8 +25,11 @@ function canUseDesktopAlerts(): boolean {
 /** Bell with unread badge; opens the list of interview notifications. */
 export default function NotificationBell() {
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const [open, setOpen] = useState(false);
+  // A patient may be at risk: ask the therapist right away whether to watch live.
+  const [crisisAlert, setCrisisAlert] = useState<AppNotification | null>(null);
   const [desktopPermission, setDesktopPermission] = useState<NotificationPermission | "unsupported">(() =>
     canUseDesktopAlerts() ? Notification.permission : "unsupported",
   );
@@ -33,7 +37,11 @@ export default function NotificationBell() {
 
   const { items, unreadCount, markRead, markAllRead } = useNotifications({
     onNew: (n) => {
-      if (isUrgent(n.type)) toast.error(n.title);
+      if (n.type === "crisis_flag") {
+        // Already watching this interview: no need to ask.
+        if (location.pathname !== liveViewRoute(n)) setCrisisAlert(n);
+        else toast.error(n.title);
+      } else if (isUrgent(n.type)) toast.error(n.title);
       else toast.info(n.title);
       // Background tab: also show a system notification, if allowed.
       if (document.hidden && canUseDesktopAlerts() && Notification.permission === "granted") {
@@ -45,7 +53,8 @@ export default function NotificationBell() {
         });
         alert.onclick = () => {
           window.focus();
-          if (n.link) navigate(n.link);
+          const route = n.type === "crisis_flag" ? (liveViewRoute(n) ?? n.link) : n.link;
+          if (route) navigate(route);
         };
       }
     },
@@ -72,6 +81,17 @@ export default function NotificationBell() {
     if (n.link) navigate(n.link);
   };
 
+  /** Close the crisis popup, mark it read, and open the chosen page (if any). */
+  const answerCrisisAlert = (route: string | null) => {
+    const n = crisisAlert;
+    setCrisisAlert(null);
+    if (!n) return;
+    if (route) {
+      if (!n.read_at) void markRead(n.notification_id);
+      navigate(route);
+    }
+  };
+
   const enableDesktopAlerts = async () => {
     if (!canUseDesktopAlerts()) return;
     setDesktopPermission(await Notification.requestPermission());
@@ -81,6 +101,14 @@ export default function NotificationBell() {
 
   return (
     <div className="relative" ref={panelRef}>
+      {crisisAlert && (
+        <CrisisAlertDialog
+          alert={crisisAlert}
+          onWatchLive={() => answerCrisisAlert(liveViewRoute(crisisAlert))}
+          onOpenPatient={() => answerCrisisAlert(crisisAlert.link)}
+          onClose={() => answerCrisisAlert(null)}
+        />
+      )}
       <button
         onClick={() => setOpen((v) => !v)}
         className="relative rounded-xl border border-slate-200 bg-white p-2.5 text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-teal-700"
@@ -135,6 +163,16 @@ export default function NotificationBell() {
                       </span>
                       {!n.read_at && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-teal-500" aria-label="Unread" />}
                     </button>
+                    {n.type === "crisis_flag" && liveViewRoute(n) && (
+                      <div className="border-b border-slate-50 px-4 pb-3 pl-16">
+                        <button
+                          onClick={() => openNotification({ ...n, link: liveViewRoute(n) })}
+                          className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                        >
+                          <Radio size={13} /> Watch live
+                        </button>
+                      </div>
+                    )}
                   </li>
                 );
               })

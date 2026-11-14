@@ -53,7 +53,7 @@ export const INTERVIEW_FEATURES: FeatureGroup[] = [
       },
       {
         name: "Language",
-        what: "English, Tagalog or Bisaya — detected from the first answers. Questions are translated and spoken in that language, with the original underneath.",
+        what: "English, Tagalog or Bisaya — detected from the first answers. Questions are spoken and shown in that language, with the original underneath. Saved (therapist-reviewed) translations appear instantly; others are translated by the AI. If the patient switches language for two answers in a row, Amumata follows.",
       },
       {
         name: "Reassurance",
@@ -141,7 +141,7 @@ export const INTERVIEW_FEATURES: FeatureGroup[] = [
     features: [
       {
         name: "Crisis words",
-        what: "Words that may mean self-harm (in English, Tagalog or Bisaya) show a calm help card with tap-to-call hotlines, and send the therapist one urgent alert. The interview carries on.",
+        what: "Words that may mean self-harm (in English, Tagalog or Bisaya) show a calm help card with tap-to-call hotlines, and send the therapist one urgent alert. Within about 10 seconds a popup asks the therapist “Do you want to watch the interview live now?” — one click opens the live view. The interview carries on.",
       },
       {
         name: "Help lines at the end",

@@ -75,6 +75,15 @@ describe("filterUpdates (admin search and filters)", () => {
 describe("SystemUpdates panel", () => {
   test("admin: the latest update is open; older ones open on tap, with the steps needed on the live server", () => {
     render(<SystemUpdates audience="admin" />);
+    expect(screen.getByText("Crisis detection (technical)")).toBeInTheDocument();
+    expect(screen.queryByText("Translations (technical)")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Better Tagalog and Bisaya questions/ }));
+    expect(screen.getByText("Translations (technical)")).toBeInTheDocument();
+    expect(screen.getByText(/add_standardized_question_translations\.sql/)).toBeInTheDocument();
+    expect(screen.queryByText("Live viewing (technical)")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Watch your patient's interview live/ }));
     expect(screen.getByText("Live viewing (technical)")).toBeInTheDocument();
     expect(screen.getByText(/TURN_URLS/)).toBeInTheDocument();
     expect(screen.queryByText("Face model (FER)")).not.toBeInTheDocument();
@@ -97,6 +106,14 @@ describe("SystemUpdates panel", () => {
 
   test("therapist: only changes to their work — no admin sections, no server steps", () => {
     render(<SystemUpdates audience="therapist" />);
+    expect(screen.getByText(/Do you want to watch the interview live now/)).toBeInTheDocument();
+    expect(screen.queryByText("Crisis detection (technical)")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Better Tagalog and Bisaya questions/ }));
+    expect(screen.getByText(/New “Translations” button/)).toBeInTheDocument();
+    expect(screen.queryByText("Translations (technical)")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Watch your patient's interview live/ }));
     expect(screen.getByText(/one click opens the live view/)).toBeInTheDocument();
     expect(screen.queryByText("Live viewing (technical)")).not.toBeInTheDocument();
 

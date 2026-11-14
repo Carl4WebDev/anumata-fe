@@ -5,7 +5,8 @@ import NotificationBell from "./NotificationBell";
 import { notificationsApi, type AppNotification, type Inbox } from "../api/notificationsApi";
 import { INTERVIEW_UPDATE_EVENT, timeAgo } from "../hooks/useNotifications";
 
-vi.mock("../api/notificationsApi", () => ({
+vi.mock("../api/notificationsApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api/notificationsApi")>()),
   notificationsApi: { inbox: vi.fn(), markRead: vi.fn(), markAllRead: vi.fn() },
 }));
 const toast = { info: vi.fn(), error: vi.fn(), success: vi.fn(), toast: vi.fn() };
@@ -77,7 +78,7 @@ describe("NotificationBell", () => {
 
     api.inbox.mockResolvedValue(inbox([note({})]));
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(20000); // next poll
+      await vi.advanceTimersByTimeAsync(10000); // next poll
     });
     expect(toast.info).toHaveBeenCalledWith("MARIA SANTOS finished the interview");
     expect(screen.getByRole("button", { name: "Notifications, 1 unread" })).toBeInTheDocument();
@@ -97,7 +98,7 @@ describe("NotificationBell", () => {
     expect(toast.error).toHaveBeenCalledWith("Analysis didn't finish for MARIA SANTOS");
   });
 
-  test("an urgent crisis alert stands out: error toast and a desktop alert that stays until clicked", async () => {
+  test("an urgent crisis alert stands out: a popup and a desktop alert that stays until clicked", async () => {
     const shown: { title: string; options: NotificationOptions }[] = [];
     class FakeDesktopNotification {
       static permission = "granted";
@@ -119,11 +120,80 @@ describe("NotificationBell", () => {
       await vi.advanceTimersByTimeAsync(10);
     });
 
-    expect(toast.error).toHaveBeenCalledWith("Urgent: please check on MARIA SANTOS");
+    expect(screen.getByRole("alertdialog", { name: "Urgent: please check on MARIA SANTOS" })).toBeInTheDocument();
     expect(shown[0]).toMatchObject({ title: "Urgent: please check on MARIA SANTOS", options: { requireInteraction: true } });
 
     Object.defineProperty(document, "hidden", { configurable: true, value: false });
     vi.unstubAllGlobals();
+  });
+
+  describe("crisis popup", () => {
+    const crisis = note({
+      notification_id: 3,
+      type: "crisis_flag",
+      title: "Urgent: please check on MARIA SANTOS",
+      message: "During the interview they said something that may mean thoughts of self-harm.",
+      interview_link_id: 7,
+    });
+
+    async function crisisArrives(path = "/dashboard") {
+      api.inbox.mockResolvedValue(inbox([]));
+      render(
+        <MemoryRouter initialEntries={[path]}>
+          <NotificationBell />
+          <Routes>
+            <Route path="/dashboard" element={<p>Dashboard</p>} />
+            <Route path="/patients/:id" element={<p>Patient page</p>} />
+            <Route path="/interview-links/:id/live" element={<p>Live view</p>} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      await flush();
+      api.inbox.mockResolvedValue(inbox([crisis]));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10000);
+      });
+    }
+
+    test("asks to watch live; one click opens the live view", async () => {
+      await crisisArrives();
+      expect(screen.getByText("Do you want to watch the interview live now?")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Watch live now" }));
+      await flush();
+      expect(screen.getByText("Live view")).toBeInTheDocument();
+      expect(api.markRead).toHaveBeenCalledWith(3);
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+
+    test("can open the patient's page instead", async () => {
+      await crisisArrives();
+      fireEvent.click(screen.getByRole("button", { name: /Open the patient's page/ }));
+      await flush();
+      expect(screen.getByText("Patient page")).toBeInTheDocument();
+    });
+
+    test("Later closes it and keeps the notification unread", async () => {
+      await crisisArrives();
+      fireEvent.click(screen.getByRole("button", { name: /Later/ }));
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+      expect(api.markRead).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "Notifications, 1 unread" })).toBeInTheDocument();
+    });
+
+    test("no popup when already watching that interview — an error toast instead", async () => {
+      await crisisArrives("/interview-links/7/live");
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+      expect(toast.error).toHaveBeenCalledWith("Urgent: please check on MARIA SANTOS");
+    });
+
+    test("the crisis notification in the list has a Watch live button", async () => {
+      await crisisArrives();
+      fireEvent.click(screen.getByRole("button", { name: /Later/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Notifications/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Watch live" }));
+      await flush();
+      expect(screen.getByText("Live view")).toBeInTheDocument();
+    });
   });
 
   test("clicking a notification marks it read and opens its page", async () => {

@@ -4,7 +4,8 @@ import { notificationsApi, type AppNotification } from "../api/notificationsApi"
 /** Fired on window when interview notifications arrive, so lists can refresh. */
 export const INTERVIEW_UPDATE_EVENT = "amumata:interview-update";
 
-const POLL_MS = 20000;
+// Every 10 s, so an urgent crisis alert pops up within seconds of the patient's words.
+const POLL_MS = 10000;
 
 interface UseNotificationsOptions {
   /** Called once for each notification that arrives after the first load. */
@@ -12,7 +13,7 @@ interface UseNotificationsOptions {
 }
 
 /**
- * The therapist's notifications, kept fresh by polling (every 20 s, and
+ * The therapist's notifications, kept fresh by polling (every 10 s, and
  * immediately when the tab regains focus). New arrivals trigger `onNew`.
  */
 export function useNotifications({ onNew }: UseNotificationsOptions = {}) {

@@ -27,6 +27,35 @@ const CRISIS_PHRASES = [
   "gusto na ko mamatay", "gusto nako mamatay", "gusto na lang ko mamatay", "ayaw na ko mabuhi",
   "dili na ko gusto mabuhi", "samaran akong kaugalingon", "samaran nako akong kaugalingon",
   "tapuson nako akong kinabuhi", "tapuson akong kinabuhi",
+  // More English
+  "kill my self", "unalive myself", "wish i could die", "dont want to wake up", "hang myself", "overdose",
+  "slit my wrist", "slit my wrists", "want to disappear forever",
+];
+
+/**
+ * Word patterns, for the many ways Tagalog and Bisaya can say the same thing
+ * (verb forms, word order, "sarili" / "kaugalingon"). Run on normalized text.
+ */
+const CRISIS_PATTERNS: RegExp[] = [
+  // Any form of hikog (Bisaya), pakamatay / patiwakal (Tagalog): maghikog, mohikog, nagpakamatay…
+  /\b\w*hikog\b/,
+  /\b\w*pakamatay\b/,
+  /\b\w*patiwakal\b/,
+  // Kill or hurt + oneself: "gusto na nako patayon akong sarili", "papatayin ko na lang ang sarili ko"
+  /\b(patyon|patayon|pamatyon|mopatay|magpatay|samaran|samadon|pasakitan|patayin|papatayin|pinapatay|saktan|sasaktan|sinasaktan|sugatan)\b(\s+\w+){0,4}\s+(kaugalingon|sarili)\b/,
+  // End one's life: "tapuson na nako akong kinabuhi", "tatapusin ko na ang buhay ko"
+  /\b(tapuson|tapusin|tatapusin|wakasan|wawakasan)\b(\s+\w+){0,4}\s+(kinabuhi|buhay)\b/,
+  // Want to die: "gusto na nako mamatay", "gusto ko na lang mamatay", "gustong-gusto ko nang mamatay"
+  /\b(gusto|gustong|nais|ganahan)\b(\s+\w+){0,4}\s+(mamatay|mangamatay)\b/,
+  // Don't want to live: "ayaw na nako mabuhi", "dili na ko gusto mabuhi", "ayoko na talagang mabuhay"
+  // (said about oneself, so "dili na mabuhi ang tanom" doesn't count)
+  /\b(ayaw|dili|di)\s+na\s+(ko|kong|ako|nako|nakong)\b(\s+\w+){0,2}\s+(mabuhi|mabuhay)\b/,
+  /\b(ayoko|ayaw ko|ayaw nako)\b(\s+\w+){0,3}\s+(mabuhi|mabuhay)\b/,
+  // Better off dead: "mas maayo pa nga mamatay ko", "mas mabuti pang mamatay na lang ako"
+  /\b(maayo|mabuti|mainam)\s+pa(ng)?\b(\s+\w+){0,3}\s+(mamatay|mapatay)\b/,
+  // "mamatay na lang ko", "unta mamatay na ko"
+  /\bmamatay\s+na\s+(lang|lng|lamang)\s+(ko|ako)\b/,
+  /\bunta\s+mamatay\s+na\b/,
 ];
 
 /** Lowercase, no punctuation or apostrophes, hyphens as spaces ("Don't" → "dont"). */
@@ -41,8 +70,9 @@ function normalize(text: string): string {
 
 /** Does this text contain a phrase that may mean suicidal thoughts or self-harm? */
 export function detectCrisis(text: string): boolean {
-  const padded = ` ${normalize(text)} `;
-  return CRISIS_PHRASES.some((phrase) => padded.includes(` ${phrase} `));
+  const normalized = normalize(text);
+  const padded = ` ${normalized} `;
+  return CRISIS_PHRASES.some((phrase) => padded.includes(` ${phrase} `)) || CRISIS_PATTERNS.some((p) => p.test(normalized));
 }
 
 /** The help card's wording, in the patient's language. */

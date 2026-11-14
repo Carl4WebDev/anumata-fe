@@ -16,6 +16,11 @@ export interface AppNotification {
   created_at: string;
 }
 
+/** The live view of the interview a notification is about, if it has one. */
+export function liveViewRoute(n: AppNotification): string | null {
+  return n.interview_link_id ? `/interview-links/${n.interview_link_id}/live` : null;
+}
+
 export interface Inbox {
   items: AppNotification[];
   unread_count: number;

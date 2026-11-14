@@ -307,6 +307,19 @@ export const DEFENSE_QA: DefenseQA[] = [
     tags: ["english", "tagalog", "bisaya", "cebuano", "translation"],
   },
   {
+    id: "interview-translations",
+    category: "Interview room",
+    question: "How accurate are the Tagalog and Bisaya questions?",
+    answer:
+      "Translations are saved and can be reviewed by the therapist (Question Sets → Translations). Which version is used:\n" +
+      "- a translation reviewed by the therapist comes first,\n" +
+      "- then the draft translations prepared for all 153 standardized questions (306 drafts, marked for native-speaker review),\n" +
+      "- then an AI translation made during the interview, which is saved so the therapist can review it.\n" +
+      "If the patient switches language mid-interview, Amumata follows after two answers in a row (of 3 words or more) in the new language.",
+    keyNumbers: ["153 questions", "306 drafts", "2 answers to switch"],
+    tags: ["tagalog", "bisaya", "translation", "review", "draft", "language switch"],
+  },
+  {
     id: "hands-free",
     category: "Interview room",
     question: "How does the patient move to the next question?",
@@ -333,8 +346,9 @@ export const DEFENSE_QA: DefenseQA[] = [
     category: "Interview room",
     question: "What if a patient mentions self-harm?",
     answer:
-      "If the patient says a crisis phrase, a crisis card appears at once with tap-to-call hotlines — NCMH 1553, Hopeline 0917-558-4673, In Touch 0917-800-1123 and Tawag Paglaum 0939-936-5233 — and the therapist gets an urgent notification. The interview can continue if the patient wants.",
-    keyNumbers: ["NCMH 1553"],
+      "If the patient says a crisis phrase, a crisis card appears at once with tap-to-call hotlines — NCMH 1553, Hopeline 0917-558-4673, In Touch 0917-800-1123 and Tawag Paglaum 0939-936-5233 — and the therapist gets an urgent notification. Within about 10 seconds a popup on the therapist's screen asks whether to watch the interview live; one click opens the live view. The interview can continue if the patient wants.\n" +
+      "Detection works on phrases and word patterns in English, Tagalog and Bisaya (e.g. \"gusto na nako patayon akong sarili\", \"ayoko nang mabuhay\", \"I want to kill myself\"). It errs on the side of caution; the therapist decides what it means.",
+    keyNumbers: ["NCMH 1553", "≈ 10 s to the therapist's popup"],
     tags: ["suicide", "self-harm", "hotline", "safety", "urgent"],
   },
   {

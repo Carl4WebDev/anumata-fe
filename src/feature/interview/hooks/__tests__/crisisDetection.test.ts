@@ -21,6 +21,20 @@ describe("detectCrisis", () => {
     "Naghunahuna ko nga maghikog",
     "Ayaw na ko mabuhi",
     "Gusto nakong samaran akong kaugalingon, samaran nako akong kaugalingon",
+    // Variations caught by word patterns
+    "Gusto na nako patayon akong sarili",
+    "Usahay gusto nako patyon na lang akong kaugalingon",
+    "Naa koy plano nga mohikog",
+    "Ayaw na nako mabuhi",
+    "Dili na ko gusto mabuhi",
+    "Mas maayo pa nga mamatay na lang ko",
+    "Tapuson na nako akong kinabuhi",
+    "Papatayin ko na lang ang sarili ko",
+    "Nagpakamatay na sana ako noon",
+    "Gustong-gusto ko nang mamatay",
+    "Mas mabuti pang mamatay na lang ako",
+    "Ayoko na talagang mabuhay",
+    "Sometimes I want to unalive myself",
   ])("flags: '%s'", (text) => {
     expect(detectCrisis(text)).toBe(true);
   });
@@ -33,6 +47,11 @@ describe("detectCrisis", () => {
     "I killed it at work today",
     "My life is busy but okay",
     "Namatay akong selpon",
+    "Dili na mabuhi ang akong tanom",
+    "Gipatay nako ang suga sa kwarto",
+    "Patayin mo ang ilaw",
+    "Ganahan ko mobalik sa eskwelahan",
+    "Gusto ko lang matulog nang maaga",
     "",
   ])("does not flag everyday speech: '%s'", (text) => {
     expect(detectCrisis(text)).toBe(false);

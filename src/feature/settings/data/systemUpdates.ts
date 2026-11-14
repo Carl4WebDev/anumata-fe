@@ -22,6 +22,72 @@ export interface SystemUpdate {
 export const SYSTEM_UPDATES: SystemUpdate[] = [
   {
     date: "2026-11-14",
+    title: "Crisis alerts ask you to watch live",
+    groups: [
+      {
+        area: "Notifications",
+        changes: [
+          "When a patient says words that may mean thoughts of self-harm, a popup appears on your screen right away: “Do you want to watch the interview live now?” — with Watch live now, Open the patient's page, or Later.",
+          "The urgent notification in the bell also has a Watch live button. A desktop alert (if allowed) opens the live view too.",
+          "Notifications now arrive within about 10 seconds (was 20).",
+        ],
+      },
+      {
+        area: "Interview room (patient side)",
+        changes: [
+          "More ways of saying it are recognized in English, Tagalog and Bisaya — e.g. “gusto na nako patayon akong sarili”, “ayaw na nako mabuhi”, “mas mabuti pang mamatay na lang ako”, “I want to unalive myself”.",
+          "Everyday phrases are still not flagged (e.g. “patayin mo ang ilaw”, “dili na mabuhi ang tanom”).",
+        ],
+      },
+      {
+        area: "Crisis detection (technical)",
+        audience: "admin",
+        changes: [
+          "Detection runs in the patient's browser: the phrase list plus word patterns (verb forms of patay / samad / hikog / pakamatay with sarili / kaugalingon, gusto … mamatay, ayaw na … mabuhi, etc.). No AI call, so it's instant.",
+          "Still one urgent alert per interview. The popup isn't shown if the therapist is already watching that interview live.",
+        ],
+      },
+    ],
+    deploySteps: ["Deploy the backend (new alert wording) and the frontend. No SQL needed."],
+  },
+  {
+    date: "2026-11-14",
+    title: "Better Tagalog and Bisaya questions",
+    groups: [
+      {
+        area: "Question sets",
+        changes: [
+          "New “Translations” button on each question set: see the Tagalog and Bisaya version of every question and follow-up, edit them, and mark them as reviewed.",
+          "All standardized questions come with a draft Tagalog and Bisaya translation, marked “Draft — please review”. Your reviewed version is the one your patients hear.",
+          "Questions without a saved translation are still translated by the AI during the interview. That translation is saved, so it appears in Translations for you to review, and the next patient gets it instantly.",
+        ],
+      },
+      {
+        area: "Interview room (patient side)",
+        changes: [
+          "Translated questions appear instantly when a saved translation exists — no waiting for the AI.",
+          "If the patient switches language mid-interview (e.g. from English to Bisaya), Amumata follows after two answers in a row in the new language. Very short answers (under 3 words) don't count.",
+        ],
+      },
+      {
+        area: "Translations (technical)",
+        audience: "admin",
+        changes: [
+          "New table question_translations, keyed by the English text, so it works for standardized, custom and AI-built questions and follow-ups.",
+          "Which translation is used: reviewed before draft before AI (machine); the therapist's own before the shared one.",
+          "The patient's room can only ask for translations of its own interview's questions (rate limited), so the AI translator can't be used for other text.",
+          "The 306 drafts (153 questions × 2 languages) were prepared by AI and still need a native speaker's review.",
+        ],
+      },
+    ],
+    deploySteps: [
+      "Run migrations/manual/add_question_translations.sql on the Render database.",
+      "Then run migrations/manual/add_standardized_question_translations.sql (the draft translations).",
+      "Then deploy the backend and frontend.",
+    ],
+  },
+  {
+    date: "2026-11-14",
     title: "Watch your patient's interview live",
     groups: [
       {

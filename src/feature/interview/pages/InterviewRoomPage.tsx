@@ -24,7 +24,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { interviewLinksApi } from "../../../shared/api/interviewLinksApi";
-import { translateQuestion, type QuestionLanguage } from "../../../shared/api/translateApi";
+import { fetchSavedTranslations, translateForInterview, type QuestionLanguage } from "../../../shared/api/translateApi";
 import { addFiles, deleteFiles, storeFiles } from "../../../shared/utils/fileStorage";
 import { clearProgress, loadProgress, saveProgress, type InterviewProgress } from "../hooks/interviewProgress";
 import { emotionApi } from "../../../shared/api/emotionApi";
@@ -44,6 +44,7 @@ import {
 } from "../hooks/rapportUtils";
 import { useLiveCaptions, type CaptionPhrase } from "../hooks/useLiveCaptions";
 import { useLiveShare } from "../hooks/useLiveShare";
+import { followLanguage } from "../hooks/languageFollow";
 import { isExplicitDone, parseVoiceCommand } from "../hooks/voiceCommands";
 import { decideTurn, questionTiming, WARMUP_TIMING } from "../hooks/handsFree";
 import {
@@ -231,6 +232,10 @@ export default function InterviewRoom() {
   const confirmAskedAtRef = useRef<number | null>(null);
   const turnTextRef = useRef<string[]>([]);
   const turnLangRef = useRef("");
+  /** Another language heard in one answer; the questions switch if the next answer is in it too. */
+  const langSwitchRef = useRef<ResponseLanguage | null>(null);
+  /** Saved translations of this interview's questions, loaded once per language. */
+  const savedTransRef = useRef<Map<QuestionLanguage, Promise<Record<string, string>>>>(new Map());
   const answersRef = useRef<Map<number, string>>(new Map());
   const nudgedRef = useRef(false);
   const flowBusyRef = useRef(false);
@@ -705,21 +710,39 @@ export default function InterviewRoom() {
 
   // ─── Formal interview ───
 
-  /** Translation of a question, started once and shared (null = use English). */
+  /** The saved translations of this interview's questions in one language (loaded once). */
+  const savedTranslations = (lang: QuestionLanguage): Promise<Record<string, string>> => {
+    let saved = savedTransRef.current.get(lang);
+    if (!saved) {
+      saved = token ? fetchSavedTranslations(token, lang) : Promise.resolve({});
+      savedTransRef.current.set(lang, saved);
+    }
+    return saved;
+  };
+
+  /**
+   * Translation of a question, started once and shared (null = use English):
+   * the saved (reviewed or earlier) translation if there is one — instant —
+   * otherwise the AI translator, whose result the server keeps for next time.
+   */
   const translationFor = (original: string, lang: QuestionLanguage): Promise<string | null> => {
     const key = `${lang}|${original}`;
     let pending = questionTransCacheRef.current.get(key);
     if (!pending) {
-      // Queue behind earlier translations: the local AI handles one at a time.
-      pending = translationQueueRef.current
-        .then(() => translateQuestion(original, lang))
-        .catch(() => null)
-        .then((text) => {
-          // A failed translation is retried the next time it's needed.
-          if (!text) questionTransCacheRef.current.delete(key);
-          return text;
-        });
-      translationQueueRef.current = pending;
+      pending = savedTranslations(lang).then((saved) => {
+        if (saved[original]) return saved[original];
+        // Queue behind earlier AI translations: the AI handles one at a time.
+        const viaAi = translationQueueRef.current
+          .then(() => (token ? translateForInterview(token, original, lang) : null))
+          .catch(() => null)
+          .then((text) => {
+            // A failed translation is retried the next time it's needed.
+            if (!text) questionTransCacheRef.current.delete(key);
+            return text;
+          });
+        translationQueueRef.current = viaAi;
+        return viaAi;
+      });
       questionTransCacheRef.current.set(key, pending);
     }
     return pending;
@@ -1031,6 +1054,13 @@ export default function InterviewRoom() {
     ttsRef.current.stop();
     const answer = turnTextRef.current.join(" ").trim();
     answersRef.current.set(index, answer);
+    // Mirror the patient: after two answers in a row in another language, ask in that language.
+    const follow = followLanguage(langRef.current, answer, turnLangRef.current, langSwitchRef.current);
+    langSwitchRef.current = follow.pending;
+    if (follow.lang !== langRef.current) {
+      updateLanguage(follow.lang);
+      prefetchTranslations(follow.lang);
+    }
     const answered = Boolean(answer) || captionsRef.current.getActivity().lastVoiceAt !== null;
     // Moved on without saying anything: skipped, so it's left out of the AI results.
     if (!answered) {

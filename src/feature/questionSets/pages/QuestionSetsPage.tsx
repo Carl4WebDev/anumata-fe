@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Eye, Trash2, Search, Pencil, Sparkles, BookOpen, User, Layers, AlertCircle, Check, X } from "lucide-react";
+import { Plus, Eye, Trash2, Search, Pencil, Sparkles, BookOpen, User, Layers, AlertCircle, Check, X, Languages } from "lucide-react";
 import { useQuestionSets } from "../../context/questionSets/useQuestionSets";
 import AddQuestionSetModal from "../modals/AddQuestionSetModal";
 import EditQuestionSetModal from "../modals/EditQuestionSetModal";
 import ViewQuestionSetModal from "../modals/ViewQuestionSetModal";
+import TranslationsModal from "../modals/TranslationsModal";
 import AiQuestionSetBuilderModal from "../modals/AiQuestionSetBuilderModal";
 import { ListPageSkeleton, RowsSkeleton } from "../../../shared/components/Skeleton";
 import EmptyState from "../../../shared/components/EmptyState";
@@ -44,6 +45,7 @@ export default function QuestionSetsPage() {
   const [showAiModal, setShowAiModal] = useState(false);
   const [editSet, setEditSet] = useState<{ id: number; name: string; description: string; questions: string[] } | null>(null);
   const [viewSet, setViewSet] = useState<{ id: number; name: string; description: string; questions: string[] } | null>(null);
+  const [translationsSet, setTranslationsSet] = useState<{ id: number; name: string } | null>(null);
 
   // Standardized questions state
   const [standardizedQuestions, setStandardizedQuestions] = useState<StandardizedQuestion[]>([]);
@@ -393,6 +395,7 @@ export default function QuestionSetsPage() {
           onDelete={handleDeleteSet}
           onEdit={setEditSet}
           onView={setViewSet}
+          onTranslations={setTranslationsSet}
         />
       )}
 
@@ -415,6 +418,7 @@ export default function QuestionSetsPage() {
         onClose={() => setViewSet(null)}
         questionSet={viewSet}
       />
+      <TranslationsModal key={translationsSet?.id ?? "none"} questionSet={translationsSet} onClose={() => setTranslationsSet(null)} />
 
       {/* Create Interview Set from Selection Modal */}
       {showSetNameModal && (
@@ -776,12 +780,14 @@ function InterviewSetsTab({
   onDelete,
   onEdit,
   onView,
+  onTranslations,
 }: {
   sets: { id: number; name: string; description: string; questions: string[]; questionCount?: number; sourceType?: string }[];
   search: string;
   onDelete: (id: number, name: string) => void;
   onEdit: (set: { id: number; name: string; description: string; questions: string[] }) => void;
   onView: (set: { id: number; name: string; description: string; questions: string[] }) => void;
+  onTranslations: (set: { id: number; name: string }) => void;
 }) {
   if (sets.length === 0) {
     return (
@@ -822,13 +828,23 @@ function InterviewSetsTab({
           <p className="mb-4 text-sm leading-relaxed text-slate-500">{qs.description}</p>
           <div className="flex items-center justify-between">
             <span className="text-xs text-slate-400">{qs.questionCount ?? qs.questions.length} questions</span>
-            <button
-              onClick={() => onView(qs)}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 hover:underline"
-            >
-              <Eye size={14} />
-              View
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => onTranslations(qs)}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-teal-700 hover:underline"
+                aria-label={`Tagalog and Bisaya translations of ${qs.name}`}
+              >
+                <Languages size={14} />
+                Translations
+              </button>
+              <button
+                onClick={() => onView(qs)}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-teal-600 hover:underline"
+              >
+                <Eye size={14} />
+                View
+              </button>
+            </div>
           </div>
         </div>
       ))}

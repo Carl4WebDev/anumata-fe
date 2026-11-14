@@ -72,7 +72,13 @@ vi.mock("../../../../shared/api/interviewLinksApi", () => ({
   },
 }));
 vi.mock("../../../../shared/api/healthApi", () => ({ fetchSystemHealth: () => Promise.resolve({}) }));
-vi.mock("../../../../shared/api/translateApi", () => ({ translateQuestion: () => Promise.resolve(null) }));
+// Saved translations of the questions, and the AI translator (fails by default: ask in English).
+const translations = vi.hoisted(() => ({ saved: {} as Record<string, string>, ai: vi.fn() }));
+vi.mock("../../../../shared/api/translateApi", () => ({
+  translateQuestion: () => Promise.resolve(null),
+  fetchSavedTranslations: () => Promise.resolve(translations.saved),
+  translateForInterview: (...args: unknown[]) => translations.ai(...args),
+}));
 // The real face check runs MediaPipe (WASM), which jsdom can't: control its hint directly.
 const faceCheck = {
   hint: null as null | "no_face" | "too_far" | "too_dark",
@@ -160,6 +166,9 @@ beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: false });
   spoken.length = 0;
   link.questions = DEFAULT_QUESTIONS;
+  translations.saved = {};
+  translations.ai.mockReset();
+  translations.ai.mockResolvedValue(null);
   moodCheck.autoSkip = true;
   mic.turn = 0;
   mic.activity = { lastVoiceAt: null, voiceActive: false, pending: 0 };
@@ -718,6 +727,26 @@ describe("InterviewRoom — feeling at ease", () => {
     expect(screen.queryByRole("timer")).not.toBeInTheDocument(); // 3 s would already have shown "moving on"
     await wait(4000);
     expect(screen.getByRole("timer")).toBeInTheDocument();
+  });
+});
+
+describe("InterviewRoom — saved translations", () => {
+  test("a saved Tagalog translation is used at once, with English underneath, without asking the AI", async () => {
+    translations.saved = { "How have you been sleeping?": "Kumusta ang tulog mo nitong mga nakaraang araw?" };
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    expect(screen.getByText("Kumusta ang tulog mo nitong mga nakaraang araw?")).toBeInTheDocument();
+    expect(screen.getByText("How have you been sleeping?")).toBeInTheDocument();
+    expect(translations.ai).not.toHaveBeenCalledWith("tok", "How have you been sleeping?", "tl");
+  });
+
+  test("a question without a saved translation is sent to the AI translator (kept by the server)", async () => {
+    translations.ai.mockResolvedValue("Ano ang nakakatulong sa iyo para makapagpahinga?");
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    expect(translations.ai).toHaveBeenCalledWith("tok", "What helps you relax?", "tl");
   });
 });
 
