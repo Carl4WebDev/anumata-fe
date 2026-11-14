@@ -41,6 +41,14 @@ export const SYSTEM_UPDATES: SystemUpdate[] = [
           "Previous model kept as src/ai/models/fer_best_model_old_61pct.pth; its evaluation files are in docs/evaluation/fer/previous_61pct/.",
         ],
       },
+      {
+        area: "Administrator",
+        audience: "admin",
+        changes: [
+          "New Defense Q&A tab: likely thesis-panel questions in 10 categories, with the system's real numbers — searchable, filterable by category and by “numbers to remember”.",
+          "What's New on the System tab can now be searched and filtered (therapists see, admin only, needs server steps).",
+        ],
+      },
     ],
     deploySteps: [
       "Upload the new model to Modal: modal volume put anumata-models src/ai/models/fer_best_model.pth /fer_best_model.pth --force",
@@ -179,6 +187,31 @@ export const SYSTEM_UPDATES: SystemUpdate[] = [
 ];
 
 export type UpdatesAudience = "therapist" | "admin";
+
+/** Admin filter: everything, what therapists also see, admin-only changes, or updates with server steps. */
+export type UpdatesFilter = "all" | "therapist" | "admin" | "steps";
+
+/**
+ * Narrow the updates by a search (every word must appear in a change, its area
+ * or the update title) and a filter. Updates left without changes are dropped.
+ */
+export function filterUpdates(updates: SystemUpdate[], { search = "", filter = "all" }: { search?: string; filter?: UpdatesFilter }): SystemUpdate[] {
+  const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const hit = (...texts: string[]) => {
+    const haystack = texts.join(" ").toLowerCase();
+    return words.every((w) => haystack.includes(w));
+  };
+  return updates
+    .filter((u) => filter !== "steps" || (u.deploySteps?.length ?? 0) > 0)
+    .map((u) => ({
+      ...u,
+      groups: u.groups
+        .filter((g) => (filter === "admin" ? g.audience === "admin" : filter === "therapist" ? g.audience !== "admin" : true))
+        .map((g) => ({ ...g, changes: g.changes.filter((c) => hit(c, g.area, u.title, ...(u.deploySteps ?? []))) }))
+        .filter((g) => g.changes.length > 0),
+    }))
+    .filter((u) => u.groups.length > 0);
+}
 
 /**
  * The updates a reader should see. Therapists: only groups that affect their work,

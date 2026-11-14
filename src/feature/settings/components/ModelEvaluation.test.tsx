@@ -4,6 +4,7 @@ import ModelEvaluation from "./ModelEvaluation";
 import SystemUpdates from "./SystemUpdates";
 import InterviewFeatures from "./InterviewFeatures";
 import { MODEL_EVALUATIONS } from "../data/evaluationResults";
+import { SYSTEM_UPDATES, filterUpdates } from "../data/systemUpdates";
 
 describe("evaluation numbers are consistent", () => {
   test.each(MODEL_EVALUATIONS.map((m) => [m.name, m] as const))("%s: matrix, counts and accuracy agree", (_name, m) => {
@@ -40,6 +41,37 @@ describe("ModelEvaluation panel", () => {
   });
 });
 
+describe("filterUpdates (admin search and filters)", () => {
+  test("search keeps only matching changes, across all updates", () => {
+    const found = filterUpdates(SYSTEM_UPDATES, { search: "grayscale" });
+    expect(found.length).toBeGreaterThan(0);
+    found.forEach((u) => u.groups.forEach((g) => g.changes.forEach((c) => expect(`${c} ${g.area} ${u.title} ${(u.deploySteps ?? []).join(" ")}`.toLowerCase()).toContain("grayscale"))));
+  });
+
+  test("filters: admin-only groups, therapist groups, updates with server steps", () => {
+    filterUpdates(SYSTEM_UPDATES, { filter: "admin" }).forEach((u) => u.groups.forEach((g) => expect(g.audience).toBe("admin")));
+    filterUpdates(SYSTEM_UPDATES, { filter: "therapist" }).forEach((u) => u.groups.forEach((g) => expect(g.audience).toBeUndefined()));
+    filterUpdates(SYSTEM_UPDATES, { filter: "steps" }).forEach((u) => expect(u.deploySteps?.length).toBeGreaterThan(0));
+    expect(filterUpdates(SYSTEM_UPDATES, { search: "zzzz" })).toEqual([]);
+  });
+
+  test("the admin panel filters as you type, and opens every match", async () => {
+    render(<SystemUpdates audience="admin" />);
+    fireEvent.change(screen.getByLabelText("Search updates"), { target: { value: "PRC" } });
+    expect(screen.getByText(/checked against the PRC verification service/)).toBeInTheDocument();
+    expect(screen.queryByText(/Okay ka pa ba mopadayon/)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Search updates"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Admin only" }));
+    expect(screen.getByText("Face model (FER)")).toBeInTheDocument();
+    expect(screen.queryByText("Session review")).not.toBeInTheDocument();
+  });
+
+  test("therapists get no search or filters", () => {
+    render(<SystemUpdates audience="therapist" />);
+    expect(screen.queryByLabelText("Search updates")).not.toBeInTheDocument();
+  });
+});
+
 describe("SystemUpdates panel", () => {
   test("admin: the latest update is open; older ones open on tap, with the steps needed on the live server", () => {
     render(<SystemUpdates audience="admin" />);
@@ -50,7 +82,8 @@ describe("SystemUpdates panel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Friday, November 13, 2026/ }));
     expect(screen.getByText(/checked against the PRC verification service/)).toBeInTheDocument();
-    expect(screen.getByText("Administrator")).toBeInTheDocument();
+    // Nov 14 and Nov 13 both have an admin-only "Administrator" section.
+    expect(screen.getAllByText("Administrator")).toHaveLength(2);
     expect(screen.getByText(/add_admin_and_license_verification\.sql/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Tuesday, November 3, 2026/ }));

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Info, LayoutDashboard, LogOut, RefreshCw, Search, ShieldCheck, Users } from "lucide-react";
+import { GraduationCap, Info, LayoutDashboard, LogOut, RefreshCw, Search, ShieldCheck, Users } from "lucide-react";
 import AmumataLogo from "../../../shared/components/AmumataLogo";
 import { adminApi, type AdminFilter, type AdminSummary, type AdminTherapist } from "../../../shared/api/adminApi";
 import { ApiError } from "../../../shared/api/httpClient";
@@ -10,6 +10,7 @@ import { storedRole } from "../../context/users/homePath";
 import TherapistAccountCard from "../components/TherapistAccountCard";
 import AdminOverview from "../components/AdminOverview";
 import AdminSystemInfo from "../components/AdminSystemInfo";
+import DefenseQA from "../components/DefenseQA";
 
 const FILTERS: { value: AdminFilter; label: string; count: (s: AdminSummary) => number }[] = [
   { value: "pending", label: "Pending", count: (s) => s.pending },
@@ -29,7 +30,7 @@ export default function AdminPage() {
   return <AdminConsole />;
 }
 
-type AdminTab = "overview" | "therapists" | "system";
+type AdminTab = "overview" | "therapists" | "system" | "defense";
 
 function AdminConsole() {
   const { clearUser } = useUser();
@@ -56,19 +57,20 @@ function AdminConsole() {
             <LogOut size={16} /> Log out
           </button>
         </div>
-        <nav className="mx-auto flex max-w-6xl gap-1 px-4 md:px-8" aria-label="Admin sections">
+        <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 md:px-8" aria-label="Admin sections">
           {(
             [
               ["overview", "Overview", LayoutDashboard],
               ["therapists", "Therapists", Users],
               ["system", "System", Info],
+              ["defense", "Defense Q&A", GraduationCap],
             ] as const
           ).map(([value, label, Icon]) => (
             <button
               key={value}
               onClick={() => setTab(value)}
               aria-current={tab === value ? "page" : undefined}
-              className={`flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition ${
+              className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition ${
                 tab === value ? "border-teal-600 text-teal-700" : "border-transparent text-slate-500 hover:text-slate-800"
               }`}
             >
@@ -79,7 +81,15 @@ function AdminConsole() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6 md:px-8">
-        {tab === "overview" ? <AdminOverview /> : tab === "therapists" ? <TherapistsTab /> : <AdminSystemInfo />}
+        {tab === "overview" ? (
+          <AdminOverview />
+        ) : tab === "therapists" ? (
+          <TherapistsTab />
+        ) : tab === "system" ? (
+          <AdminSystemInfo />
+        ) : (
+          <DefenseQA />
+        )}
       </main>
     </div>
   );

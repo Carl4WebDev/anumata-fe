@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Sparkles, Wrench } from "lucide-react";
-import { updatesFor, type SystemUpdate, type UpdatesAudience } from "../data/systemUpdates";
+import { ChevronDown, ChevronRight, Search, Sparkles, Wrench } from "lucide-react";
+import { filterUpdates, updatesFor, type SystemUpdate, type UpdatesAudience, type UpdatesFilter } from "../data/systemUpdates";
 
 function formatDate(date: string): string {
   return new Date(`${date}T12:00:00+08:00`).toLocaleDateString("en-US", {
@@ -62,9 +62,20 @@ function UpdateEntry({ update, defaultOpen, audience }: { update: SystemUpdate; 
   );
 }
 
-/** What changed in the system, newest first. */
+const FILTERS: { value: UpdatesFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "therapist", label: "Therapists see" },
+  { value: "admin", label: "Admin only" },
+  { value: "steps", label: "Needs server steps" },
+];
+
+/** What changed in the system, newest first. The admin view can be searched and filtered. */
 export default function SystemUpdates({ audience = "therapist" }: { audience?: UpdatesAudience }) {
-  const updates = updatesFor(audience);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<UpdatesFilter>("all");
+  const narrowed = Boolean(search.trim()) || filter !== "all";
+  const updates = audience === "admin" ? filterUpdates(updatesFor("admin"), { search, filter }) : updatesFor(audience);
+
   return (
     <div>
       <div className="mb-1 flex items-center gap-2">
@@ -76,11 +87,46 @@ export default function SystemUpdates({ audience = "therapist" }: { audience?: U
           ? "Every change to Amumata, newest first, with the steps needed on the live server."
           : "Recent changes that affect your work, newest first."}
       </p>
-      <div className="space-y-3">
-        {updates.map((u, i) => (
-          <UpdateEntry key={u.date + u.title} update={u} defaultOpen={i === 0} audience={audience} />
-        ))}
-      </div>
+
+      {audience === "admin" && (
+        <div className="mb-4 space-y-2">
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search updates — e.g. FER, appointments, .sql"
+              aria-label="Search updates"
+              className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none focus:border-teal-500"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2" aria-label="Filter updates">
+            {FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                aria-pressed={filter === f.value}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                  filter === f.value ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {updates.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">No updates match.</p>
+      ) : (
+        <div className="space-y-3">
+          {updates.map((u, i) => (
+            // While searching or filtering, every matching update is shown open.
+            <UpdateEntry key={`${u.date}${u.title}${narrowed}`} update={u} defaultOpen={narrowed || i === 0} audience={audience} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
