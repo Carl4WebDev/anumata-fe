@@ -45,7 +45,14 @@ function QuestionCardInner({ data, note, onNoteChange }: QuestionCardProps) {
           </div>
           {(data.checkIn || data.skipped) && (
             <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-              {data.checkIn && (
+              {data.checkIn?.reason === "crisis" && (
+                <span className="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 font-medium text-red-700">
+                  <AlertTriangle size={12} />
+                  Support mode — the patient {CHECK_IN_REASON_LABELS.crisis}; patient{" "}
+                  {CHECK_IN_OUTCOME_LABELS[data.checkIn.outcome as CheckInOutcome] ?? data.checkIn.outcome}
+                </span>
+              )}
+              {data.checkIn && data.checkIn.reason !== "crisis" && (
                 <span className="flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-800">
                   <HeartHandshake size={12} />
                   Check-in offered — {CHECK_IN_REASON_LABELS[data.checkIn.reason as CheckInReason] ?? data.checkIn.reason};{" "}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { liveSocketUrl, type LiveInterviewState } from "../../../shared/api/liveApi";
 
 const STATE_THROTTLE_MS = 400;
@@ -67,9 +67,13 @@ function startPeer(refs: PeerRefs, viewerId: string): void {
  * microphone the room already uses are sent to them over WebRTC (a copy — the
  * recording for the analysis is untouched), along with the interview's progress.
  * Nothing is sent while no therapist is watching except the progress.
+ *
+ * Returns whether the therapist has the live view open right now.
  */
-export function useLiveShare(token: string | undefined, stream: MediaStream | null, state: LiveInterviewState) {
+export function useLiveShare(token: string | undefined, stream: MediaStream | null, state: LiveInterviewState): { watching: boolean } {
   const wsRef = useRef<WebSocket | null>(null);
+  // The therapist's open live views (one per tab), as told by the live server.
+  const [viewers, setViewers] = useState<ReadonlySet<string>>(() => new Set());
   const peersRef = useRef(new Map<string, RTCPeerConnection>());
   const iceRef = useRef<RTCIceServer[]>([]);
   const streamRef = useRef<MediaStream | null>(stream);
@@ -112,10 +116,14 @@ export function useLiveShare(token: string | undefined, stream: MediaStream | nu
           iceRef.current = msg.iceServers ?? [];
           ws.send(JSON.stringify({ type: "state", state: stateRef.current }));
         } else if (msg.type === "viewer-joined" && msg.viewerId) {
-          offerTo(msg.viewerId);
+          const joined = msg.viewerId;
+          setViewers((prev) => new Set([...prev, joined]));
+          offerTo(joined);
         } else if (msg.type === "viewer-left" && msg.viewerId) {
-          peers.get(msg.viewerId)?.close();
-          peers.delete(msg.viewerId);
+          const left = msg.viewerId;
+          setViewers((prev) => new Set([...prev].filter((id) => id !== left)));
+          peers.get(left)?.close();
+          peers.delete(left);
         } else if (msg.type === "signal" && msg.from) {
           const pc = peers.get(msg.from);
           if (!pc) return;
@@ -125,6 +133,8 @@ export function useLiveShare(token: string | undefined, stream: MediaStream | nu
       };
       ws.onclose = (event) => {
         closeAll();
+        // Disconnected: no way to know who is watching (the server re-announces them on reconnect).
+        setViewers(new Set());
         if (wsRef.current === ws) wsRef.current = null;
         // 4403: the link is finished or invalid — don't keep trying.
         if (stopped || event.code === 4403) return;
@@ -162,4 +172,6 @@ export function useLiveShare(token: string | undefined, stream: MediaStream | nu
     }, STATE_THROTTLE_MS);
     return () => clearTimeout(timer);
   }, [stateKey]);
+
+  return { watching: viewers.size > 0 };
 }

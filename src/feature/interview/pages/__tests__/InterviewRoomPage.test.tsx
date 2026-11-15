@@ -4,6 +4,9 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import InterviewRoom from "../InterviewRoomPage";
 import type { CaptionPhrase, CaptionActivity } from "../../hooks/useLiveCaptions";
 
+// Each test runs a whole interview: give them room when the full suite loads the machine.
+vi.setConfig({ testTimeout: 20_000 });
+
 // ─── Fakes: voice out (TTS), voice in (captions), media, APIs ───
 
 const spoken: string[] = [];
@@ -222,7 +225,7 @@ async function startAndWarmUp() {
 }
 
 describe("InterviewRoom — hands-free voice flow", () => {
-  test("crisis words: help card in the patient's language, one urgent alert, interview carries on", async () => {
+  test("crisis words: help card, one urgent alert, and support mode until the patient chooses to continue", async () => {
     await startAndWarmUp();
     await say("Oo");
     await wait(10);
@@ -238,15 +241,100 @@ describe("InterviewRoom — hands-free voice flow", () => {
     expect(reportCrisis).toHaveBeenCalledWith("tok");
     expect(screen.getByText(/Nasabihan na rin ang iyong therapist/)).toBeInTheDocument();
 
-    // Saying it again doesn't alert twice; the answer and interview continue as normal.
+    // Support mode: questions paused, a calm pre-written line in the patient's language.
+    const panel = screen.getByRole("region", { name: "Support" });
+    expect(within(panel).getByText(/Ihihinto muna natin ang mga tanong/)).toBeInTheDocument();
+    expect(spoken.some((s) => s.includes("Ihihinto muna natin ang mga tanong"))).toBe(true);
+    expect(within(panel).getByText("Naabisuhan na ang iyong therapist.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Hide" })).not.toBeInTheDocument(); // help lines stay open
+
+    // "Tapos na" doesn't move on; red-flag words again: no second alert, "I hear you".
+    await say("Tapos na");
+    await wait(10);
+    expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
     await say("Ayoko nang mabuhay");
     await wait(10);
     expect(reportCrisis).toHaveBeenCalledTimes(1);
+    expect(spoken.some((s) => s.includes("Naririnig kita"))).toBe(true);
+
+    // A long silence: one gentle line, and still no moving on or check-in.
+    await wait(46_000);
+    expect(spoken.some((s) => s.includes("Huminga tayo nang dahan-dahan"))).toBe(true);
     expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
+
+    // The patient chooses to continue: the same question again, the help card stays.
+    fireEvent.click(within(panel).getByRole("button", { name: /Ituloy ang interview/ }));
+    await wait(10);
+    expect(spoken.some((s) => s.includes("Magpapatuloy tayo nang dahan-dahan"))).toBe(true);
+    expect(screen.queryByRole("region", { name: "Support" })).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
     await say("Tapos na");
     await wait(10);
     expect(screen.getByText("Question 2 of 2")).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toBeInTheDocument(); // still there for the next question
+  }, 30_000); // fast-forwards 46 s of the room's timer
+
+  test("support mode in the warm-up: no casual reply; continuing picks the warm-up up again", async () => {
+    renderRoom();
+    await wait(10);
+    fireEvent.click(screen.getByRole("button", { name: "Start Interview" }));
+    await wait(10);
+    const spokenBefore = spoken.length;
+    await say("I want to die");
+    await wait(3000);
+    const panel = screen.getByRole("region", { name: "Support" });
+    expect(spoken.slice(spokenBefore).some((s) => s.includes("Let's pause the questions for now"))).toBe(true);
+    // Still in support mode after the usual warm-up pause; no break / stop before the questions.
+    expect(within(panel).queryByRole("button", { name: /Take a break/ })).not.toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByRole("button", { name: /Continue the interview/ }));
+    await wait(10);
+    expect(screen.queryByRole("region", { name: "Support" })).not.toBeInTheDocument();
+    await say("Okay lang, medyo pagod");
+    await wait(3000);
+    await say("Wala naman");
+    await wait(3000);
+    expect(screen.getByText("Salamat. Handa ka nang magsimula?")).toBeInTheDocument();
+  });
+
+  test("support mode at 'ready to start?': continuing asks it again", async () => {
+    await startAndWarmUp();
+    await say("Gusto ko nang mamatay");
+    await wait(10);
+    const panel = screen.getByRole("region", { name: "Support" });
+    fireEvent.click(within(panel).getByRole("button", { name: /Ituloy ang interview/ }));
+    await wait(10);
+    expect(screen.queryByRole("region", { name: "Support" })).not.toBeInTheDocument();
+    expect(screen.getByText("Salamat. Handa ka nang magsimula?")).toBeInTheDocument();
+  });
+
+  test("support mode: clear words like 'padayon' continue by voice; 'wala na' does not", async () => {
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    await say("Gusto na nako patayon akong sarili");
+    await wait(10);
+    expect(screen.getByRole("region", { name: "Support" })).toBeInTheDocument();
+    await say("Wala na");
+    await wait(10);
+    expect(screen.getByRole("region", { name: "Support" })).toBeInTheDocument();
+    await say("Padayon");
+    await wait(10);
+    expect(screen.queryByRole("region", { name: "Support" })).not.toBeInTheDocument();
+  });
+
+  test("support mode: stopping for today takes two taps and ends the interview", async () => {
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    await say("I want to kill myself");
+    await wait(10);
+    const panel = screen.getByRole("region", { name: "Support" });
+    fireEvent.click(within(panel).getByRole("button", { name: /Huminto na muna ngayon/ }));
+    await wait(10);
+    expect(screen.getByRole("region", { name: "Support" })).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: /Pindutin ulit para huminto/ }));
+    await wait(500);
+    expect(screen.getByText("Processing page")).toBeInTheDocument();
   });
 
   test("the card never claims the therapist was told if the alert failed", async () => {
@@ -258,6 +346,8 @@ describe("InterviewRoom — hands-free voice flow", () => {
     await wait(10);
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(within(screen.getByRole("alert")).queryByText(/therapist/i)).not.toBeInTheDocument();
+    // The support panel doesn't say the therapist was alerted either.
+    expect(screen.queryByText(/Your therapist has been alerted|Letting your therapist know/)).not.toBeInTheDocument();
   });
 
   test("face hints appear on the video in the patient's language, and pause during a break", async () => {

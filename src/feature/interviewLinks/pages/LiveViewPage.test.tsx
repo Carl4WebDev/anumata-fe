@@ -40,6 +40,20 @@ describe("eventsBetween", () => {
       { at, text: "The interview questions started", tone: "info" },
     ]);
   });
+
+  test("support mode: when it starts, each line Amumata says, and the patient's choice", () => {
+    const prev: LiveInterviewState = { stage: "interview", questionIndex: 0, crisis: true };
+    const opening = { ...prev, support: { active: true, lastLine: "Thank you for telling me this.", lineCount: 1 } };
+    expect(eventsBetween(prev, opening, at).map((e) => e.text)).toEqual([
+      "Support mode: Amumata paused the questions and is keeping the patient company",
+      "Amumata said: “Thank you for telling me this.”",
+    ]);
+    const gentle = { ...prev, support: { active: true, lastLine: "Take your time.", lineCount: 2 } };
+    expect(eventsBetween(opening, gentle, at).map((e) => e.text)).toEqual(["Amumata said: “Take your time.”"]);
+    expect(eventsBetween(gentle, { ...gentle }, at)).toEqual([]);
+    const chose = { ...prev, support: { active: false, choice: "break" as const } };
+    expect(eventsBetween(gentle, chose, at).map((e) => e.text)).toEqual(["The patient chose to take a break"]);
+  });
 });
 
 describe("LiveViewPage", () => {
@@ -77,6 +91,14 @@ describe("LiveViewPage", () => {
     watch = { ...watch, status: "live", state: { stage: "interview", questionIndex: 0, crisis: true } };
     renderPage();
     expect(screen.getByText(/Crisis alert — the patient may be at risk/)).toBeInTheDocument();
+    expect(screen.queryByText("Support mode — questions paused")).not.toBeInTheDocument();
+  });
+
+  test("support mode shows a banner while it's on", () => {
+    watch = { ...watch, status: "live", state: { stage: "interview", questionIndex: 0, crisis: true, support: { active: true, lineCount: 1 } } };
+    renderPage();
+    expect(screen.getByText("Support mode — questions paused")).toBeInTheDocument();
+    expect(screen.getByText(/The patient sees that you are watching/)).toBeInTheDocument();
   });
 
   test("someone else's interview can't be watched", () => {

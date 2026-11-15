@@ -68,6 +68,19 @@ import { detectCrisis } from "../hooks/crisisDetection";
 import { useFaceCheck } from "../hooks/useFaceCheck";
 import { FACE_HINTS } from "../hooks/faceCheck";
 import CrisisCard from "../components/CrisisCard";
+import CrisisSupportPanel from "../components/CrisisSupportPanel";
+import {
+  SUPPORT_CONTINUE,
+  SUPPORT_HEARD,
+  SUPPORT_LINES,
+  SUPPORT_OPENING,
+  isSupportContinue,
+  nextSupportLine,
+  shouldSayHeard,
+  startPace,
+  type SupportChoice,
+  type SupportPace,
+} from "../hooks/crisisSupport";
 import AmumataPresence, { type PresenceMood } from "../components/AmumataPresence";
 import { followUpsOf, shouldAskFollowUp } from "../hooks/followUps";
 import { MOOD_QUESTIONS, type MoodMoment, type SelfReport } from "../hooks/moodCheck";
@@ -96,6 +109,9 @@ const FALLBACK_QUESTIONS = [
   "Is there anything about your daily life you wish was different?",
   "How would you describe your relationship with the people closest to you?",
 ];
+
+/** Where support mode can start: any part of the conversation (not the mood faces or the end). */
+const SUPPORT_STATES: ReadonlySet<string> = new Set(["rapport_intro", "rapport_wait", "rapport_chat", "permission_wait", "recording"]);
 
 type InterviewState =
   | "rapport_intro"
@@ -212,8 +228,16 @@ export default function InterviewRoom() {
   const [onBreak, setOnBreak] = useState(false);
   const onBreakRef = useRef(false);
   // Words that may mean self-harm: help card for the patient, urgent alert to the therapist (once).
-  const [crisis, setCrisis] = useState<{ notified: boolean } | null>(null);
+  // `sent`: the server answered (notified or not), so the room never claims more than it knows.
+  const [crisis, setCrisis] = useState<{ notified: boolean; sent: boolean } | null>(null);
   const crisisRaisedRef = useRef(false);
+  // "Stay with me" support mode after red-flag words: questions paused, calm pre-written
+  // lines, until the patient chooses to continue, take a break or stop (see crisisSupport.ts).
+  const [support, setSupport] = useState<{ line: LocalizedLine; lineCount: number } | null>(null);
+  const [supportChoice, setSupportChoice] = useState<SupportChoice | null>(null);
+  const supportPaceRef = useRef<SupportPace | null>(null);
+  // Red-flag words heard; support mode starts as soon as the current step lets go.
+  const supportPendingRef = useRef(false);
   // Progress from before a refresh (offered on the start screen), and the
   // per-answer saves of recordings to the browser, one at a time.
   const [savedProgress, setSavedProgress] = useState<InterviewProgress | null>(() => (token ? loadProgress(token) : null));
@@ -307,7 +331,7 @@ export default function InterviewRoom() {
 
   // Live viewing: the therapist can watch this interview as it happens.
   const inInterview = state === "recording";
-  useLiveShare(token, stream, {
+  const { watching } = useLiveShare(token, stream, {
     stage: inInterview ? "interview" : state.startsWith("rapport") ? "warmup" : "waiting",
     questionIndex: inInterview ? currentIndex : undefined,
     questionTotal: questions.length || undefined,
@@ -317,6 +341,11 @@ export default function InterviewRoom() {
     onBreak,
     checkIn: checkInOpen,
     crisis: Boolean(crisis),
+    support: support
+      ? { active: true, lastLine: support.line.en, lineCount: support.lineCount }
+      : supportChoice
+        ? { active: false, choice: supportChoice }
+        : null,
     cameraOn,
     micOn,
   });
@@ -682,6 +711,8 @@ export default function InterviewRoom() {
     setTypedAnswer("");
     setState("rapport_chat");
     newTurn();
+    // Red-flag words in this answer: no casual reply or next question — support mode takes over.
+    if (supportPaceRef.current || supportPendingRef.current) return;
     setSpokenLine(null);
     setAiPrompt({ kind: "text", main: acknowledgment });
     await say(acknowledgment, lang, pickAcknowledgment(category, "en", index));
@@ -941,8 +972,8 @@ export default function InterviewRoom() {
     if (p.crisis) {
       // Keep the help card; the server already has (or now gets) the one alert.
       crisisRaisedRef.current = true;
-      setCrisis({ notified: false });
-      void emotionApi.reportCrisis(token).then((notified) => notified && setCrisis({ notified: true }));
+      setCrisis({ notified: false, sent: false });
+      void emotionApi.reportCrisis(token).then((notified) => setCrisis({ notified, sent: true }));
     }
     setState("recording");
     captionsRef.current.start(); // this click also unlocks audio, as on a fresh start
@@ -1133,13 +1164,124 @@ export default function InterviewRoom() {
     await askFormal(currentIndexRef.current, false);
   };
 
-  /** Show the help card and alert the therapist the first time crisis words appear. */
-  const checkForCrisis = (text: string) => {
-    if (crisisRaisedRef.current || !detectCrisis(text)) return;
+  // ─── "Stay with me": support mode after red-flag words ───
+
+  /** Amumata says a support line (spoken and shown); the live view gets it too. */
+  const saySupport = async (line: LocalizedLine) => {
+    const lang = langRef.current;
+    setSpokenLine(null);
+    setSupport((s) => ({ line, lineCount: (s?.lineCount ?? 0) + 1 }));
+    await say(line[lang], lang, line.en);
+    const pace = supportPaceRef.current;
+    if (pace) supportPaceRef.current = { ...pace, lastLineAt: Date.now() };
+  };
+
+  /** Pause the questions and keep the patient company. The recording carries on. */
+  const startSupport = async () => {
+    supportPendingRef.current = false;
+    const current = stateRef.current;
+    // Anywhere in the conversation — the warm-up, "ready to start?", or the questions.
+    if (!SUPPORT_STATES.has(current)) return;
+    if (current === "recording") {
+      setCheckInOpen(false);
+      // Shown on the question in the session review, with what the patient chose.
+      checkInsRef.current = { ...checkInsRef.current, [currentIndexRef.current]: { reason: "crisis", outcome: "continued" } };
+    }
+    setMoveOnAt(null);
+    setSupportChoice(null);
+    supportPaceRef.current = startPace(Date.now());
+    await saySupport(SUPPORT_OPENING);
+    if (supportPaceRef.current) listen();
+  };
+
+  /** The patient chose: support mode ends (the help card stays). */
+  const endSupport = (choice: SupportChoice) => {
+    supportPaceRef.current = null;
+    setSupport(null);
+    setSupportChoice(choice);
+    if (stateRef.current === "recording") markCheckIn(currentIndexRef.current, choice);
+  };
+
+  /** Pick up where the patient was before support mode. */
+  const resumeAfterSupport = async () => {
+    const current = stateRef.current;
+    if (current === "recording") return askFormal(currentIndexRef.current, false);
+    if (current === "permission_wait") return askPermission();
+    // Warm-up: the same question if it wasn't answered yet, else the next one (or "ready to start?").
+    const next = current === "rapport_chat" ? rapportIndexRef.current + 1 : rapportIndexRef.current;
+    return next < RAPPORT_QUESTIONS.length ? askRapport(next) : askPermission();
+  };
+
+  const continueAfterSupport = async () => {
+    endSupport("continued");
+    await sayText(SUPPORT_CONTINUE[langRef.current], SUPPORT_CONTINUE.en);
+    await resumeAfterSupport();
+  };
+
+  const breakAfterSupport = async () => {
+    endSupport("break");
+    await startBreak();
+  };
+
+  const stopAfterSupport = async () => {
+    endSupport("ended");
+    await finishInterview();
+  };
+
+  /** Red-flag words said again during support mode: "I hear you" (not too often). */
+  const answerRedFlagAgain = () => {
+    const pace = supportPaceRef.current;
+    const now = Date.now();
+    if (!pace || !shouldSayHeard(pace, now)) return;
+    supportPaceRef.current = { ...pace, heardCount: pace.heardCount + 1, lastHeardAt: now };
+    void runFlow(async () => {
+      await saySupport(SUPPORT_HEARD);
+      if (supportPaceRef.current) listen();
+    });
+  };
+
+  /**
+   * Show the help card and alert the therapist the first time crisis words
+   * appear, and switch to support mode. True when this text raised it.
+   */
+  const checkForCrisis = (text: string): boolean => {
+    if (!detectCrisis(text)) return false;
+    if (crisisRaisedRef.current) {
+      answerRedFlagAgain();
+      return false;
+    }
     crisisRaisedRef.current = true;
-    setCrisis({ notified: false });
+    setCrisis({ notified: false, sent: false });
     if (stateRef.current === "recording") persistProgress(currentIndexRef.current); // card survives a refresh
-    if (token) void emotionApi.reportCrisis(token).then((notified) => notified && setCrisis({ notified: true }));
+    if (token) void emotionApi.reportCrisis(token).then((notified) => setCrisis({ notified, sent: true }));
+    supportPendingRef.current = true;
+    void runNow(startSupport);
+    return true;
+  };
+
+  /**
+   * In support mode: what the patient says stays part of their answer (the
+   * recording carries on); only clear "continue" or "break" words act.
+   */
+  const handleSupportPhrase = (p: CaptionPhrase) => {
+    if (stateRef.current === "recording") {
+      turnTextRef.current.push(p.text);
+      if (!turnLangRef.current) turnLangRef.current = p.language;
+    }
+    if (isSupportContinue(p.text)) void runNow(continueAfterSupport);
+    else if (stateRef.current === "recording" && parseVoiceCommand(p.text) === "pause") void runNow(breakAfterSupport);
+  };
+
+  /** In support mode: another gentle line after a quiet while (at most a few). */
+  const supportTick = (pace: SupportPace) => {
+    const activity = captionsRef.current.getActivity();
+    const line = nextSupportLine(pace, Date.now(), activity.lastVoiceAt, activity.voiceActive);
+    if (line === null) return;
+    supportPaceRef.current = { ...pace, linesSaid: pace.linesSaid + 1 };
+    void runFlow(async () => {
+      await saySupport(SUPPORT_LINES[line]);
+      if (supportPaceRef.current) listen();
+    });
   };
 
   // ─── What the patient says steers the conversation ───
@@ -1149,6 +1291,10 @@ export default function InterviewRoom() {
     checkForCrisis(sameTurn ? [...turnTextRef.current, p.text].join(" ") : p.text);
     // Late phrases from an earlier prompt don't belong to this one.
     if (!sameTurn) return;
+    if (supportPaceRef.current) {
+      handleSupportPhrase(p);
+      return;
+    }
     const current = stateRef.current;
     const confirming = phaseRef.current === "confirming";
     const parsed = parseVoiceCommand(p.text);
@@ -1234,6 +1380,11 @@ export default function InterviewRoom() {
   const tick = () => {
       const current = stateRef.current;
       if (flowBusyRef.current || onBreakRef.current) return;
+      // Support mode: no questions, check-ins or moving on — only the occasional gentle line.
+      if (supportPaceRef.current) {
+        supportTick(supportPaceRef.current);
+        return;
+      }
       if (current !== "recording" && current !== "rapport_wait" && current !== "permission_wait") return;
       const turnPhase = phaseRef.current;
       if (turnPhase !== "listening" && turnPhase !== "confirming") return;
@@ -1359,9 +1510,13 @@ export default function InterviewRoom() {
   const handleTypedAnswer = () => {
     const text = typedAnswer.trim();
     if (!text) return;
-    checkForCrisis(text);
+    // Red-flag words, or already in support mode: stay with the patient, don't move on.
+    if (checkForCrisis(text) || supportPaceRef.current) return;
     void runNow(() => submitRapport(text));
   };
+  const handleSupportContinue = () => void runNow(continueAfterSupport);
+  const handleSupportBreak = () => void runNow(breakAfterSupport);
+  const handleSupportStop = () => void runNow(stopAfterSupport);
   const handleEnd = () => {
     if (window.confirm("End the interview now? Your answers so far will be saved.")) void finishInterview();
   };
@@ -1681,10 +1836,22 @@ export default function InterviewRoom() {
           </div>
         </div>
 
-        {crisis && <CrisisCard lang={detectedLang} notified={crisis.notified} />}
+        {support && (
+          <CrisisSupportPanel
+            lang={detectedLang}
+            line={support.line}
+            alert={!crisis?.sent ? "sending" : crisis.notified ? "sent" : "failed"}
+            watching={watching}
+            inQuestions={isFormal}
+            onContinue={handleSupportContinue}
+            onBreak={handleSupportBreak}
+            onEnd={handleSupportStop}
+          />
+        )}
+        {crisis && <CrisisCard lang={detectedLang} notified={crisis.notified} pinned={Boolean(support)} />}
 
-        {/* What Amumata is asking */}
-        <div className="rounded-2xl border border-teal-500/20 bg-teal-500/5 p-4 md:p-5">
+        {/* What Amumata is asking (in support mode, the panel above says it) */}
+        <div className={`rounded-2xl border border-teal-500/20 bg-teal-500/5 p-4 md:p-5 ${support ? "hidden" : ""}`}>
           <div className="mb-2 flex items-center gap-2">
             <MessageCircle size={14} className="text-teal-400" />
             <span className="text-xs font-medium text-teal-400">Amumata</span>
@@ -1728,7 +1895,7 @@ export default function InterviewRoom() {
             largeText={comfort.largeText}
           />
         )}
-        {isFormal && !onBreak && (
+        {isFormal && !onBreak && !support && (
           <FeelingWords
             lang={detectedLang}
             selected={feelings[currentIndex] ?? []}
@@ -1737,7 +1904,7 @@ export default function InterviewRoom() {
             highlight={checkInOpen}
           />
         )}
-        {isFormal && !onBreak && checkInOpen && (
+        {isFormal && !onBreak && !support && checkInOpen && (
           <CheckInActions
             lang={detectedLang}
             onContinue={handleCheckInContinue}
@@ -1745,7 +1912,7 @@ export default function InterviewRoom() {
             onSkip={handleNextButton}
           />
         )}
-        {phase === "confirming" && moveOnAt !== null && !captions.voiceActive && !onBreak && <MoveOnCountdown until={moveOnAt} />}
+        {phase === "confirming" && moveOnAt !== null && !captions.voiceActive && !onBreak && !support && <MoveOnCountdown until={moveOnAt} />}
         {onBreak && (
           <div className="rounded-2xl border border-sky-400/30 bg-sky-500/10 p-4 text-center" role="status">
             <p className="flex items-center justify-center gap-2 text-sm font-semibold text-sky-100">
@@ -1762,8 +1929,8 @@ export default function InterviewRoom() {
           {voiceTips(detectedLang, questionTiming(comfort.moreTime).answeredSilenceMs / 1000)}
         </p>
 
-        {/* Optional buttons — everything here can also be done by voice */}
-        <div className="rounded-2xl border border-white/10 bg-white/5">
+        {/* Optional buttons — everything here can also be done by voice (in support mode, the panel has its own) */}
+        <div className={`rounded-2xl border border-white/10 bg-white/5 ${support ? "hidden" : ""}`}>
           <button
             onClick={() => setControlsOpen((v) => !v)}
             className="flex w-full items-center justify-between px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-slate-400"

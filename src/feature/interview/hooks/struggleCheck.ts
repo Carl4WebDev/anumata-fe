@@ -15,8 +15,10 @@ import type { Posture } from "./postureCheck";
  * therapist marked "sensitive" get the check-in sooner.
  */
 
-export type CheckInReason = "no_answer" | "said_hard" | "head_down" | "still";
-export type CheckInOutcome = "continued" | "break" | "skipped";
+/** "crisis": red-flag words — support mode paused the questions (see crisisSupport.ts). */
+export type CheckInReason = "no_answer" | "said_hard" | "head_down" | "still" | "crisis";
+/** "ended": the patient chose to stop for today (support mode). */
+export type CheckInOutcome = "continued" | "break" | "skipped" | "ended";
 
 export const MAX_CHECK_INS = 3;
 
@@ -141,10 +143,12 @@ export const CHECK_IN_REASON_LABELS: Record<CheckInReason, string> = {
   said_hard: "said it was hard to answer",
   head_down: "head down while silent",
   still: "stayed very still while silent",
+  crisis: "said words that may mean self-harm; Amumata paused the questions and stayed with them (support mode)",
 };
 
 export const CHECK_IN_OUTCOME_LABELS: Record<CheckInOutcome, string> = {
   continued: "chose to continue",
   break: "took a break",
   skipped: "skipped the question",
+  ended: "chose to stop for today",
 };

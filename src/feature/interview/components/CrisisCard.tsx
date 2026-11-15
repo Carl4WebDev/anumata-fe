@@ -7,16 +7,18 @@ interface CrisisCardProps {
   lang: ResponseLanguage;
   /** The therapist really received the urgent alert. */
   notified: boolean;
+  /** Keep it open (support mode): the help lines can't be tucked away. */
+  pinned?: boolean;
 }
 
 /**
  * Shown when the patient's words may mean self-harm. Calm, in their language,
  * with tap-to-call hotlines. It can be tucked away but stays reachable.
  */
-export default function CrisisCard({ lang, notified }: CrisisCardProps) {
+export default function CrisisCard({ lang, notified, pinned = false }: CrisisCardProps) {
   const [hidden, setHidden] = useState(false);
 
-  if (hidden) {
+  if (hidden && !pinned) {
     return (
       <button
         onClick={() => setHidden(false)}
@@ -33,9 +35,11 @@ export default function CrisisCard({ lang, notified }: CrisisCardProps) {
         <p className="flex items-center gap-2 text-base font-semibold text-rose-50">
           <HeartHandshake size={18} /> {CRISIS_TEXT.title[lang]}
         </p>
-        <button onClick={() => setHidden(true)} className="text-xs text-rose-200 underline-offset-2 hover:underline">
-          Hide
-        </button>
+        {!pinned && (
+          <button onClick={() => setHidden(true)} className="text-xs text-rose-200 underline-offset-2 hover:underline">
+            Hide
+          </button>
+        )}
       </div>
       <p className="mt-2 text-sm text-rose-100">{CRISIS_TEXT.body[lang]}</p>
       <ul className="mt-3 space-y-1.5">

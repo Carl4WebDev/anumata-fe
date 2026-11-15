@@ -141,7 +141,12 @@ export const INTERVIEW_FEATURES: FeatureGroup[] = [
     features: [
       {
         name: "Crisis words",
-        what: "Words that may mean self-harm (in English, Tagalog or Bisaya) show a calm help card with tap-to-call hotlines, and send the therapist one urgent alert. Within about 10 seconds a popup asks the therapist “Do you want to watch the interview live now?” — one click opens the live view. The interview carries on.",
+        what: "Words that may mean self-harm (in English, Tagalog or Bisaya) show a calm help card with tap-to-call hotlines, and send the therapist one urgent alert. Within about 10 seconds a popup asks the therapist “Do you want to watch the interview live now?” — one click opens the live view.",
+      },
+      {
+        name: "Support mode",
+        what: "After those words — in the warm-up or the questions — the conversation pauses. Amumata says calm, pre-written lines in the patient's language (never AI-generated), keeps the help lines open, and tells the patient honestly that the therapist was alerted — and “is here now” only while the therapist is watching live. The patient chooses: continue, take a break, or stop for today.",
+        how: "A gentle line after about 45 s of quiet, at most 4. The recording continues. Marked on the question in the session review.",
       },
       {
         name: "Help lines at the end",

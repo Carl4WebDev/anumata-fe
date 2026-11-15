@@ -143,6 +143,15 @@ export default function LiveViewPage() {
               <AlertTriangle size={16} className="mt-0.5 shrink-0" /> Crisis alert — the patient may be at risk. Please contact them.
             </p>
           )}
+          {state.support?.active && (
+            <div role="status" className="mb-3 rounded-lg border border-red-200 bg-red-600 px-3 py-2 text-sm text-white">
+              <p className="font-semibold">Support mode — questions paused</p>
+              <p className="mt-0.5 text-red-50">
+                Amumata is keeping the patient company with calm, pre-written lines and the help lines on screen, until they choose to continue,
+                take a break or stop. The patient sees that you are watching.
+              </p>
+            </div>
+          )}
           {events.length === 0 ? (
             <p className="text-sm text-slate-500">Check-ins, breaks and questions will appear here as they happen.</p>
           ) : (

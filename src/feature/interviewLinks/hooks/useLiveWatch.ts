@@ -19,6 +19,28 @@ export interface LiveEvent {
   tone: "info" | "warn" | "alert";
 }
 
+const SUPPORT_CHOICE_TEXT = {
+  continued: "The patient chose to continue the interview",
+  break: "The patient chose to take a break",
+  ended: "The patient chose to stop for today",
+} as const;
+
+/** Support mode: when it starts, each line Amumata says, and the patient's choice. */
+function supportEvents(prev: LiveInterviewState, next: LiveInterviewState, at: string): LiveEvent[] {
+  const before = prev.support;
+  const now = next.support;
+  if (!now) return [];
+  const events: LiveEvent[] = [];
+  if (now.active && !before?.active) {
+    events.push({ at, text: "Support mode: Amumata paused the questions and is keeping the patient company", tone: "alert" });
+  }
+  if (now.lastLine && (now.lineCount ?? 0) > (before?.lineCount ?? 0)) {
+    events.push({ at, text: `Amumata said: “${now.lastLine}”`, tone: "info" });
+  }
+  if (now.choice && now.choice !== before?.choice) events.push({ at, text: SUPPORT_CHOICE_TEXT[now.choice], tone: "warn" });
+  return events;
+}
+
 /** Events worth showing, from one progress update to the next. */
 export function eventsBetween(prev: LiveInterviewState, next: LiveInterviewState, at: string): LiveEvent[] {
   const events: LiveEvent[] = [];
@@ -30,6 +52,7 @@ export function eventsBetween(prev: LiveInterviewState, next: LiveInterviewState
   if (next.onBreak && !prev.onBreak) events.push({ at, text: "The patient is taking a break", tone: "warn" });
   if (!next.onBreak && prev.onBreak) events.push({ at, text: "The patient is back from the break", tone: "info" });
   if (next.crisis && !prev.crisis) events.push({ at, text: "Crisis alert: the patient may be at risk — the help lines were shown", tone: "alert" });
+  events.push(...supportEvents(prev, next, at));
   if (next.cameraOn === false && prev.cameraOn !== false) events.push({ at, text: "The patient turned their camera off", tone: "warn" });
   if (next.micOn === false && prev.micOn !== false) events.push({ at, text: "The patient muted their microphone", tone: "warn" });
   return events;

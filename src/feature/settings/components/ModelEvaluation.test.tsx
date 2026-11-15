@@ -75,6 +75,10 @@ describe("filterUpdates (admin search and filters)", () => {
 describe("SystemUpdates panel", () => {
   test("admin: the latest update is open; older ones open on tap, with the steps needed on the live server", () => {
     render(<SystemUpdates audience="admin" />);
+    expect(screen.getByText("Support mode (technical)")).toBeInTheDocument();
+    expect(screen.queryByText("Crisis detection (technical)")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Crisis alerts ask you to watch live/ }));
     expect(screen.getByText("Crisis detection (technical)")).toBeInTheDocument();
     expect(screen.queryByText("Translations (technical)")).not.toBeInTheDocument();
 
@@ -106,6 +110,10 @@ describe("SystemUpdates panel", () => {
 
   test("therapist: only changes to their work — no admin sections, no server steps", () => {
     render(<SystemUpdates audience="therapist" />);
+    expect(screen.getByText(/switches to support mode/)).toBeInTheDocument();
+    expect(screen.queryByText("Support mode (technical)")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Crisis alerts ask you to watch live/ }));
     expect(screen.getByText(/Do you want to watch the interview live now/)).toBeInTheDocument();
     expect(screen.queryByText("Crisis detection (technical)")).not.toBeInTheDocument();
 

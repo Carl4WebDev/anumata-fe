@@ -352,6 +352,19 @@ export const DEFENSE_QA: DefenseQA[] = [
     tags: ["suicide", "self-harm", "hotline", "safety", "urgent"],
   },
   {
+    id: "crisis-support-mode",
+    category: "Interview room",
+    question: "Does the AI counsel a patient who mentions self-harm?",
+    answer:
+      "No. Amumata switches to support mode (anywhere in the conversation, including the warm-up): the questions pause, and it says calm, pre-written lines in the patient's language (English, Tagalog or Bisaya) — never AI-generated, so it can't say something harmful. The lines follow safe-messaging guidance (thank, validate, no judging, no promises) and never respond to the details of what was said; that is the therapist's role.\n" +
+      "- One opening line, then a gentle line only after about 45 seconds of quiet, at most 4.\n" +
+      "- The help lines stay open, with a big “Call NCMH 1553” button.\n" +
+      "- It is honest: “Your therapist has been alerted” only once the alert went through, and “Your therapist is here now” only while the therapist really has the live view open.\n" +
+      "- The patient chooses: continue (the same question again), take a break, or stop for today. The recording continues, and the session review marks the question.",
+    keyNumbers: ["45 s between lines", "max 4 lines", "3 languages"],
+    tags: ["crisis", "support mode", "self-harm", "safe messaging", "comfort", "live"],
+  },
+  {
     id: "patient-comfort",
     category: "Interview room",
     question: "What makes the interview comfortable for patients?",

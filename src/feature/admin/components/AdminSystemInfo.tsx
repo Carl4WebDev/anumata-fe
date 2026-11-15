@@ -2,6 +2,7 @@ import SystemUpdates from "../../settings/components/SystemUpdates";
 import ModelEvaluation from "../../settings/components/ModelEvaluation";
 import InterviewFeatures from "../../settings/components/InterviewFeatures";
 import AIModelGuide from "../../settings/components/AIModelGuide";
+import HowEmotionsWork from "./HowEmotionsWork";
 
 const SYSTEM_INFO = [
   { label: "System", value: "Amumata v1.0" },
@@ -40,6 +41,10 @@ export default function AdminSystemInfo() {
           </div>
         </section>
       </div>
+
+      <section className={card}>
+        <HowEmotionsWork />
+      </section>
 
       <section className={card}>
         <ModelEvaluation />

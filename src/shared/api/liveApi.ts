@@ -7,6 +7,16 @@ export function liveSocketUrl(): string {
   return `${API_BASE.replace(/^http/, "ws").replace(/\/$/, "")}/ws/live`;
 }
 
+export interface LiveSupport {
+  /** Still on (the patient hasn't chosen yet). */
+  active: boolean;
+  /** What Amumata said last, in English for the therapist. */
+  lastLine?: string;
+  /** How many lines Amumata has said, so each new one shows as an event. */
+  lineCount?: number;
+  choice?: "continued" | "break" | "ended";
+}
+
 /** What the patient's interview room reports while live. */
 export interface LiveInterviewState {
   /** "warmup": getting-to-know-you; "interview": the questions; "waiting": not started yet. */
@@ -21,6 +31,8 @@ export interface LiveInterviewState {
   onBreak?: boolean;
   checkIn?: boolean;
   crisis?: boolean;
+  /** Support mode: questions paused after red-flag words; Amumata keeps the patient company. */
+  support?: LiveSupport | null;
   cameraOn?: boolean;
   micOn?: boolean;
   updatedAt?: string;
