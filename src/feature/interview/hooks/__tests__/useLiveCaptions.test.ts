@@ -150,6 +150,64 @@ describe("useLiveCaptions — browser engine (instant words)", () => {
     expect(FakeRecognizer.instances.length).toBeLessThanOrEqual(5);
   });
 
+  test("recognition that runs but never returns words while the patient talks switches to server captions (Brave, some phones)", () => {
+    let level = 0;
+    vi.stubGlobal(
+      "AudioContext",
+      class {
+        state = "running";
+        createAnalyser() {
+          return { fftSize: 32, getByteTimeDomainData: (data: Uint8Array) => data.fill(128 + Math.round(level * 127)) };
+        }
+        createMediaStreamSource() {
+          return { connect() {}, disconnect() {} };
+        }
+        close() {
+          return Promise.resolve();
+        }
+      },
+    );
+    vi.stubGlobal(
+      "MediaRecorder",
+      class {
+        state = "inactive";
+        start() {
+          this.state = "recording";
+        }
+        stop() {
+          this.state = "inactive";
+        }
+      },
+    );
+    vi.stubGlobal("MediaStream", class {});
+
+    const { result } = renderHook(() => useLiveCaptions(stream));
+    act(() => result.current.start());
+    // Talking for a while, with words coming back: stays on the browser.
+    act(() => {
+      level = 0.3;
+      vi.advanceTimersByTime(4000);
+      latest().emit([["okay lang", false]]);
+      vi.advanceTimersByTime(4000);
+    });
+    expect(result.current.engine).toBe("browser");
+    // Talking for 6+ seconds with no words at all: server captions.
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(result.current.engine).toBe("whisper");
+    expect(result.current.error).toMatch(/isn't picking up your voice.*server captions/);
+  });
+
+  test("silence never switches engines", () => {
+    const { result } = renderHook(() => useLiveCaptions(stream));
+    act(() => result.current.start());
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(result.current.engine).toBe("browser");
+  });
+
   test("falls back to server captions when the browser blocks recognition", () => {
     const { result } = renderHook(() => useLiveCaptions(stream));
     act(() => result.current.start());

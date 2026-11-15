@@ -7,6 +7,11 @@ import { ListPageSkeleton } from "../../../shared/components/Skeleton";
 import EmptyState from "../../../shared/components/EmptyState";
 import Avatar from "../../../shared/components/Avatar";
 import { useToast } from "../../../shared/context/ToastContext";
+import Pagination from "../../../shared/components/Pagination";
+import { pageCountOf } from "../../../shared/utils/pagination";
+
+/** Patients per page. */
+const PAGE_SIZE = 10;
 
 export default function PatientsPage() {
   const { patients, addPatient, loading, error } = usePatients();
@@ -14,12 +19,25 @@ export default function PatientsPage() {
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [page, setPage] = useState(1);
 
   const filtered = patients.filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) &&
       (showArchived || !p.isArchived)
   );
+  // Stays valid if the list gets shorter (e.g. a patient archived on the last page).
+  const currentPage = Math.min(page, pageCountOf(filtered.length, PAGE_SIZE));
+  const shown = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  const changeSearch = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
+  const toggleArchived = () => {
+    setShowArchived((v) => !v);
+    setPage(1);
+  };
 
   const handleSave = async (patient: Parameters<typeof addPatient>[0]) => {
     const result = await addPatient(patient);
@@ -64,14 +82,14 @@ export default function PatientsPage() {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => changeSearch(e.target.value)}
             placeholder="Search patients..."
             aria-label="Search patients"
             className="w-full text-sm outline-none"
           />
         </div>
         <button
-          onClick={() => setShowArchived(!showArchived)}
+          onClick={toggleArchived}
           className={`shrink-0 rounded-xl border px-4 py-3 text-sm font-medium transition ${
             showArchived
               ? "border-teal-200 bg-teal-50 text-teal-700"
@@ -96,7 +114,7 @@ export default function PatientsPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((patient) => (
+            {shown.map((patient) => (
               <tr key={patient.id} className="border-t border-slate-100">
                 <td className="p-4">
                   <div className="flex items-center gap-3">
@@ -179,7 +197,7 @@ export default function PatientsPage() {
 
       {/* Cards — mobile */}
       <div className="space-y-3 md:hidden">
-        {filtered.map((patient) => (
+        {shown.map((patient) => (
           <div key={patient.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -237,6 +255,8 @@ export default function PatientsPage() {
           />
         )}
       </div>
+
+      <Pagination page={currentPage} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} itemLabel="patients" />
 
       {/* Modal */}
       <AddPatientModal

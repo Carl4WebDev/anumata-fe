@@ -59,6 +59,10 @@ const STALE_INTERIM_MS = 2500;
 // service, no mic) — after this many quick ends, use server captions instead.
 const QUICK_END_MS = 1000;
 const MAX_QUICK_ENDS = 5;
+// Recognition that runs but never hears anything (e.g. Brave, some phones whose
+// mic is busy with the camera recording): after this much speech picked up by
+// the microphone with no words back at all, use server captions instead.
+const DEAF_RECOGNIZER_MS = 6000;
 const EMPTY_RESULTS = new Set(["", "[No speech detected]", "[Transcription failed]"]);
 
 interface ActiveRecorder {
@@ -123,6 +127,8 @@ export function useLiveCaptions(stream: MediaStream | null, options: UseLiveCapt
   const quickEndsRef = useRef(0);
   const interimRef = useRef("");
   const interimSinceRef = useRef(0);
+  // Speech the mic heard since the recognizer last returned any words.
+  const unheardSpeechMsRef = useRef(0);
 
   // Whisper engine.
   const activeRef = useRef<ActiveRecorder | null>(null);
@@ -202,6 +208,7 @@ export function useLiveCaptions(stream: MediaStream | null, options: UseLiveCapt
     recognizer.onresult = (e: SpeechResultEvent) => {
       heardAtRef.current = Date.now();
       quickEndsRef.current = 0;
+      unheardSpeechMsRef.current = 0;
       let pendingText = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const result = e.results[i];
@@ -345,6 +352,13 @@ export function useLiveCaptions(stream: MediaStream | null, options: UseLiveCapt
     }
 
     if (engineRef.current === "browser") {
+      // The mic hears the patient talking, but the browser returns no words at all.
+      if (step.voiceActive && !suspendedRef.current) unheardSpeechMsRef.current += POLL_MS;
+      if (unheardSpeechMsRef.current >= DEAF_RECOGNIZER_MS) {
+        unheardSpeechMsRef.current = 0;
+        fallBackToWhisper("Live speech recognition isn't picking up your voice in this browser.");
+        return;
+      }
       if (interimRef.current && now - interimSinceRef.current > STALE_INTERIM_MS) {
         // The browser never finalized these words: keep them, and restart so
         // a late final result can't duplicate them.
