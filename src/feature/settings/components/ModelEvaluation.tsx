@@ -150,7 +150,7 @@ export default function ModelEvaluation() {
         <h2 className="text-base font-semibold text-slate-900">Model Evaluation</h2>
       </div>
       <p className="mb-4 text-sm text-slate-500">
-        How each AI model scored on test data it never saw during training (evaluated 17 July 2026). The session
+        How each AI model scored on test data it never saw during training (voice evaluated 16 November 2026, face 13 November 2026, words 17 July 2026). The session
         result combines the face and voice models 50/50. Tap a model for the details.
       </p>
 

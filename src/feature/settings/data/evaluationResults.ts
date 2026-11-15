@@ -1,6 +1,6 @@
 /**
- * Test-set evaluation of the three emotion models (SER/LER run 2026-07-17; FER
- * retrained and evaluated 2026-11-13), copied from the training projects'
+ * Test-set evaluation of the three emotion models (LER run 2026-07-17; FER
+ * retrained and evaluated 2026-11-13; SER retrained and evaluated 2026-11-16), copied from the training projects'
  * classification reports. Same numbers as anumata-be/docs/evaluation/ — update
  * both together if a model is retrained.
  */
@@ -42,29 +42,33 @@ export const MODEL_EVALUATIONS: ModelEvaluation[] = [
     input: "Recorded voice, 16 kHz",
     backbone: "Wav2Vec2-base",
     inFusion: true,
-    datasets: "Acted English speech: CREMA-D 4,900 · TESS 1,600 · RAVDESS 672 · SAVEE 300 clips (121 speakers)",
-    split: "Train 5,230 · validation 1,121 · test 1,121 clips (stratified 70/15/15)",
-    accuracy: 0.9054,
-    macroF1: 0.9052,
-    weightedF1: 0.9056,
-    testSamples: 1121,
+    datasets:
+      "Cleaned speech: CREMA-D 4,882 · TESS 1,600 · RAVDESS 671 · SAVEE 300 · Davao (Filipino) 528 clips — duplicates, conflicting labels, near-silent clips and Davao speakers with fewer than 3 emotions removed",
+    split:
+      "Train 6,124 · validation 883 · test 974 clips, split by speaker — no voice is in more than one set; the test set has 19 speakers the model never heard, 2 of them from Davao",
+    accuracy: 0.7895,
+    macroF1: 0.7907,
+    weightedF1: 0.7913,
+    testSamples: 974,
     perClass: [
-      { label: "Angry", precision: 0.9239, recall: 0.9239, f1: 0.9239, support: 289 },
-      { label: "Happy", precision: 0.9075, recall: 0.8854, f1: 0.8963, support: 288 },
-      { label: "Neutral", precision: 0.8536, recall: 0.9336, f1: 0.8918, support: 256 },
-      { label: "Sad", precision: 0.9373, recall: 0.8819, f1: 0.9088, support: 288 },
+      { label: "Angry", precision: 0.8978, recall: 0.7953, f1: 0.8434, support: 254 },
+      { label: "Happy", precision: 0.6847, recall: 0.8465, f1: 0.757, support: 254 },
+      { label: "Neutral", precision: 0.7556, recall: 0.8019, f1: 0.778, support: 212 },
+      { label: "Sad", precision: 0.8667, recall: 0.7165, f1: 0.7845, support: 254 },
     ],
     confusion: [
-      [267, 11, 5, 6],
-      [18, 255, 11, 4],
-      [3, 7, 239, 7],
-      [1, 8, 25, 254],
+      [202, 45, 5, 2],
+      [13, 215, 15, 11],
+      [1, 26, 170, 15],
+      [9, 28, 35, 182],
     ],
-    training: "Phase 1 frozen backbone (LR 1e-3), phase 2 fine-tuning (LR 1e-5); batch 16; dropout 0.3; early stopping 5.",
+    training:
+      "Learned mix of all 13 Wav2Vec2 layers; hears 3 s of speech like the app, normalised the same way. Phase 1 frozen backbone (8 epochs), phase 2 fine-tuning from phase 1 (LR 2e-5, feature encoder frozen); batch 16; dropout 0.3; label smoothing 0.1; noise, speed and phone-sound augmentation; Davao clips drawn 3× more often; best at phase 2 epoch 3 (validation 81.43%).",
     notes: [
-      "Strongest model — half of the fused result.",
-      "The split is by file, not by speaker: all 121 speakers are in both training and test, so every test clip is a voice the model trained on — 90.5% is likely optimistic for a new voice.",
-      "Trained on acted English speech; real Filipino patients may score lower.",
+      "Retrained on 2026-11-16 with Filipino (Davao) voices and tested on new speakers only. The old model's 90.54% was on voices it had trained on; on this fair test it scores 79.06% — and only 35.62% on the Davao voices.",
+      "Davao test voices: 52.50% (160 clips, 2 speakers), up from 35.62%. With only 2 test speakers, read this as roughly 45–60%.",
+      "By source (all new speakers): CREMA-D 85.47% · RAVDESS 75.89% · Davao 52.50%.",
+      "Most remaining mistakes: angry heard as happy (45) and sad heard as neutral (35) or happy (28). More Davao speakers — especially sad recordings — would help most.",
     ],
   },
   {

@@ -24,7 +24,7 @@ describe("evaluation numbers are consistent", () => {
 describe("ModelEvaluation panel", () => {
   test("shows each model's accuracy, and details on tap", () => {
     render(<ModelEvaluation />);
-    expect(screen.getByText("90.54%")).toBeInTheDocument();
+    expect(screen.getByText("78.95%")).toBeInTheDocument();
     expect(screen.getByText("74.97%")).toBeInTheDocument();
     expect(screen.getByText("77.15%")).toBeInTheDocument();
     expect(screen.getByText("Experimental — not in the session result")).toBeInTheDocument();
@@ -75,6 +75,11 @@ describe("filterUpdates (admin search and filters)", () => {
 describe("SystemUpdates panel", () => {
   test("admin: the latest update is open; older ones open on tap, with the steps needed on the live server", () => {
     render(<SystemUpdates audience="admin" />);
+    expect(screen.getByText("Voice model (technical)")).toBeInTheDocument();
+    expect(screen.getByText(/modal volume put --force anumata-models/)).toBeInTheDocument();
+    expect(screen.queryByText("Stepping in and captions (technical)")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Patients are never stuck while you talk with them/ }));
     expect(screen.getByText("Stepping in and captions (technical)")).toBeInTheDocument();
     expect(screen.queryByText("Stepping in (technical)")).not.toBeInTheDocument();
 
@@ -119,6 +124,11 @@ describe("SystemUpdates panel", () => {
 
   test("therapist: only changes to their work — no admin sections, no server steps", () => {
     render(<SystemUpdates audience="therapist" />);
+    expect(screen.getByText(/up from 35\.6%/)).toBeInTheDocument();
+    expect(screen.queryByText("Voice model (technical)")).not.toBeInTheDocument();
+    expect(screen.queryByText(/modal volume put/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Patients are never stuck while you talk with them/ }));
     expect(screen.getByText(/10 patients per page/)).toBeInTheDocument();
     expect(screen.queryByText("Stepping in and captions (technical)")).not.toBeInTheDocument();
     expect(screen.queryByText("Support mode (technical)")).not.toBeInTheDocument();

@@ -83,11 +83,11 @@ export const DEFENSE_QA: DefenseQA[] = [
     question: "How accurate are the models?",
     answer:
       "On held-out test sets the models never saw in training:\n" +
-      "- SER (voice): 90.54% accuracy, macro F1 0.905 — 1,121 clips.\n" +
-      "- FER (face): 77.15% accuracy, macro F1 0.746 — 7,640 images.\n" +
+      "- SER (voice): 78.95% accuracy, macro F1 0.791 — 974 clips from 19 speakers it never heard; 52.50% on the Davao voices.\n" +
+      "- FER (face): 77.15% accuracy, macro F1 0.746 — 7,640 images; 65.22% on the Davao photos.\n" +
       "- LER (words): 74.97% accuracy, macro F1 0.731 — 6,987 texts.\n" +
       "Accuracy is the share of test samples labelled correctly; macro F1 averages the four emotions equally, so it is not inflated by the most common emotion.",
-    keyNumbers: ["SER 90.54%", "FER 77.15%", "LER 74.97%"],
+    keyNumbers: ["SER 78.95%", "FER 77.15%", "LER 74.97%", "SER Davao 52.50%"],
     tags: ["results", "metrics", "f1", "performance"],
   },
   {
@@ -118,12 +118,25 @@ export const DEFENSE_QA: DefenseQA[] = [
     category: "AI models & accuracy",
     question: "What is the voice model (SER) and how well does it do?",
     answer:
-      "Wav2Vec2-base with a classifier head (256 hidden units, dropout 0.3), on 16 kHz audio.\n" +
-      "- Test accuracy 90.54%, macro F1 0.905, weighted F1 0.906 (1,121 clips).\n" +
-      "- F1 per emotion: Angry 0.924 · Happy 0.896 · Neutral 0.892 · Sad 0.909.\n" +
-      "Caution: the split is speaker-dependent — all 121 speakers appear in both training and test — so 90.54% measures emotions in familiar voices; on new speakers it is likely lower.",
-    keyNumbers: ["90.54%", "F1 0.905", "121 speakers"],
+      "Wav2Vec2-base with a learned mix of all 13 of its layers and a classifier head (256 hidden units, dropout 0.3). It hears 3 seconds of 16 kHz speech, prepared exactly as in the app.\n" +
+      "- Test accuracy 78.95%, macro F1 0.791, weighted F1 0.791 (974 clips, 19 speakers it never heard).\n" +
+      "- By source: CREMA-D 85.47% · RAVDESS 75.89% · Davao (Filipino) 52.50%.\n" +
+      "- F1 per emotion: Angry 0.843 · Happy 0.757 · Neutral 0.778 · Sad 0.785.\n" +
+      "- Most remaining mistakes: angry heard as happy, and sad heard as neutral or happy.",
+    keyNumbers: ["78.95%", "F1 0.791", "Davao 52.50%"],
     tags: ["ser", "wav2vec2", "voice", "speech"],
+  },
+  {
+    id: "ser-improvement",
+    category: "AI models & accuracy",
+    question: "SER went from 90.54% to 78.95%. Did the model get worse?",
+    answer:
+      "No — the test got fairer. The old test split files at random, so all 121 speakers were in both training and test: the model was tested on voices it had already heard, and there were no Filipino voices.\n" +
+      "The new test is split by speaker (19 new voices, 2 from Davao). On that same fair test, the old model scores 79.06% overall and only 35.62% on the Davao voices. The retrained model scores 78.95% overall and 52.50% on the Davao voices.\n" +
+      "The gain came from adding Davao recordings, a learned mix of all the backbone's layers, training on audio prepared exactly as the app hears it, and noise/phone-sound augmentation.\n" +
+      "Caution: the Davao test has 2 speakers (160 clips), so 52.50% is roughly 45–60%.",
+    keyNumbers: ["90.54% → 78.95% (fairer test)", "Davao 35.62% → 52.50%", "old model 79.06% on new test"],
+    tags: ["retrain", "comparison", "ser", "leakage", "speaker split"],
   },
   {
     id: "ler-model",
@@ -174,9 +187,9 @@ export const DEFENSE_QA: DefenseQA[] = [
     question: "What datasets were used?",
     answer:
       "- FER: FER2013, RAF-DB and CK+, plus face photos collected in Davao City.\n" +
-      "- SER: CREMA-D (4,900 clips), TESS (1,600), RAVDESS (672), SAVEE (300) — 7,472 clips.\n" +
+      "- SER: CREMA-D (4,882 clips), TESS (1,600), RAVDESS (671), SAVEE (300), plus 528 voice recordings from 7 Davao speakers — 7,981 clips after cleaning.\n" +
       "- LER: GoEmotions (50,634 texts) and DAIR-AI Emotion (19,234) — 69,868 texts.",
-    keyNumbers: ["7,472 voice clips", "69,868 texts", "37,161 face images"],
+    keyNumbers: ["7,981 voice clips", "528 Davao clips", "69,868 texts", "37,161 face images"],
     tags: ["fer2013", "raf-db", "ck+", "crema-d", "ravdess", "tess", "savee", "goemotions"],
   },
   {
@@ -214,9 +227,9 @@ export const DEFENSE_QA: DefenseQA[] = [
     question: "How were the data split into training, validation and test?",
     answer:
       "- FER: 25,234 train · 4,287 validation · 7,640 test (official FER2013 and RAF-DB test images plus 23 Davao photos).\n" +
-      "- SER: 5,230 · 1,121 · 1,121 (stratified 70/15/15, seed 42).\n" +
+      "- SER: 6,124 · 883 · 974, split by speaker (91 · 18 · 19 speakers; no voice in two sets). Davao: 4 speakers train, 1 validation, 2 test.\n" +
       "- LER: 55,894 · 6,987 · 6,987 (80/10/10 after cleaning).",
-    keyNumbers: ["FER 7,640 test", "SER 1,121 test", "LER 6,987 test"],
+    keyNumbers: ["FER 7,640 test", "SER 974 test", "LER 6,987 test"],
     tags: ["train", "validation", "test", "split"],
   },
   {
@@ -226,8 +239,8 @@ export const DEFENSE_QA: DefenseQA[] = [
     answer:
       "- FER: the test set is the datasets' official test portion; 700 copies of test images found in training were removed after comparing every image pair, and each CK+ person stays in one split.\n" +
       "- LER: 319 duplicate texts were removed before splitting; only 7 of 6,987 test texts (0.1%) also appear in training.\n" +
-      "- SER: split by file, so speakers overlap (all 121) — this is a stated limitation.",
-    keyNumbers: ["700 removed", "7 of 6,987 (0.1%)"],
+      "- SER: split by speaker, so no voice is in more than one set (0 speakers shared); exact duplicate clips and clips with conflicting labels were removed first.",
+    keyNumbers: ["700 removed", "7 of 6,987 (0.1%)", "SER 0 shared speakers"],
     tags: ["overlap", "duplicates", "validity"],
   },
   {
@@ -568,7 +581,7 @@ export const DEFENSE_QA: DefenseQA[] = [
     category: "Limitations & future work",
     question: "What are the main limitations?",
     answer:
-      "- SER's test voices were also in training (speaker-dependent), and it was trained on acted English speech.\n" +
+      "- SER is mostly trained on acted English speech; on new Filipino voices it scores 52.50%, and that test has only 2 Davao speakers.\n" +
       "- LER was trained on English text, so it is kept out of the fusion.\n" +
       "- The Davao face set is small (23 test photos); sad is the weakest Davao emotion (0 of 4).\n" +
       "- FER still confuses sad and neutral most often.\n" +
@@ -580,8 +593,8 @@ export const DEFENSE_QA: DefenseQA[] = [
     category: "Limitations & future work",
     question: "What would you improve next?",
     answer:
-      "- Collect more Davao photos (especially angry and sad) and voice recordings, with participant IDs, to train and test on local data.\n" +
-      "- Re-split SER by speaker for a stricter test, and train LER on Tagalog/Bisaya text.\n" +
+      "- Collect more Davao photos (especially angry and sad) and voice recordings from more speakers (each recording all four emotions) — the most direct way to raise the Davao scores.\n" +
+      "- Train LER on Tagalog/Bisaya text.\n" +
       "- Automatic PRC verification through an official API or data-sharing agreement.\n" +
       "- A therapist user study and expert review of the questions.",
     tags: ["improvement", "next steps", "recommendations"],

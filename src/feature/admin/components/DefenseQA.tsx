@@ -137,7 +137,7 @@ export default function DefenseQA() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search questions, answers or numbers — e.g. accuracy, Davao, 90.54, privacy"
+            placeholder="Search questions, answers or numbers — e.g. accuracy, Davao, 78.95, privacy"
             aria-label="Search defense questions"
             className="w-full rounded-lg border border-slate-200 py-2.5 pl-9 pr-9 text-sm outline-none focus:border-teal-500"
           />

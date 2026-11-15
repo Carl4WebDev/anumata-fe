@@ -26,7 +26,7 @@ describe("DefenseQA panel", () => {
   test("search finds questions by their numbers and highlights them", async () => {
     const user = userEvent.setup();
     render(<DefenseQA />);
-    await user.type(screen.getByLabelText("Search defense questions"), "90.54");
+    await user.type(screen.getByLabelText("Search defense questions"), "78.95");
     expect(screen.getByRole("status")).not.toHaveTextContent(`${DEFENSE_QA.length} of`);
     expect(screen.getByText("How accurate are the models?")).toBeInTheDocument();
     expect(document.querySelectorAll("mark").length).toBeGreaterThan(0);

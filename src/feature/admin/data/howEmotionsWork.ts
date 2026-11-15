@@ -207,7 +207,7 @@ export function riskLevel(mix: Probabilities): "High" | "Moderate" | "Low" {
 /** Things to keep in mind when reading the results. */
 export const READ_WITH_CARE: string[] = [
   "A score is the model's confidence for one answer, not its accuracy: “Sad 80%” doesn't mean 80% sure to be right.",
-  "Test-set accuracy: voice 90.54%, words 74.97%, face 77.15% (65.22% on the Davao photos). The face model most often confuses Sad with Neutral — that's why the voice counts as much.",
+  "Test-set accuracy on new people: voice 78.95% (52.50% on the Davao voices), words 74.97%, face 77.15% (65.22% on the Davao photos). The face model most often confuses Sad with Neutral — that's why the voice counts as much.",
   "The voice model hears 3 seconds of each answer, and the face model one photo per answer — enough to flag moments, not to describe the whole answer.",
   "Amumata gives a pre-evaluation to help the therapist prepare. The therapist decides what it means.",
 ];

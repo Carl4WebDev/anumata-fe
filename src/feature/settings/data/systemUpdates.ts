@@ -21,6 +21,36 @@ export interface SystemUpdate {
 
 export const SYSTEM_UPDATES: SystemUpdate[] = [
   {
+    date: "2026-11-16",
+    title: "A better voice model for Filipino patients",
+    groups: [
+      {
+        area: "Emotion results",
+        changes: [
+          "The voice (tone) model was retrained with recordings from Davao speakers. On Filipino voices it has never heard, it now reads the emotion correctly 52.5% of the time, up from 35.6%.",
+          "The accuracy shown in Settings for the voice model is now 78.95% instead of 90.54%. The model didn't get worse — the test is fairer: it now uses only voices the model never heard, like a real patient. On that same test the old model scores 79.06%.",
+          "Treat voice readings for Filipino patients as a hint, not a verdict — the face, the patient's own words and your judgment still matter most.",
+        ],
+      },
+      {
+        area: "Voice model (technical)",
+        audience: "admin",
+        changes: [
+          "Data: CREMA-D, TESS, RAVDESS, SAVEE + 528 clips from 7 Davao speakers, cleaned and split by speaker (train 6,124 · validation 883 · test 974; 0 speakers shared). Davao test: 2 speakers, 160 clips.",
+          "Model: a learned mix of all 13 Wav2Vec2 layers; trained on exactly the 3 s window the app sends, normalised the same way; noise, speed and phone-sound augmentation; Davao clips drawn 3× more often.",
+          "Test: 78.95% (macro F1 0.791) — CREMA-D 85.47%, RAVDESS 75.89%, Davao 52.50%. Same test, old model: 79.06%, Davao 35.62%.",
+          "src/ai/ser/ser_service.py builds the model from the checkpoint (layer_pooling in its config, or layer_weights in its weights) and still loads the old model, so rolling back is just swapping the file.",
+        ],
+      },
+    ],
+    deploySteps: [
+      "Deploy the AI code first (modal deploy src/ai/modal_app.py): the old code can't open the new model file.",
+      "Then upload the new model: modal volume put --force anumata-models src/ai/models/ser_best_model.pt /ser_best_model.pt",
+      "Deploy the AI code once more so any running server restarts with the new file; its log then shows “SER layer pooling: weighted”.",
+      "Deploy the frontend for the new numbers. No SQL needed.",
+    ],
+  },
+  {
     date: "2026-11-15",
     title: "Patients are never stuck while you talk with them; patient list pages",
     groups: [

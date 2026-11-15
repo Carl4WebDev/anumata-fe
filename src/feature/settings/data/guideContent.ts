@@ -400,11 +400,13 @@ export const guideSections: GuideSection[] = [
         id: "ser-training",
         title: "SER Training",
         content:
-          "**Model:** Wav2Vec2-base backbone + classifier (768 → 256 → 4), raw 16 kHz mono audio.\n\n" +
-          "**Data:** CREMA-D, RAVDESS, SAVEE, TESS (acted English speech; angry/happy/neutral/sad only). " +
-          "Stratified 70/15/15 split, seed 42: train 5,230 / validation 1,121 / test 1,121 clips.\n\n" +
-          "**Settings:** batch 16; phase 1 frozen backbone (LR 1e-3), phase 2 fine-tuning (backbone LR 1e-5); " +
-          "dropout 0.3; weight decay 1e-2; warmup 10%; early stopping 5. Audio trimmed of silence, max 4 s.",
+          "**Model:** Wav2Vec2-base backbone, a learned mix of all 13 of its layers, then a classifier (768 → 256 → 4); 16 kHz mono audio.\n\n" +
+          "**Data (retrained 2026-11-16):** CREMA-D, RAVDESS, SAVEE, TESS (acted English speech) plus 528 recordings from 7 Davao speakers; " +
+          "angry/happy/neutral/sad only. Cleaned (duplicates, conflicting labels, near-silent clips removed), then split by speaker: " +
+          "train 6,124 / validation 883 / test 974 clips, no voice in two sets.\n\n" +
+          "**Settings:** hears 3 s of speech starting 0.5 s in, normalised — exactly what the app sends; batch 16; " +
+          "phase 1 frozen backbone (8 epochs), phase 2 fine-tuning from phase 1 (backbone LR 2e-5, feature encoder frozen); " +
+          "dropout 0.3; label smoothing 0.1; noise, speed and phone-sound augmentation; Davao clips drawn 3× more often.",
         verification: "verified",
         source: "docs/evaluation/ser/training_config.py",
         tags: ["training", "ser", "wav2vec2", "datasets"],
@@ -452,7 +454,7 @@ export const guideSections: GuideSection[] = [
         title: "Test-Set Results",
         content:
           "Each model was evaluated on a held-out test split it never saw in training:\n\n" +
-          "- **SER (voice):** accuracy **90.54%**, macro F1 0.905 (1,121 clips)\n" +
+          "- **SER (voice):** accuracy **78.95%**, macro F1 0.791 (974 clips, new speakers only; Davao voices alone 52.50%)\n" +
           "- **LER (words):** accuracy **74.97%**, macro F1 0.731 (6,987 texts)\n" +
           "- **FER (face):** accuracy **77.15%**, macro F1 0.746 (7,640 images; Davao photos alone 65.22%)\n\n" +
           "Classification reports and confusion matrices (CSV + PNG) are in `docs/evaluation/{fer,ser,ler}/`.",
@@ -903,8 +905,9 @@ export const guideSections: GuideSection[] = [
           "Each model used separate train/validation/test splits (seed 42), and the test set was only used for the " +
           "final evaluation. LER removed duplicate texts before splitting.\n\n" +
           "FER's test set is the official test portion of FER2013 and RAF-DB; LER has only 7 test texts (0.1%) also in training.\n\n" +
-          "**Be ready to acknowledge:** SER's split is by file, not by speaker — all 121 speakers are in both training " +
-          "and test, so its 90.5% is likely optimistic for a new voice.",
+          "SER is split by speaker: no voice is in more than one set, so its test measures new voices.\n\n" +
+          "**Be ready to explain:** SER's earlier 90.5% came from a split by file, where the same speakers were in training " +
+          "and test; on the new speaker split the old model scores 79.06%, the retrained one 78.95%.",
         verification: "verified",
         source: "docs/evaluation/README.md",
         tags: ["defense", "q7", "data-leakage"],
@@ -914,8 +917,9 @@ export const guideSections: GuideSection[] = [
         title: "Q8: How were models evaluated?",
         content:
           "On held-out test sets, with accuracy, per-class precision/recall/F1 and confusion matrices:\n" +
-          "SER 90.54%, LER 74.97%, FER 77.15% accuracy (macro F1 0.905 / 0.731 / 0.746). " +
-          "FER was retrained on a cleaned dataset with Davao photos (previously 61.15%).\n\n" +
+          "SER 78.95%, LER 74.97%, FER 77.15% accuracy (macro F1 0.791 / 0.731 / 0.746). " +
+          "FER was retrained on a cleaned dataset with Davao photos (previously 61.15%); SER was retrained with Davao voices " +
+          "and tested on new speakers (Davao voices 52.50%, previously 35.62%).\n\n" +
           "In real interviews, the AI is also compared with the patient's own report (mood check, feeling words) " +
           "via `npm run eval:self-report`.",
         verification: "verified",
@@ -1036,9 +1040,9 @@ export const guideSections: GuideSection[] = [
         title: "Defense Readiness Summary",
         content:
           "**Verified strengths:** Complete pipeline, multimodal fusion, confidence guards, spike detection, hedging reports. " +
-          "Test-set results for all three models (SER 90.5%, LER 75.0%, FER 77.2%) with training settings documented.\n\n" +
+          "Test-set results for all three models (SER 79.0%, LER 75.0%, FER 77.2%) with training settings documented.\n\n" +
           "**Be ready to explain:** how the FER dataset was cleaned and why the test set changed (old 61.15% vs new 77.15%); " +
-          "FER on Davao photos (65.2%, only 23 photos); SER's speaker-dependent split; " +
+          "FER on Davao photos (65.2%, only 23 photos); why SER went from 90.5% to 79.0% (fairer speaker split) and its Davao score (52.5%, 2 test speakers); " +
           "public English training data vs Davao patients.\n\n" +
           "**Still missing:** agreement with patients' self-report on real interviews (script ready), therapist user study.\n\n" +
           "**Claims to qualify:** \"4 emotions\" (thesis says 3), fusion weights (docs say 40/40/20, code says 50/50/0).\n\n" +
@@ -1062,10 +1066,11 @@ export const guideSections: GuideSection[] = [
     items: [
       {
         id: "issue-ser-speaker-dependent-split",
-        title: "SER Test Split Is Speaker-Dependent",
+        title: "SER Test Split Was Speaker-Dependent (Fixed)",
         content:
-          "SER's train/test split is by file, so the same actors appear in both. Its 90.5% test accuracy is likely " +
-          "optimistic for new speakers; a split that holds out whole actors would give a stricter figure.",
+          "Fixed on 2026-11-16: SER's earlier split was by file, so the same actors were in training and test (90.5%). " +
+          "It is now split by speaker; on new voices the retrained model scores 78.95% (Davao voices 52.50%, 2 speakers). " +
+          "Remaining gap: few Davao speakers to train and test on.",
         verification: "verified",
         source: "docs/evaluation/README.md",
         tags: ["issues", "ser", "evaluation", "leakage"],
