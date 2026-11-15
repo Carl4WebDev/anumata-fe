@@ -365,6 +365,21 @@ export const DEFENSE_QA: DefenseQA[] = [
     tags: ["crisis", "support mode", "self-harm", "safe messaging", "comfort", "live"],
   },
   {
+    id: "therapist-steps-in",
+    category: "Interview room",
+    question: "Can the therapist intervene during the interview?",
+    answer:
+      "Yes. From the live view the therapist can pause the questions and message the patient at any time — after a crisis alert, or whenever something worries them. A person takes over from the AI; Amumata only delivers the messages.\n" +
+      "- The message appears on the patient's screen and is read aloud in the room's voice. Sending one pauses the questions first.\n" +
+      "- The patient replies by speaking or typing. Replies go only to the therapist and are not part of the emotion analysis: the answer's recording is paused while they talk.\n" +
+      "- Honest status: “Seen” only after the patient's screen confirms it; “paused on the patient's screen” only after the room confirms it.\n" +
+      "- If the therapist closes the live view while paused, the interview resumes by itself, so the patient isn't left waiting.\n" +
+      "- Everything is saved (interview_messages) and shown in the session review, with the question it happened at.\n" +
+      "Typed messages, not a live call: the therapist's voice would otherwise be picked up by the patient's microphone and mixed into the recording that is analysed, and text gets through on weak mobile data. For a real conversation the therapist can send “I'll call you now” and phone the patient.",
+    keyNumbers: ["500 characters per message", "5 messages / 10 s", "3 languages for quick lines"],
+    tags: ["intervene", "therapist", "live", "message", "pause", "crisis", "human in the loop"],
+  },
+  {
     id: "patient-comfort",
     category: "Interview room",
     question: "What makes the interview comfortable for patients?",

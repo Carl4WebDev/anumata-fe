@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, Coffee, Loader2, MessageSquare, Radio, Video, VideoOff, Volume2, VolumeX } from "lucide-react";
 import { useLiveWatch, type LiveEvent, type LiveStatus } from "../hooks/useLiveWatch";
+import LiveTalkPanel from "../components/LiveTalkPanel";
 
 const STATUS_TEXT: Record<LiveStatus, string> = {
   connecting: "Connecting…",
@@ -20,12 +21,13 @@ const EVENT_TONE: Record<LiveEvent["tone"], string> = {
 /**
  * Watch a patient's interview as it happens: their camera and microphone,
  * the current question, live captions, and events like check-ins and breaks.
- * The therapist is invisible and silent to the patient.
+ * The patient can't see or hear the therapist, but the therapist can step in:
+ * pause the questions and send messages (shown and read aloud to the patient).
  */
 export default function LiveViewPage() {
   const { id } = useParams();
   const linkId = Number(id);
-  const { status, state, patientName, media, events } = useLiveWatch(linkId);
+  const { status, state, patientName, media, events, talk, paused, sendTalk, pause, resume } = useLiveWatch(linkId);
   const videoRef = useRef<HTMLVideoElement>(null);
   // Browsers only autoplay muted video; sound needs one click.
   const [muted, setMuted] = useState(true);
@@ -53,7 +55,7 @@ export default function LiveViewPage() {
           </Link>
           <div>
             <h1 className="text-xl font-bold text-slate-900">{patientName ? `Watching ${patientName}` : "Live interview"}</h1>
-            <p className="text-sm text-slate-500">The patient can't see or hear you.</p>
+            <p className="text-sm text-slate-500">The patient can't see or hear you — you can pause the questions and message them.</p>
           </div>
         </div>
         <span
@@ -133,43 +135,60 @@ export default function LiveViewPage() {
           </div>
         </section>
 
-        {/* Events */}
-        <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900">
-            <Video size={16} className="text-teal-600" /> What's happening
-          </h2>
-          {state.crisis && (
-            <p className="mb-3 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
-              <AlertTriangle size={16} className="mt-0.5 shrink-0" /> Crisis alert — the patient may be at risk. Please contact them.
-            </p>
+        <div className="space-y-4">
+          {/* Stepping in: pause the questions and message the patient */}
+          {status !== "denied" && (
+            <LiveTalkPanel
+              connected={live || status === "waiting"}
+              patientOnline={live}
+              paused={paused}
+              held={Boolean(state.heldByTherapist)}
+              language={state.language}
+              talk={talk}
+              sendTalk={sendTalk}
+              pause={pause}
+              resume={resume}
+            />
           )}
-          {state.support?.active && (
-            <div role="status" className="mb-3 rounded-lg border border-red-200 bg-red-600 px-3 py-2 text-sm text-white">
-              <p className="font-semibold">Support mode — questions paused</p>
-              <p className="mt-0.5 text-red-50">
-                Amumata is keeping the patient company with calm, pre-written lines and the help lines on screen, until they choose to continue,
-                take a break or stop. The patient sees that you are watching.
+
+          {/* Events */}
+          <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900">
+              <Video size={16} className="text-teal-600" /> What's happening
+            </h2>
+            {state.crisis && (
+              <p className="mb-3 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0" /> Crisis alert — the patient may be at risk. Please contact them.
               </p>
-            </div>
-          )}
-          {events.length === 0 ? (
-            <p className="text-sm text-slate-500">Check-ins, breaks and questions will appear here as they happen.</p>
-          ) : (
-            <ul className="space-y-2 text-sm">
-              {events.map((e, i) => (
-                <li key={`${e.at}-${i}`} className="flex gap-2">
-                  <span className="shrink-0 tabular-nums text-xs text-slate-400">
-                    {new Date(e.at).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", second: "2-digit" })}
-                  </span>
-                  <span className={EVENT_TONE[e.tone]}>{e.text}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
-            Live viewing isn't recorded. The AI analysis runs after the interview, as usual.
-          </p>
-        </aside>
+            )}
+            {state.support?.active && (
+              <div role="status" className="mb-3 rounded-lg border border-red-200 bg-red-600 px-3 py-2 text-sm text-white">
+                <p className="font-semibold">Support mode — questions paused</p>
+                <p className="mt-0.5 text-red-50">
+                  Amumata is keeping the patient company with calm, pre-written lines and the help lines on screen, until they choose to continue,
+                  take a break or stop. The patient sees that you are watching. To talk with them yourself, pause and send a message.
+                </p>
+              </div>
+            )}
+            {events.length === 0 ? (
+              <p className="text-sm text-slate-500">Check-ins, breaks and questions will appear here as they happen.</p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {events.map((e, i) => (
+                  <li key={`${e.at}-${i}`} className="flex gap-2">
+                    <span className="shrink-0 tabular-nums text-xs text-slate-400">
+                      {new Date(e.at).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit", second: "2-digit" })}
+                    </span>
+                    <span className={EVENT_TONE[e.tone]}>{e.text}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
+              Live viewing isn't recorded. The AI analysis runs after the interview, as usual.
+            </p>
+          </aside>
+        </div>
       </div>
     </div>
   );

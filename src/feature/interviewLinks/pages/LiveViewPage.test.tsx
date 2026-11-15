@@ -3,9 +3,20 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import LiveViewPage from "./LiveViewPage";
 import { eventsBetween, type LiveStatus, type LiveEvent } from "../hooks/useLiveWatch";
-import type { LiveInterviewState } from "../../../shared/api/liveApi";
+import type { LiveInterviewState, LiveTalkItem } from "../../../shared/api/liveApi";
 
-let watch: { status: LiveStatus; state: LiveInterviewState; patientName: string; media: MediaStream | null; events: LiveEvent[] };
+let watch: {
+  status: LiveStatus;
+  state: LiveInterviewState;
+  patientName: string;
+  media: MediaStream | null;
+  events: LiveEvent[];
+  talk: LiveTalkItem[];
+  paused: boolean;
+  sendTalk: (body: string) => boolean;
+  pause: () => boolean;
+  resume: () => boolean;
+};
 vi.mock("../hooks/useLiveWatch", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../hooks/useLiveWatch")>()),
   useLiveWatch: () => watch,
@@ -21,7 +32,18 @@ const renderPage = () =>
   );
 
 beforeEach(() => {
-  watch = { status: "connecting", state: {}, patientName: "", media: null, events: [] };
+  watch = {
+    status: "connecting",
+    state: {},
+    patientName: "",
+    media: null,
+    events: [],
+    talk: [],
+    paused: false,
+    sendTalk: vi.fn(() => true),
+    pause: vi.fn(() => true),
+    resume: vi.fn(() => true),
+  };
 });
 
 describe("eventsBetween", () => {
@@ -60,12 +82,30 @@ describe("LiveViewPage", () => {
   test("waiting for the patient", () => {
     watch.status = "waiting";
     renderPage();
-    expect(screen.getByRole("status")).toHaveTextContent("Waiting for the patient");
+    expect(screen.getByText("Waiting for the patient to open the interview…")).toHaveAttribute("role", "status");
     expect(screen.getByText(/video appears here when the patient is in the interview room/)).toBeInTheDocument();
+  });
+
+  test("the therapist's pause showing on the patient's screen becomes an event", () => {
+    const at = "2026-11-14T03:00:00Z";
+    const prev: LiveInterviewState = { stage: "interview", questionIndex: 0 };
+    expect(eventsBetween(prev, { ...prev, heldByTherapist: true }, at)[0].text).toBe("The questions are paused on the patient's screen");
+    expect(eventsBetween({ ...prev, heldByTherapist: true }, prev, at)[0].text).toBe("The questions resumed on the patient's screen");
+  });
+
+  test("live: the therapist can talk to the patient; not for someone else's interview", () => {
+    watch = { ...watch, status: "live", state: { stage: "interview", questionIndex: 0 } };
+    const { unmount } = renderPage();
+    expect(screen.getByRole("region", { name: "Talk to the patient" })).toBeInTheDocument();
+    unmount();
+    watch = { ...watch, status: "denied" };
+    renderPage();
+    expect(screen.queryByRole("region", { name: "Talk to the patient" })).not.toBeInTheDocument();
   });
 
   test("live: shows the patient, the current question, captions and events", () => {
     watch = {
+      ...watch,
       status: "live",
       patientName: "MARIA SANTOS",
       media: null,

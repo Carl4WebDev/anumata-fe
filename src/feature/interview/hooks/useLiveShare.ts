@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { liveSocketUrl, type LiveInterviewState } from "../../../shared/api/liveApi";
+import { liveSocketUrl, mergeTalk, type LiveInterviewState, type LiveTalkItem } from "../../../shared/api/liveApi";
 
 const STATE_THROTTLE_MS = 400;
 
@@ -68,12 +68,28 @@ function startPeer(refs: PeerRefs, viewerId: string): void {
  * recording for the analysis is untouched), along with the interview's progress.
  * Nothing is sent while no therapist is watching except the progress.
  *
- * Returns whether the therapist has the live view open right now.
+ * The therapist can also step in: messages and pause / resume arrive here, and
+ * the patient's replies and "seen" confirmations go back the same way.
  */
-export function useLiveShare(token: string | undefined, stream: MediaStream | null, state: LiveInterviewState): { watching: boolean } {
+export interface LiveShare {
+  /** The therapist has the live view open right now. */
+  watching: boolean;
+  /** Messages, pauses and resumes, oldest first. */
+  talk: LiveTalkItem[];
+  /** The therapist paused the questions. */
+  paused: boolean;
+  /** Send the patient's reply. False if not connected (nothing was sent). */
+  sendTalk: (body: string) => boolean;
+  /** Tell the therapist this message is on the patient's screen. False if not connected. */
+  markSeen: (ref: string) => boolean;
+}
+
+export function useLiveShare(token: string | undefined, stream: MediaStream | null, state: LiveInterviewState): LiveShare {
   const wsRef = useRef<WebSocket | null>(null);
   // The therapist's open live views (one per tab), as told by the live server.
   const [viewers, setViewers] = useState<ReadonlySet<string>>(() => new Set());
+  const [talk, setTalk] = useState<LiveTalkItem[]>([]);
+  const [paused, setPaused] = useState(false);
   const peersRef = useRef(new Map<string, RTCPeerConnection>());
   const iceRef = useRef<RTCIceServer[]>([]);
   const streamRef = useRef<MediaStream | null>(stream);
@@ -106,7 +122,16 @@ export function useLiveShare(token: string | undefined, stream: MediaStream | nu
         ws.send(JSON.stringify({ type: "hello", role: "patient", token }));
       };
       ws.onmessage = (event) => {
-        let msg: { type?: string; viewerId?: string; from?: string; iceServers?: RTCIceServer[]; data?: { sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit } };
+        let msg: {
+          type?: string;
+          viewerId?: string;
+          from?: string;
+          iceServers?: RTCIceServer[];
+          data?: { sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit };
+          talk?: LiveTalkItem[];
+          paused?: boolean;
+          item?: LiveTalkItem;
+        };
         try {
           msg = JSON.parse(event.data as string);
         } catch {
@@ -115,6 +140,14 @@ export function useLiveShare(token: string | undefined, stream: MediaStream | nu
         if (msg.type === "welcome") {
           iceRef.current = msg.iceServers ?? [];
           ws.send(JSON.stringify({ type: "state", state: stateRef.current }));
+          // After a reconnect or reload: the conversation so far, and whether the questions are paused.
+          setTalk(Array.isArray(msg.talk) ? msg.talk : []);
+          setPaused(Boolean(msg.paused));
+        } else if (msg.type === "talk" && msg.item) {
+          const item = msg.item;
+          setTalk((prev) => mergeTalk(prev, item));
+          if (item.kind === "pause") setPaused(true);
+          else if (item.kind === "resume") setPaused(false);
         } else if (msg.type === "viewer-joined" && msg.viewerId) {
           const joined = msg.viewerId;
           setViewers((prev) => new Set([...prev, joined]));
@@ -173,5 +206,14 @@ export function useLiveShare(token: string | undefined, stream: MediaStream | nu
     return () => clearTimeout(timer);
   }, [stateKey]);
 
-  return { watching: viewers.size > 0 };
+  const sendToServer = useCallback((message: unknown): boolean => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    ws.send(JSON.stringify(message));
+    return true;
+  }, []);
+  const sendTalk = useCallback((body: string) => sendToServer({ type: "talk", body }), [sendToServer]);
+  const markSeen = useCallback((ref: string) => sendToServer({ type: "seen", ref }), [sendToServer]);
+
+  return { watching: viewers.size > 0, talk, paused, sendTalk, markSeen };
 }

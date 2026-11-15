@@ -75,6 +75,20 @@ function mapSession(s: SessionData): MappedSession {
     riskLevel: s.risk_level ? s.risk_level.charAt(0).toUpperCase() + s.risk_level.slice(1) : "N/A",
     indicators: s.emotion_summary?.indicators ?? [],
     selfReport: s.emotion_summary?.self_report ?? null,
+    // Only the full session (GET /api/sessions/:id) has it; the list doesn't.
+    ...(s.live_messages
+      ? {
+          liveMessages: s.live_messages.map((m) => ({
+            id: m.message_id,
+            sender: m.sender,
+            kind: m.kind,
+            body: m.body,
+            questionIndex: m.question_index,
+            seenAt: m.seen_at,
+            at: m.created_at,
+          })),
+        }
+      : {}),
     emotions: {
       sad: dist.Sad ?? dist.sad ?? 0,
       happy: dist.Happy ?? dist.happy ?? 0,

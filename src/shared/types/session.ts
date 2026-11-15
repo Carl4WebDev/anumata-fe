@@ -102,6 +102,20 @@ export interface EmotionSummary {
 }
 
 /** A session as the UI uses it (mapped from the API's SessionData in SessionsProvider). */
+/** Something said or done when the therapist stepped in during the live interview. */
+export interface LiveMessage {
+  id: number;
+  sender: "therapist" | "patient";
+  /** "message": text · "pause" / "resume": the therapist paused or resumed the questions. */
+  kind: "message" | "pause" | "resume";
+  body: string | null;
+  /** The question the patient was on (0-based); null before the questions (warm-up). */
+  questionIndex: number | null;
+  /** When the patient's screen showed it (therapist messages). */
+  seenAt: string | null;
+  at: string;
+}
+
 export interface MappedSession {
   id: number;
   patientId: number;
@@ -113,6 +127,8 @@ export interface MappedSession {
   indicators: string[];
   /** The faces the patient tapped before / after the interview (1 = very bad … 5 = very good). */
   selfReport: { mood_before: number | null; mood_after: number | null } | null;
+  /** The therapist stepped in during the live interview (only on the full session). */
+  liveMessages?: LiveMessage[];
   emotions: Record<string, number>;
   spikes: {
     questionIndex: number;

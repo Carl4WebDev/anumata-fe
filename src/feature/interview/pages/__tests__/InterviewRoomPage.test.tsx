@@ -113,6 +113,38 @@ vi.mock("../../../../shared/utils/fileStorage", () => ({
   deleteFiles: (...args: unknown[]) => deleteFiles(...args),
 }));
 
+// The live connection to the therapist (jsdom has no WebRTC): tests play the therapist.
+type FakeTalk = { ref: string; sender: "therapist" | "patient"; kind: "message" | "pause" | "resume"; body: string | null; at: string; seenAt: null; auto?: boolean };
+const live = vi.hoisted(() => ({
+  talk: [] as FakeTalk[],
+  paused: false,
+  set: null as null | ((s: { talk: FakeTalk[]; paused: boolean }) => void),
+  lastState: {} as Record<string, unknown>,
+  sendTalk: vi.fn((_body: string) => true),
+  markSeen: vi.fn((_ref: string) => true),
+}));
+vi.mock("../../hooks/useLiveShare", async () => {
+  const React = await import("react");
+  return {
+    useLiveShare: (_token: unknown, _stream: unknown, state: Record<string, unknown>) => {
+      const [s, set] = React.useState({ talk: live.talk, paused: live.paused });
+      live.set = set;
+      live.lastState = state;
+      return { watching: false, talk: s.talk, paused: s.paused, sendTalk: live.sendTalk, markSeen: live.markSeen };
+    },
+  };
+});
+
+/** The therapist pauses, resumes, or sends a message from the live view. */
+async function therapist(kind: FakeTalk["kind"], body: string | null = null, extra: Partial<FakeTalk> = {}) {
+  const item: FakeTalk = { ref: `t${live.talk.length + 1}`, sender: "therapist", kind, body, at: new Date().toISOString(), seenAt: null, ...extra };
+  live.talk = [...live.talk, item];
+  if (kind === "pause") live.paused = true;
+  if (kind === "resume") live.paused = false;
+  await act(async () => live.set?.({ talk: live.talk, paused: live.paused }));
+  return item;
+}
+
 class FakeRecorder {
   state = "inactive";
   ondataavailable: ((e: { data: Blob }) => void) | null = null;
@@ -181,6 +213,10 @@ beforeEach(() => {
   faceCheck.hint = null;
   faceCheck.lastActive = false;
   voices.filipino = true;
+  live.talk = [];
+  live.paused = false;
+  live.sendTalk.mockReset().mockReturnValue(true);
+  live.markSeen.mockReset().mockReturnValue(true);
   addFiles.mockReset().mockResolvedValue(undefined);
   deleteFiles.mockReset().mockResolvedValue(undefined);
   sessionStorage.clear();
@@ -272,6 +308,89 @@ describe("InterviewRoom — hands-free voice flow", () => {
     await wait(10);
     expect(screen.getByText("Question 2 of 2")).toBeInTheDocument();
   }, 30_000); // fast-forwards 46 s of the room's timer
+
+  test("the therapist steps in: questions wait, messages are read aloud, what the patient says goes to them", async () => {
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
+
+    await therapist("pause");
+    await wait(10);
+    const panel = screen.getByRole("region", { name: "Your therapist" });
+    expect(within(panel).getByText(/Nakahinto muna ang mga tanong/)).toBeInTheDocument();
+    expect(spoken.some((s) => s.includes("Gusto kang kausapin ng iyong therapist"))).toBe(true);
+    expect(live.lastState.heldByTherapist).toBe(true);
+    expect(screen.getByText("Paused")).toBeInTheDocument();
+
+    // A message: shown, read aloud, and confirmed as seen.
+    const message = await therapist("message", "Nandito ako. Dahan-dahan lang.");
+    await wait(10);
+    expect(within(panel).getByText("Nandito ako. Dahan-dahan lang.")).toBeInTheDocument();
+    expect(spoken).toContain("Nandito ako. Dahan-dahan lang.");
+    expect(live.markSeen).toHaveBeenCalledWith(message.ref);
+
+    // What the patient says is a reply, not an answer — and nothing moves on, however long it takes.
+    await say("Salamat po");
+    expect(live.sendTalk).toHaveBeenCalledWith("Salamat po");
+    await wait(15_000);
+    expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
+
+    // Resumed: back to the same question; the conversation stays on screen.
+    await therapist("resume");
+    await wait(10);
+    expect(spoken.some((s) => s.includes("Balikan natin kung saan tayo huminto"))).toBe(true);
+    expect(screen.queryByText(/Nakahinto muna ang mga tanong/)).not.toBeInTheDocument();
+    expect(live.lastState.heldByTherapist).toBe(false);
+    await say("Tapos na");
+    await wait(10);
+    expect(live.sendTalk).not.toHaveBeenCalledWith("Tapos na");
+    expect(screen.getByText("Question 2 of 2")).toBeInTheDocument();
+  }, 30_000);
+
+  test("a typed reply goes to the therapist; if it can't be sent, the patient is told and keeps the text", async () => {
+    await startAndWarmUp();
+    await therapist("pause");
+    await wait(10);
+    const panel = screen.getByRole("region", { name: "Your therapist" });
+    const box = within(panel).getByRole("textbox", { name: "Mag-type ng sagot…" });
+    fireEvent.change(box, { target: { value: "Okay lang ako" } });
+    fireEvent.click(within(panel).getByRole("button", { name: /Ipadala/ }));
+    expect(live.sendTalk).toHaveBeenCalledWith("Okay lang ako");
+    expect(box).toHaveValue("");
+
+    live.sendTalk.mockReturnValue(false);
+    fireEvent.change(box, { target: { value: "Hello?" } });
+    fireEvent.click(within(panel).getByRole("button", { name: /Ipadala/ }));
+    expect(within(panel).getByRole("alert")).toHaveTextContent("Walang koneksyon");
+    expect(box).toHaveValue("Hello?");
+  });
+
+  test("crisis words while the therapist is talking: help card and alert, but no scripted support lines", async () => {
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    await therapist("pause");
+    await wait(10);
+    await say("Gusto ko nang mamatay");
+    await wait(10);
+    expect(reportCrisis).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("alert")).toHaveTextContent("Hindi ka nag-iisa");
+    expect(screen.queryByRole("region", { name: "Support" })).not.toBeInTheDocument();
+    expect(live.sendTalk).toHaveBeenCalledWith("Gusto ko nang mamatay");
+  });
+
+  test("the therapist closed the live view while paused: Amumata says so and carries on", async () => {
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    await therapist("pause");
+    await wait(10);
+    await therapist("resume", "Resumed automatically: the therapist closed the live view.", { auto: true });
+    await wait(10);
+    expect(spoken.some((s) => s.includes("Umalis muna ang iyong therapist"))).toBe(true);
+    expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
+  });
 
   test("support mode in the warm-up: no casual reply; continuing picks the warm-up up again", async () => {
     renderRoom();

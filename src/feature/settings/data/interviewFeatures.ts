@@ -131,7 +131,7 @@ export const INTERVIEW_FEATURES: FeatureGroup[] = [
       },
       {
         name: "Live viewing by the therapist",
-        what: "The therapist can watch the interview as it happens: the patient's camera and microphone, the current question, live captions, and check-ins, breaks and crisis alerts. The therapist is invisible and silent, and live viewing isn't recorded.",
+        what: "The therapist can watch the interview as it happens: the patient's camera and microphone, the current question, live captions, and check-ins, breaks and crisis alerts. The patient can't see or hear the therapist, and live viewing isn't recorded.",
         how: "One click on “Watch live” (Interview Links) or on the “… started the interview” notification. The live video is a lighter copy (about 360p, 20 frames per second) so it stays smooth on phones and slow connections; the recording for the analysis keeps full quality.",
       },
     ],
@@ -147,6 +147,11 @@ export const INTERVIEW_FEATURES: FeatureGroup[] = [
         name: "Support mode",
         what: "After those words — in the warm-up or the questions — the conversation pauses. Amumata says calm, pre-written lines in the patient's language (never AI-generated), keeps the help lines open, and tells the patient honestly that the therapist was alerted — and “is here now” only while the therapist is watching live. The patient chooses: continue, take a break, or stop for today.",
         how: "A gentle line after about 45 s of quiet, at most 4. The recording continues. Marked on the question in the session review.",
+      },
+      {
+        name: "The therapist steps in",
+        what: "From the live view, the therapist can pause the questions and message the patient. Amumata shows each message and reads it aloud; the patient replies by speaking or typing. The therapist sees when each message was seen. The questions continue when the therapist resumes — or by themselves if the therapist closes the live view.",
+        how: "“Talk to the patient” card on the live view, with quick lines in the patient's language. While paused, nothing is recorded or moved on, and replies aren't part of the analysis. The conversation is shown in the session review.",
       },
       {
         name: "Help lines at the end",

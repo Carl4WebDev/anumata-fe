@@ -38,6 +38,7 @@ import EvidenceQualityCard from "../components/EvidenceQualityCard";
 import QuestionCard from "../components/QuestionCard";
 import AiReportSection from "../components/AiReportSection";
 import SessionFollowUpCard from "../components/SessionFollowUpCard";
+import SteppedInCard from "../components/SteppedInCard";
 import { DetailPageSkeleton, TextBlockSkeleton } from "../../../shared/components/Skeleton";
 import { useToast } from "../../../shared/context/ToastContext";
 
@@ -112,6 +113,8 @@ export default function SessionReviewPage() {
   };
 
   const spikeIndices = session.spikes.map((s) => s.questionIndex);
+  // What the therapist and patient said when the therapist stepped in during the live interview.
+  const liveMessages = session.liveMessages ?? [];
 
   // Emotion distribution colors
   const emotionBarColors: Record<string, string> = {
@@ -140,6 +143,13 @@ export default function SessionReviewPage() {
 
       {/* 1. Session Overview */}
       <SessionOverviewCard data={computed.overview} />
+
+      {/* The therapist stepped in during the live interview */}
+      {liveMessages.length > 0 && (
+        <div id="stepped-in" className="scroll-mt-4">
+          <SteppedInCard messages={liveMessages} />
+        </div>
+      )}
 
       {/* 2. Timeline + Question Navigation */}
       <div className="relative">
@@ -191,6 +201,7 @@ export default function SessionReviewPage() {
             data={q}
             note={getNote(q.index)}
             onNoteChange={updateNote}
+            steppedIn={liveMessages.some((m) => m.questionIndex === q.index)}
           />
         ))}
       </div>

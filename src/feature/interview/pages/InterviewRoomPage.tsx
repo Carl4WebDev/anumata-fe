@@ -69,6 +69,9 @@ import { useFaceCheck } from "../hooks/useFaceCheck";
 import { FACE_HINTS } from "../hooks/faceCheck";
 import CrisisCard from "../components/CrisisCard";
 import CrisisSupportPanel from "../components/CrisisSupportPanel";
+import TherapistTalkPanel from "../components/TherapistTalkPanel";
+import { TALK_TEXT, isTherapistMessage, newTherapistMessages, resumedBecauseTherapistLeft } from "../hooks/therapistTalk";
+import type { LiveTalkItem } from "../../../shared/api/liveApi";
 import {
   SUPPORT_CONTINUE,
   SUPPORT_HEARD,
@@ -238,6 +241,14 @@ export default function InterviewRoom() {
   const supportPaceRef = useRef<SupportPace | null>(null);
   // Red-flag words heard; support mode starts as soon as the current step lets go.
   const supportPendingRef = useRef(false);
+  // The therapist stepped in from the live view and paused the questions: nothing is
+  // recorded or moved on, and what the patient says goes to the therapist (see therapistTalk.ts).
+  const [heldByTherapist, setHeldByTherapist] = useState(false);
+  const heldRef = useRef(false);
+  const pausedRecordingRef = useRef(false);
+  // Therapist messages already read aloud / already confirmed as seen.
+  const talkReadRef = useRef<Set<string>>(new Set());
+  const talkSeenRef = useRef<Set<string>>(new Set());
   // Progress from before a refresh (offered on the start screen), and the
   // per-answer saves of recordings to the browser, one at a time.
   const [savedProgress, setSavedProgress] = useState<InterviewProgress | null>(() => (token ? loadProgress(token) : null));
@@ -331,7 +342,13 @@ export default function InterviewRoom() {
 
   // Live viewing: the therapist can watch this interview as it happens.
   const inInterview = state === "recording";
-  const { watching } = useLiveShare(token, stream, {
+  const {
+    watching,
+    talk,
+    paused: therapistPaused,
+    sendTalk,
+    markSeen,
+  } = useLiveShare(token, stream, {
     stage: inInterview ? "interview" : state.startsWith("rapport") ? "warmup" : "waiting",
     questionIndex: inInterview ? currentIndex : undefined,
     questionTotal: questions.length || undefined,
@@ -346,8 +363,17 @@ export default function InterviewRoom() {
       : supportChoice
         ? { active: false, choice: supportChoice }
         : null,
+    heldByTherapist,
+    language: langDetected ? detectedLang : undefined,
     cameraOn,
     micOn,
+  });
+  // Latest live values for the async flow.
+  const talkRef = useRef<LiveTalkItem[]>(talk);
+  const therapistPausedRef = useRef(therapistPaused);
+  useEffect(() => {
+    talkRef.current = talk;
+    therapistPausedRef.current = therapistPaused;
   });
 
   // ─── Interview data ───
@@ -415,14 +441,14 @@ export default function InterviewRoom() {
     };
   }, [startMedia, stopMedia]);
 
-  // Timer runs during the formal interview, but not during a break.
+  // Timer runs during the formal interview, but not during a break or while the therapist talks.
   useEffect(() => {
-    if (state !== "recording" || onBreak) return;
+    if (state !== "recording" || onBreak || heldByTherapist) return;
     timerRef.current = setInterval(() => setElapsed((prev) => prev + 1), 1000);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [state, onBreak]);
+  }, [state, onBreak, heldByTherapist]);
 
   // From "Start Interview" until it's saved: warn before leaving, keep the screen on.
   const inConversation = state !== "idle" && state !== "finished";
@@ -712,7 +738,8 @@ export default function InterviewRoom() {
     setState("rapport_chat");
     newTurn();
     // Red-flag words in this answer: no casual reply or next question — support mode takes over.
-    if (supportPaceRef.current || supportPendingRef.current) return;
+    // Same when the therapist has stepped in: they lead until they resume.
+    if (supportPaceRef.current || supportPendingRef.current || heldRef.current) return;
     setSpokenLine(null);
     setAiPrompt({ kind: "text", main: acknowledgment });
     await say(acknowledgment, lang, pickAcknowledgment(category, "en", index));
@@ -1254,6 +1281,8 @@ export default function InterviewRoom() {
     setCrisis({ notified: false, sent: false });
     if (stateRef.current === "recording") persistProgress(currentIndexRef.current); // card survives a refresh
     if (token) void emotionApi.reportCrisis(token).then((notified) => setCrisis({ notified, sent: true }));
+    // The therapist is already talking with them: the help card, but no scripted lines on top.
+    if (heldRef.current) return true;
     supportPendingRef.current = true;
     void runNow(startSupport);
     return true;
@@ -1284,11 +1313,82 @@ export default function InterviewRoom() {
     });
   };
 
+  // ─── The therapist steps in (from the live view) ───
+
+  const setHeld = (on: boolean) => {
+    heldRef.current = on;
+    setHeldByTherapist(on);
+  };
+
+  /** The therapist paused the questions: nothing is recorded, timed or moved on; what the patient says goes to them. */
+  const holdForTherapist = async () => {
+    if (heldRef.current || !therapistPausedRef.current || !SUPPORT_STATES.has(stateRef.current)) return;
+    setHeld(true);
+    setMoveOnAt(null);
+    setCheckInOpen(false);
+    // The conversation isn't part of the answer: the recording pauses (a break already paused it).
+    if (stateRef.current === "recording" && !onBreakRef.current) {
+      pausedRecordingRef.current = true;
+      stopFrameCapture();
+      if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.pause();
+    }
+    await sayText(TALK_TEXT.pausedSpoken[langRef.current], TALK_TEXT.pausedSpoken.en);
+    listen();
+  };
+
+  /** The therapist resumed (or left): back to where the patient was. A break of their own carries on. */
+  const releaseFromTherapist = async () => {
+    if (!heldRef.current || therapistPausedRef.current) return;
+    setHeld(false);
+    if (pausedRecordingRef.current) {
+      pausedRecordingRef.current = false;
+      if (mediaRecorderRef.current?.state === "paused") mediaRecorderRef.current.resume();
+      startFrameCapture();
+    }
+    if (onBreakRef.current) {
+      listen();
+      return;
+    }
+    // The therapist chose to go on, so support mode (if it was on) ends as "continued".
+    if (supportPaceRef.current) endSupport("continued");
+    const line = resumedBecauseTherapistLeft(talkRef.current) ? TALK_TEXT.steppedAway : TALK_TEXT.resumeSpoken;
+    await sayText(line[langRef.current], line.en);
+    await resumeAfterSupport();
+  };
+
+  /** Read new therapist messages aloud, after whatever Amumata is saying now (not cut off). */
+  const readTherapistMessages = (messages: LiveTalkItem[]) => {
+    // Shown only (e.g. during the mood check): Amumata doesn't talk over another step.
+    if (!SUPPORT_STATES.has(stateRef.current)) return;
+    void (async () => {
+      const started = Date.now();
+      while (flowBusyRef.current && Date.now() - started < 15000) await new Promise((r) => setTimeout(r, 50));
+      await runFlow(async () => {
+        for (const m of messages) {
+          setSpokenLine(null);
+          await say(m.body ?? "", langRef.current);
+        }
+        listen();
+      });
+    })();
+  };
+
+  /** A typed reply to the therapist. False if it couldn't be sent. */
+  const handleTalkReply = (text: string): boolean => {
+    checkForCrisis(text);
+    return sendTalk(text);
+  };
+
   // ─── What the patient says steers the conversation ───
   const handlePhrase = (p: CaptionPhrase) => {
     // Every word counts for safety, whatever the turn or a break.
     const sameTurn = p.turn === captionsRef.current.getTurn();
     checkForCrisis(sameTurn ? [...turnTextRef.current, p.text].join(" ") : p.text);
+    // The therapist is talking with them: everything said is a reply to the therapist, not an answer.
+    if (heldRef.current) {
+      sendTalk(p.text);
+      return;
+    }
     // Late phrases from an earlier prompt don't belong to this one.
     if (!sameTurn) return;
     if (supportPaceRef.current) {
@@ -1379,7 +1479,8 @@ export default function InterviewRoom() {
 
   const tick = () => {
       const current = stateRef.current;
-      if (flowBusyRef.current || onBreakRef.current) return;
+      // The therapist is talking with the patient: no check-ins, gentle lines or moving on.
+      if (flowBusyRef.current || onBreakRef.current || heldRef.current) return;
       // Support mode: no questions, check-ins or moving on — only the occasional gentle line.
       if (supportPaceRef.current) {
         supportTick(supportPaceRef.current);
@@ -1476,10 +1577,33 @@ export default function InterviewRoom() {
       }
   };
 
+  const talkActionsRef = useRef({ hold: holdForTherapist, release: releaseFromTherapist, read: readTherapistMessages });
   useEffect(() => {
     handlePhraseRef.current = handlePhrase;
     tickRef.current = tick;
+    talkActionsRef.current = { hold: holdForTherapist, release: releaseFromTherapist, read: readTherapistMessages };
   });
+
+  // The therapist paused or resumed (also when the patient reaches a step where it applies).
+  const canHold = SUPPORT_STATES.has(state);
+  useEffect(() => {
+    if (therapistPaused && canHold && !heldRef.current) void runNow(talkActionsRef.current.hold);
+    else if (!therapistPaused && heldRef.current) void runNow(talkActionsRef.current.release);
+    // runNow only reads refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [therapistPaused, canHold]);
+
+  // New therapist messages: once on screen, the therapist is told they were seen; then read aloud.
+  useEffect(() => {
+    if (!inConversation) return;
+    for (const t of talk) {
+      if (isTherapistMessage(t) && !t.seenAt && !talkSeenRef.current.has(t.ref) && markSeen(t.ref)) talkSeenRef.current.add(t.ref);
+    }
+    const fresh = newTherapistMessages(talk, talkReadRef.current);
+    if (fresh.length === 0) return;
+    for (const t of fresh) talkReadRef.current.add(t.ref);
+    talkActionsRef.current.read(fresh);
+  }, [talk, inConversation, markSeen]);
 
   // ─── Optional buttons (same actions as the voice commands) ───
   /**
@@ -1668,8 +1792,12 @@ export default function InterviewRoom() {
   const moodCheck = state === "mood_before" || state === "mood_after";
   const listening = phase === "listening" || phase === "confirming";
   const working = phase === "busy" || phase === "preparing";
+  // The questions wait: support mode, or the therapist has stepped in.
+  const questionsHeld = Boolean(support) || heldByTherapist;
   const statusLabel = onBreak && phase !== "speaking"
     ? "On a break"
+    : heldByTherapist && phase !== "speaking"
+      ? "Talking with your therapist"
     : phase === "speaking"
       ? "Amumata is speaking"
       : phase === "busy"
@@ -1751,7 +1879,7 @@ export default function InterviewRoom() {
             title={`Interview time: ${formatTime(elapsed)}`}
           >
             <span className="h-2 w-2 rounded-full bg-teal-400" />
-            <span className="text-xs font-medium text-slate-200">{onBreak ? "Paused" : "Recording for your therapist"}</span>
+            <span className="text-xs font-medium text-slate-200">{onBreak || heldByTherapist ? "Paused" : "Recording for your therapist"}</span>
           </div>
         )}
         {/* Not during a check-in: "I can't see your face" would be unkind to someone looking down. */}
@@ -1836,7 +1964,11 @@ export default function InterviewRoom() {
           </div>
         </div>
 
-        {support && (
+        {(heldByTherapist || talk.some(isTherapistMessage)) && (
+          <TherapistTalkPanel lang={detectedLang} talk={talk} paused={heldByTherapist} large={comfort.largeText} onReply={handleTalkReply} />
+        )}
+        {/* The therapist has taken over from the scripted support lines while they talk. */}
+        {support && !heldByTherapist && (
           <CrisisSupportPanel
             lang={detectedLang}
             line={support.line}
@@ -1850,8 +1982,8 @@ export default function InterviewRoom() {
         )}
         {crisis && <CrisisCard lang={detectedLang} notified={crisis.notified} pinned={Boolean(support)} />}
 
-        {/* What Amumata is asking (in support mode, the panel above says it) */}
-        <div className={`rounded-2xl border border-teal-500/20 bg-teal-500/5 p-4 md:p-5 ${support ? "hidden" : ""}`}>
+        {/* What Amumata is asking (in support mode or while the therapist talks, the panel above takes its place) */}
+        <div className={`rounded-2xl border border-teal-500/20 bg-teal-500/5 p-4 md:p-5 ${questionsHeld ? "hidden" : ""}`}>
           <div className="mb-2 flex items-center gap-2">
             <MessageCircle size={14} className="text-teal-400" />
             <span className="text-xs font-medium text-teal-400">Amumata</span>
@@ -1895,7 +2027,7 @@ export default function InterviewRoom() {
             largeText={comfort.largeText}
           />
         )}
-        {isFormal && !onBreak && !support && (
+        {isFormal && !onBreak && !questionsHeld && (
           <FeelingWords
             lang={detectedLang}
             selected={feelings[currentIndex] ?? []}
@@ -1904,7 +2036,7 @@ export default function InterviewRoom() {
             highlight={checkInOpen}
           />
         )}
-        {isFormal && !onBreak && !support && checkInOpen && (
+        {isFormal && !onBreak && !questionsHeld && checkInOpen && (
           <CheckInActions
             lang={detectedLang}
             onContinue={handleCheckInContinue}
@@ -1912,7 +2044,7 @@ export default function InterviewRoom() {
             onSkip={handleNextButton}
           />
         )}
-        {phase === "confirming" && moveOnAt !== null && !captions.voiceActive && !onBreak && !support && <MoveOnCountdown until={moveOnAt} />}
+        {phase === "confirming" && moveOnAt !== null && !captions.voiceActive && !onBreak && !questionsHeld && <MoveOnCountdown until={moveOnAt} />}
         {onBreak && (
           <div className="rounded-2xl border border-sky-400/30 bg-sky-500/10 p-4 text-center" role="status">
             <p className="flex items-center justify-center gap-2 text-sm font-semibold text-sky-100">
@@ -1930,7 +2062,7 @@ export default function InterviewRoom() {
         </p>
 
         {/* Optional buttons — everything here can also be done by voice (in support mode, the panel has its own) */}
-        <div className={`rounded-2xl border border-white/10 bg-white/5 ${support ? "hidden" : ""}`}>
+        <div className={`rounded-2xl border border-white/10 bg-white/5 ${questionsHeld ? "hidden" : ""}`}>
           <button
             onClick={() => setControlsOpen((v) => !v)}
             className="flex w-full items-center justify-between px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-slate-400"

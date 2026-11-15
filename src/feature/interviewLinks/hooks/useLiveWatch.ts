@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { liveSocketUrl, type LiveInterviewState } from "../../../shared/api/liveApi";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { liveSocketUrl, mergeTalk, type LiveInterviewState, type LiveTalkItem } from "../../../shared/api/liveApi";
 
 export type LiveStatus =
   /** Connecting to the server. */
@@ -53,6 +53,8 @@ export function eventsBetween(prev: LiveInterviewState, next: LiveInterviewState
   if (!next.onBreak && prev.onBreak) events.push({ at, text: "The patient is back from the break", tone: "info" });
   if (next.crisis && !prev.crisis) events.push({ at, text: "Crisis alert: the patient may be at risk — the help lines were shown", tone: "alert" });
   events.push(...supportEvents(prev, next, at));
+  if (next.heldByTherapist && !prev.heldByTherapist) events.push({ at, text: "The questions are paused on the patient's screen", tone: "warn" });
+  if (!next.heldByTherapist && prev.heldByTherapist) events.push({ at, text: "The questions resumed on the patient's screen", tone: "info" });
   if (next.cameraOn === false && prev.cameraOn !== false) events.push({ at, text: "The patient turned their camera off", tone: "warn" });
   if (next.micOn === false && prev.micOn !== false) events.push({ at, text: "The patient muted their microphone", tone: "warn" });
   return events;
@@ -61,6 +63,8 @@ export function eventsBetween(prev: LiveInterviewState, next: LiveInterviewState
 /**
  * Watch a patient's interview live: joins the link's live room as a viewer and
  * receives the patient's camera and microphone over WebRTC, plus their progress.
+ * The therapist can step in: pause / resume the questions and send messages;
+ * the patient's replies and "seen" confirmations come back here.
  */
 export function useLiveWatch(linkId: number) {
   const [status, setStatus] = useState<LiveStatus>("connecting");
@@ -68,7 +72,10 @@ export function useLiveWatch(linkId: number) {
   const [patientName, setPatientName] = useState("");
   const [media, setMedia] = useState<MediaStream | null>(null);
   const [events, setEvents] = useState<LiveEvent[]>([]);
+  const [talk, setTalk] = useState<LiveTalkItem[]>([]);
+  const [paused, setPaused] = useState(false);
   const stateRef = useRef<LiveInterviewState>({});
+  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     if (!Number.isInteger(linkId) || typeof WebSocket === "undefined" || typeof RTCPeerConnection === "undefined") return;
@@ -114,6 +121,7 @@ export function useLiveWatch(linkId: number) {
     const connect = () => {
       const socket = new WebSocket(liveSocketUrl());
       ws = socket;
+      wsRef.current = socket;
       socket.onopen = () => {
         retries = 0;
         socket.send(JSON.stringify({ type: "hello", role: "viewer", authToken: localStorage.getItem("user_token"), linkId }));
@@ -126,6 +134,11 @@ export function useLiveWatch(linkId: number) {
           patientName?: string;
           state?: LiveInterviewState;
           data?: { sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit };
+          talk?: LiveTalkItem[];
+          paused?: boolean;
+          item?: LiveTalkItem;
+          ref?: string;
+          seenAt?: string;
         };
         try {
           msg = JSON.parse(event.data as string);
@@ -137,6 +150,16 @@ export function useLiveWatch(linkId: number) {
           setPatientName(msg.patientName ?? "");
           if (msg.state) applyState(msg.state);
           setStatus(msg.patientOnline ? "live" : "waiting");
+          setTalk(Array.isArray(msg.talk) ? msg.talk : []);
+          setPaused(Boolean(msg.paused));
+        } else if (msg.type === "talk" && msg.item) {
+          const item = msg.item;
+          setTalk((prev) => mergeTalk(prev, item));
+          if (item.kind === "pause") setPaused(true);
+          else if (item.kind === "resume") setPaused(false);
+        } else if (msg.type === "seen" && msg.ref) {
+          const { ref, seenAt = new Date().toISOString() } = msg;
+          setTalk((prev) => prev.map((t) => (t.ref === ref ? { ...t, seenAt } : t)));
         } else if (msg.type === "patient-online") {
           setStatus("live");
           setEvents((prev) => [{ at: new Date().toISOString(), text: "The patient entered the interview room", tone: "info" as const }, ...prev]);
@@ -154,6 +177,7 @@ export function useLiveWatch(linkId: number) {
       socket.onclose = (event) => {
         closePeer();
         if (ws === socket) ws = null;
+        if (wsRef.current === socket) wsRef.current = null;
         if (stopped) return;
         if (event.code === 4403) {
           setStatus("denied");
@@ -174,5 +198,16 @@ export function useLiveWatch(linkId: number) {
     };
   }, [linkId]);
 
-  return { status, state, patientName, media, events };
+  /** Send to the live server; false if not connected (nothing was sent). */
+  const sendToServer = useCallback((message: unknown): boolean => {
+    const socket = wsRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+    socket.send(JSON.stringify(message));
+    return true;
+  }, []);
+  const sendTalk = useCallback((body: string) => sendToServer({ type: "talk", body }), [sendToServer]);
+  const pause = useCallback(() => sendToServer({ type: "pause" }), [sendToServer]);
+  const resume = useCallback(() => sendToServer({ type: "resume" }), [sendToServer]);
+
+  return { status, state, patientName, media, events, talk, paused, sendTalk, pause, resume };
 }

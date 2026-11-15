@@ -21,6 +21,51 @@ export interface SystemUpdate {
 
 export const SYSTEM_UPDATES: SystemUpdate[] = [
   {
+    date: "2026-11-15",
+    title: "Step in and talk to your patient during the interview",
+    groups: [
+      {
+        area: "Live view",
+        changes: [
+          "New “Talk to the patient” card: pause the questions, send messages, and resume the interview — whenever something worries you, not only after a crisis alert.",
+          "Your message appears on the patient's screen and Amumata reads it aloud. Sending a message pauses the questions first, so the patient never has to answer a question and read a message at once.",
+          "Quick lines in the patient's language (English, Tagalog or Bisaya): “I'm here”, “Are you safe?”, “I'll call you”, “Short break”, “Continue when ready”. Tapping one puts it in the box to edit before sending.",
+          "Honest status: each message shows Sent until the patient's screen shows it, then Seen with the time. “Paused on the patient's screen” appears only once their room confirms it.",
+          "The patient replies by speaking or typing; their replies appear in the conversation.",
+        ],
+      },
+      {
+        area: "Interview room (patient side)",
+        changes: [
+          "When you pause, Amumata says “Your therapist would like to talk with you” and a “Your therapist” card takes the place of the question. Nothing is recorded, timed or moved on until you resume.",
+          "What the patient says or types meanwhile goes to you as a reply — it is not an answer and not part of the emotion analysis.",
+          "When you resume, the same question is asked again and the recording continues. If you close the live view while paused, the interview resumes by itself (“Your therapist has stepped away”).",
+          "Crisis words while you are talking still show the help card and alert you, but Amumata doesn't add its scripted support lines — you are already there.",
+        ],
+      },
+      {
+        area: "Session review",
+        changes: [
+          "A “You stepped in during this interview” card lists the whole conversation with times, the question it happened at, and whether each message was seen. Those questions get a “You stepped in” chip.",
+        ],
+      },
+      {
+        area: "Stepping in (technical)",
+        audience: "admin",
+        changes: [
+          "Messages travel over the existing live-view WebSocket (/ws/live): new message types talk, pause, resume and seen. Only the logged-in owner therapist can send, pause or resume; the patient can only reply and confirm “seen”.",
+          "Limits: 500 characters per message, 5 messages per 10 seconds per browser; control characters are removed. Messages are relayed before they are saved, so the patient gets them even if the database is slow or down.",
+          "Saved in the new interview_messages table (sender, kind, text, question, seen time), returned with the session as live_messages. The last 50 are kept in the live room so a reloaded page or a second tab catches up.",
+          "The patient's room pauses the answer's recording and photos while held, so replies never mix with answers.",
+        ],
+      },
+    ],
+    deploySteps: [
+      "Run migrations/manual/add_interview_messages.sql on the database (creates interview_messages; safe to re-run), or npm run migrate.",
+      "Deploy the backend, then the frontend.",
+    ],
+  },
+  {
     date: "2026-11-14",
     title: "Amumata stays with a patient in crisis",
     groups: [

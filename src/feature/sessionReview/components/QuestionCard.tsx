@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { MessageSquare, AlertTriangle, AlertCircle, CornerDownRight, HeartHandshake } from "lucide-react";
+import { MessageSquare, AlertTriangle, AlertCircle, CornerDownRight, HeartHandshake, MessageCircleHeart } from "lucide-react";
 import ModelSubCard from "./ModelSubCard";
 import FusionResultCard from "./FusionResultCard";
 import PerQuestionNotes from "./PerQuestionNotes";
@@ -19,9 +19,11 @@ interface QuestionCardProps {
   data: QuestionData;
   note: string;
   onNoteChange: (index: number, text: string) => void;
+  /** The therapist stepped in (paused / messaged) during this question. */
+  steppedIn?: boolean;
 }
 
-function QuestionCardInner({ data, note, onNoteChange }: QuestionCardProps) {
+function QuestionCardInner({ data, note, onNoteChange, steppedIn = false }: QuestionCardProps) {
   return (
     <article
       id={`question-${data.index}`}
@@ -41,6 +43,15 @@ function QuestionCardInner({ data, note, onNoteChange }: QuestionCardProps) {
                 <AlertTriangle size={10} />
                 Spike
               </span>
+            )}
+            {steppedIn && (
+              <a
+                href="#stepped-in"
+                className="flex items-center gap-1 rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-medium text-teal-800 hover:bg-teal-200"
+              >
+                <MessageCircleHeart size={10} />
+                You stepped in
+              </a>
             )}
           </div>
           {(data.checkIn || data.skipped) && (

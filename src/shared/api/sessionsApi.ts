@@ -127,6 +127,16 @@ export interface SessionData {
   }[];
   /** Not stored yet; shown as "N/A". */
   duration?: string;
+  /** The therapist stepped in during the live interview (GET /api/sessions/:id only). */
+  live_messages?: {
+    message_id: number;
+    sender: "therapist" | "patient";
+    kind: "message" | "pause" | "resume";
+    body: string | null;
+    question_index: number | null;
+    seen_at: string | null;
+    created_at: string;
+  }[];
   emotional_events?: EmotionalEvent[];
   session_highlights?: SessionHighlights;
   report?: {
