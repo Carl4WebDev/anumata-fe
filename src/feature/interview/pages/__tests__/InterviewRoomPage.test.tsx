@@ -122,6 +122,7 @@ const live = vi.hoisted(() => ({
   lastState: {} as Record<string, unknown>,
   sendTalk: vi.fn((_body: string) => true),
   markSeen: vi.fn((_ref: string) => true),
+  sendReady: vi.fn(() => true),
 }));
 vi.mock("../../hooks/useLiveShare", async () => {
   const React = await import("react");
@@ -130,7 +131,7 @@ vi.mock("../../hooks/useLiveShare", async () => {
       const [s, set] = React.useState({ talk: live.talk, paused: live.paused });
       live.set = set;
       live.lastState = state;
-      return { watching: false, talk: s.talk, paused: s.paused, sendTalk: live.sendTalk, markSeen: live.markSeen };
+      return { watching: false, talk: s.talk, paused: s.paused, sendTalk: live.sendTalk, markSeen: live.markSeen, sendReady: live.sendReady };
     },
   };
 });
@@ -217,6 +218,7 @@ beforeEach(() => {
   live.paused = false;
   live.sendTalk.mockReset().mockReturnValue(true);
   live.markSeen.mockReset().mockReturnValue(true);
+  live.sendReady.mockReset().mockReturnValue(true);
   addFiles.mockReset().mockResolvedValue(undefined);
   deleteFiles.mockReset().mockResolvedValue(undefined);
   sessionStorage.clear();
@@ -378,6 +380,49 @@ describe("InterviewRoom — hands-free voice flow", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Hindi ka nag-iisa");
     expect(screen.queryByRole("region", { name: "Support" })).not.toBeInTheDocument();
     expect(live.sendTalk).toHaveBeenCalledWith("Gusto ko nang mamatay");
+  });
+
+  test("the patient isn't stuck: 'ready' tells the therapist (by tap or voice), and they can stop for today", async () => {
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    await therapist("pause");
+    await wait(10);
+    const panel = screen.getByRole("region", { name: "Your therapist" });
+
+    // By voice: clear "continue" words tell the therapist instead of being sent as a reply.
+    await say("Padayon na");
+    expect(live.sendReady).toHaveBeenCalledTimes(1);
+    expect(live.sendTalk).not.toHaveBeenCalledWith("Padayon na");
+
+    // By tap; then the server's "ready" item shows the patient it went through.
+    fireEvent.click(within(panel).getByRole("button", { name: /Handa na akong ituloy/ }));
+    expect(live.sendReady).toHaveBeenCalledTimes(2);
+    live.talk = [...live.talk, { ref: "y1", sender: "patient", kind: "message", body: "I'm ready to continue.", at: new Date().toISOString(), seenAt: null, ready: true } as FakeTalk];
+    await act(async () => live.set?.({ talk: live.talk, paused: true }));
+    expect(within(panel).getByText(/Naabisuhan na ang iyong therapist na handa ka na/)).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /Handa na akong ituloy/ })).not.toBeInTheDocument();
+
+    // No reply within a minute: the server resumes, and Amumata says the therapist can still see them.
+    await therapist("resume", "Resumed automatically: the patient was ready…", { sender: "patient", auto: true });
+    await wait(10);
+    expect(spoken.some((s) => s.includes("Nakikita ka pa rin ng iyong therapist"))).toBe(true);
+    expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
+  });
+
+  test("stopping for today while the therapist is talking takes two taps and ends the interview", async () => {
+    await startAndWarmUp();
+    await say("Oo");
+    await wait(10);
+    await therapist("pause");
+    await wait(10);
+    const panel = screen.getByRole("region", { name: "Your therapist" });
+    fireEvent.click(within(panel).getByRole("button", { name: /Huminto na muna ngayon/ }));
+    expect(screen.queryByText("Processing page")).not.toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: /Pindutin ulit para huminto/ }));
+    await wait(500);
+    expect(live.sendTalk).toHaveBeenCalledWith("I'd like to stop for today.");
+    expect(screen.getByText("Processing page")).toBeInTheDocument();
   });
 
   test("the therapist closed the live view while paused: Amumata says so and carries on", async () => {

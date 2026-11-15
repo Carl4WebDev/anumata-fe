@@ -79,6 +79,28 @@ describe("LiveTalkPanel", () => {
     expect(screen.getByRole("textbox")).toHaveValue("Hello");
   });
 
+  test("the patient is ready: a highlighted note with when it resumes by itself, and Resume now", () => {
+    const fns = renderPanel({
+      paused: true,
+      held: true,
+      talk: [
+        item("p", { kind: "pause", body: null }),
+        item("y", { sender: "patient", body: "I'm ready to continue.", ready: true, resumeAt: "2026-11-15T02:31:00Z" }),
+      ],
+    });
+    const note = screen.getByRole("alert");
+    expect(note).toHaveTextContent("The patient is ready to continue");
+    expect(note).toHaveTextContent(/resumes by itself at .* unless you resume or reply/);
+    fireEvent.click(within(note).getByRole("button", { name: /Resume now/ }));
+    expect(fns.resume).toHaveBeenCalled();
+  });
+
+  test("an automatic resume because the patient was ready is shown as such", () => {
+    renderPanel({ talk: [item("r", { sender: "patient", kind: "resume", body: null, auto: true })] });
+    expect(screen.getByText(/the patient was ready and no reply came within 1 minute/)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   test("patient not in the room: messages wait for them", () => {
     renderPanel({ patientOnline: false });
     expect(screen.getByRole("status")).toHaveTextContent("The patient isn't in the interview room");

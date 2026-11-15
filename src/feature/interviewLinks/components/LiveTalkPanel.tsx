@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Check, CheckCheck, MessageCircleHeart, Pause, Play, Send } from "lucide-react";
-import { TALK_MAX, type LiveTalkItem } from "../../../shared/api/liveApi";
+import { TALK_MAX, pendingReady, type LiveTalkItem } from "../../../shared/api/liveApi";
 import { LANGUAGE_NAME, QUICK_LINES, type TalkLanguage } from "../hooks/liveTalkLines";
 
 interface LiveTalkPanelProps {
@@ -23,7 +23,14 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString("en-PH", { hour: 
 
 /** A pause / resume, as a short line in the conversation. */
 function ControlLine({ item }: { item: LiveTalkItem }) {
-  const text = item.kind === "pause" ? "You paused the questions" : item.auto ? "Resumed automatically — you closed the live view" : "You resumed the interview";
+  const text =
+    item.kind === "pause"
+      ? "You paused the questions"
+      : !item.auto
+        ? "You resumed the interview"
+        : item.sender === "patient"
+          ? "Resumed automatically — the patient was ready and no reply came within 1 minute"
+          : "Resumed automatically — you closed the live view";
   return (
     <li className="text-center text-xs text-slate-400">
       {text} · {time(item.at)}
@@ -82,6 +89,7 @@ export default function LiveTalkPanel({ connected, patientOnline, paused, held, 
     else setError("");
   };
 
+  const ready = paused ? pendingReady(talk) : null;
   const status = !patientOnline
     ? "The patient isn't in the interview room. Messages are kept and shown when they return."
     : paused
@@ -110,6 +118,25 @@ export default function LiveTalkPanel({ connected, patientOnline, paused, held, 
       <p role="status" className={`mt-2 text-xs ${paused && held ? "font-medium text-amber-700" : "text-slate-500"}`}>
         {status}
       </p>
+
+      {ready && (
+        <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-300 bg-teal-50 px-3 py-2.5">
+          <div>
+            <p className="text-sm font-semibold text-teal-900">The patient is ready to continue</p>
+            <p className="text-xs text-teal-800">
+              {ready.resumeAt
+                ? `The interview resumes by itself at ${time(ready.resumeAt)} unless you resume or reply.`
+                : "Resume, or reply to keep talking."}
+            </p>
+          </div>
+          <button
+            onClick={togglePause}
+            className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-700"
+          >
+            <Play size={15} /> Resume now
+          </button>
+        </div>
+      )}
 
       {talk.length > 0 && (
         <ul className="mt-3 max-h-72 space-y-2 overflow-y-auto" aria-label="Conversation">

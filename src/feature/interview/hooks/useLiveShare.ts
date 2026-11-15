@@ -82,6 +82,8 @@ export interface LiveShare {
   sendTalk: (body: string) => boolean;
   /** Tell the therapist this message is on the patient's screen. False if not connected. */
   markSeen: (ref: string) => boolean;
+  /** "I'm ready to continue" (while paused). False if not connected. */
+  sendReady: () => boolean;
 }
 
 export function useLiveShare(token: string | undefined, stream: MediaStream | null, state: LiveInterviewState): LiveShare {
@@ -214,6 +216,7 @@ export function useLiveShare(token: string | undefined, stream: MediaStream | nu
   }, []);
   const sendTalk = useCallback((body: string) => sendToServer({ type: "talk", body }), [sendToServer]);
   const markSeen = useCallback((ref: string) => sendToServer({ type: "seen", ref }), [sendToServer]);
+  const sendReady = useCallback(() => sendToServer({ type: "ready" }), [sendToServer]);
 
-  return { watching: viewers.size > 0, talk, paused, sendTalk, markSeen };
+  return { watching: viewers.size > 0, talk, paused, sendTalk, markSeen, sendReady };
 }

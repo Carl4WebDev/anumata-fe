@@ -22,6 +22,45 @@ export interface SystemUpdate {
 export const SYSTEM_UPDATES: SystemUpdate[] = [
   {
     date: "2026-11-15",
+    title: "Patients are never stuck while you talk with them; patient list pages",
+    groups: [
+      {
+        area: "Interview room (patient side)",
+        changes: [
+          "While you have paused the questions, the patient's “Your therapist” card now has “I'm ready to continue” (also by saying “padayon”, “ituloy” or “I'm ready”) and, during the questions, “Stop for today” (two taps; their answers so far are saved).",
+          "After “ready”, the patient sees “Your therapist has been told you're ready”. If you don't resume or reply within 1 minute, the questions resume by themselves and Amumata says “Let's continue. Your therapist can still see and message you.”",
+          "Live captions now work in Brave and on phones where the browser's speech recognition hears nothing: after about 6 seconds of talking with no words back, Amumata switches to server captions (words appear after each phrase instead of while speaking). Chrome or Edge still gives the fastest captions.",
+          "Because the patient's language is detected from the captions, Tagalog and Bisaya questions now work in those browsers too.",
+        ],
+      },
+      {
+        area: "Live view",
+        changes: [
+          "When the patient says they're ready, a highlighted note shows “The patient is ready to continue” with the time the interview resumes by itself, and a Resume now button. Replying with a message instead keeps the questions paused.",
+        ],
+      },
+      {
+        area: "Session review",
+        changes: ["The conversation shows the patient's “I'm ready to continue” and, if it happened, “Resumed automatically — the patient was ready and no reply came within 1 minute”."],
+      },
+      {
+        area: "Patients",
+        changes: ["The patient list shows 10 patients per page, with page numbers. Searching or “Show archived” goes back to page 1."],
+      },
+      {
+        area: "Stepping in and captions (technical)",
+        audience: "admin",
+        changes: [
+          "New live message “ready” from the patient, accepted only while paused and once until the therapist responds. The server resumes after 60 s (READY_RESUME_MS in src/modules/live/liveTalk.js) unless the therapist resumes, pauses or sends a message. Saved in interview_messages as the patient's message “I'm ready to continue.” and an automatic resume by the patient — no new table or columns.",
+          "Captions (useLiveCaptions.ts): if the microphone level shows speech for 6 s in total with no result from the browser's speech recognition, it falls back to Whisper (DEAF_RECOGNIZER_MS). Before, it only fell back on an error or repeated quick restarts, which Brave on phones never gives.",
+          "Patient list: paged in the browser (the list is already loaded once); reusable Pagination component in src/shared/components.",
+        ],
+      },
+    ],
+    deploySteps: ["Deploy the backend (new “ready” message), then the frontend. No SQL needed."],
+  },
+  {
+    date: "2026-11-15",
     title: "Step in and talk to your patient during the interview",
     groups: [
       {

@@ -70,8 +70,8 @@ import { FACE_HINTS } from "../hooks/faceCheck";
 import CrisisCard from "../components/CrisisCard";
 import CrisisSupportPanel from "../components/CrisisSupportPanel";
 import TherapistTalkPanel from "../components/TherapistTalkPanel";
-import { TALK_TEXT, isTherapistMessage, newTherapistMessages, resumedBecauseTherapistLeft } from "../hooks/therapistTalk";
-import type { LiveTalkItem } from "../../../shared/api/liveApi";
+import { RESUME_LINE, TALK_TEXT, isTherapistMessage, newTherapistMessages, resumeReason } from "../hooks/therapistTalk";
+import { pendingReady, type LiveTalkItem } from "../../../shared/api/liveApi";
 import {
   SUPPORT_CONTINUE,
   SUPPORT_HEARD,
@@ -348,6 +348,7 @@ export default function InterviewRoom() {
     paused: therapistPaused,
     sendTalk,
     markSeen,
+    sendReady,
   } = useLiveShare(token, stream, {
     stage: inInterview ? "interview" : state.startsWith("rapport") ? "warmup" : "waiting",
     questionIndex: inInterview ? currentIndex : undefined,
@@ -1351,7 +1352,7 @@ export default function InterviewRoom() {
     }
     // The therapist chose to go on, so support mode (if it was on) ends as "continued".
     if (supportPaceRef.current) endSupport("continued");
-    const line = resumedBecauseTherapistLeft(talkRef.current) ? TALK_TEXT.steppedAway : TALK_TEXT.resumeSpoken;
+    const line = RESUME_LINE[resumeReason(talkRef.current)];
     await sayText(line[langRef.current], line.en);
     await resumeAfterSupport();
   };
@@ -1379,14 +1380,25 @@ export default function InterviewRoom() {
     return sendTalk(text);
   };
 
+  /** "I'm ready to continue": the therapist is told; the questions resume within a minute. */
+  const handleTalkReady = (): boolean => sendReady();
+
+  /** The patient stops for today while the therapist is talking with them (answers so far are saved). */
+  const handleTalkStop = () => {
+    sendTalk("I'd like to stop for today.");
+    void runNow(finishInterview);
+  };
+
   // ─── What the patient says steers the conversation ───
   const handlePhrase = (p: CaptionPhrase) => {
     // Every word counts for safety, whatever the turn or a break.
     const sameTurn = p.turn === captionsRef.current.getTurn();
     checkForCrisis(sameTurn ? [...turnTextRef.current, p.text].join(" ") : p.text);
     // The therapist is talking with them: everything said is a reply to the therapist, not an answer.
+    // Clear "continue" words ("padayon", "ituloy", "I'm ready") tell the therapist they're ready.
     if (heldRef.current) {
-      sendTalk(p.text);
+      if (isSupportContinue(p.text) && !pendingReady(talkRef.current)) sendReady();
+      else sendTalk(p.text);
       return;
     }
     // Late phrases from an earlier prompt don't belong to this one.
@@ -1965,7 +1977,17 @@ export default function InterviewRoom() {
         </div>
 
         {(heldByTherapist || talk.some(isTherapistMessage)) && (
-          <TherapistTalkPanel lang={detectedLang} talk={talk} paused={heldByTherapist} large={comfort.largeText} onReply={handleTalkReply} />
+          <TherapistTalkPanel
+            lang={detectedLang}
+            talk={talk}
+            paused={heldByTherapist}
+            large={comfort.largeText}
+            onReply={handleTalkReply}
+            readyPending={Boolean(pendingReady(talk))}
+            onReady={handleTalkReady}
+            inQuestions={isFormal}
+            onStop={handleTalkStop}
+          />
         )}
         {/* The therapist has taken over from the scripted support lines while they talk. */}
         {support && !heldByTherapist && (

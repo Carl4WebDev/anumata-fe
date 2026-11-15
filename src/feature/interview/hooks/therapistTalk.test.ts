@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
-import { mergeTalk, type LiveTalkItem } from "../../../shared/api/liveApi";
-import { isTherapistMessage, newTherapistMessages, resumedBecauseTherapistLeft } from "./therapistTalk";
+import { mergeTalk, pendingReady, type LiveTalkItem } from "../../../shared/api/liveApi";
+import { isTherapistMessage, newTherapistMessages, resumeReason } from "./therapistTalk";
 
 const item = (ref: string, over: Partial<LiveTalkItem> = {}): LiveTalkItem => ({
   ref,
@@ -24,10 +24,21 @@ describe("therapist talk", () => {
     expect(newTherapistMessages(talk, new Set(["c"])).map((t) => t.ref)).toEqual(["b"]);
   });
 
-  test("knows when the last resume came from the therapist leaving", () => {
+  test("knows why the questions resumed: the therapist, the therapist leaving, or the patient being ready", () => {
     const pause = item("p", { kind: "pause", body: null });
-    expect(resumedBecauseTherapistLeft([pause, item("r", { kind: "resume", body: null })])).toBe(false);
-    expect(resumedBecauseTherapistLeft([pause, item("r", { kind: "resume", auto: true }), item("m")])).toBe(true);
+    expect(resumeReason([pause, item("r", { kind: "resume", body: null })])).toBe("therapist");
+    expect(resumeReason([pause, item("r", { kind: "resume", auto: true }), item("m")])).toBe("left");
+    expect(resumeReason([pause, item("r", { sender: "patient", kind: "resume", auto: true })])).toBe("ready");
+  });
+
+  test("the patient's 'ready' waits until the therapist messages, pauses or resumes", () => {
+    const pause = item("p", { kind: "pause", body: null });
+    const ready = item("y", { sender: "patient", ready: true });
+    expect(pendingReady([pause, ready])).toBe(ready);
+    expect(pendingReady([pause, ready, item("c", { sender: "patient" })])).toBe(ready); // a reply doesn't answer it
+    expect(pendingReady([pause, ready, item("t")])).toBeNull(); // the therapist replied
+    expect(pendingReady([pause, ready, item("r", { sender: "patient", kind: "resume", auto: true })])).toBeNull();
+    expect(pendingReady([pause])).toBeNull();
   });
 
   test("merging adds new items, updates known ones, and keeps the last 50", () => {

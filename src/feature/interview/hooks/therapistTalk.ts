@@ -9,9 +9,40 @@ import type { LocalizedLine } from "./rapportUtils";
  */
 
 export const TALK_TEXT: Record<
-  "title" | "paused" | "replyHint" | "placeholder" | "send" | "notSent" | "you" | "pausedSpoken" | "resumeSpoken" | "steppedAway",
+  | "title"
+  | "paused"
+  | "replyHint"
+  | "placeholder"
+  | "send"
+  | "notSent"
+  | "you"
+  | "pausedSpoken"
+  | "resumeSpoken"
+  | "steppedAway"
+  | "ready"
+  | "readySent"
+  | "readyResumed"
+  | "stop"
+  | "stopConfirm",
   LocalizedLine
 > = {
+  ready: { en: "I'm ready to continue", tl: "Handa na akong ituloy", ceb: "Andam na ko mopadayon" },
+  readySent: {
+    en: "Your therapist has been told you're ready. We'll continue in a moment.",
+    tl: "Naabisuhan na ang iyong therapist na handa ka na. Itutuloy natin sandali.",
+    ceb: "Gipahibalo na ang imong therapist nga andam ka na. Mopadayon ta kadiyot.",
+  },
+  readyResumed: {
+    en: "Let's continue. Your therapist can still see and message you.",
+    tl: "Ituloy na natin. Nakikita ka pa rin ng iyong therapist at puwede ka niyang padalhan ng mensahe.",
+    ceb: "Padayon na ta. Makita ka gihapon sa imong therapist ug mahimo ka niyang padad-an og mensahe.",
+  },
+  stop: { en: "Stop for today", tl: "Huminto na muna ngayon", ceb: "Mohunong na sa karon" },
+  stopConfirm: {
+    en: "Tap again to stop — your answers so far are saved",
+    tl: "Pindutin ulit para huminto — naka-save ang mga sagot mo",
+    ceb: "Pindota pag-usab aron mohunong — na-save ang imong mga tubag",
+  },
   title: { en: "Your therapist", tl: "Ang iyong therapist", ceb: "Ang imong therapist" },
   paused: {
     en: "The questions are paused — your therapist is talking with you.",
@@ -56,8 +87,15 @@ export function newTherapistMessages(talk: readonly LiveTalkItem[], handled: Rea
   return talk.filter((t) => isTherapistMessage(t) && !t.seenAt && !handled.has(t.ref));
 }
 
-/** The latest pause / resume was the server resuming because the therapist left. */
-export function resumedBecauseTherapistLeft(talk: readonly LiveTalkItem[]): boolean {
+/**
+ * Why the questions resumed (the latest resume): the therapist resumed, the
+ * therapist closed the live view, or the patient was ready and no one responded.
+ */
+export function resumeReason(talk: readonly LiveTalkItem[]): "therapist" | "left" | "ready" {
   const last = [...talk].reverse().find((t) => t.kind === "pause" || t.kind === "resume");
-  return Boolean(last?.kind === "resume" && last.auto);
+  if (last?.kind !== "resume" || !last.auto) return "therapist";
+  return last.sender === "patient" ? "ready" : "left";
 }
+
+/** What Amumata says when the questions resume, for each reason. */
+export const RESUME_LINE = { therapist: TALK_TEXT.resumeSpoken, left: TALK_TEXT.steppedAway, ready: TALK_TEXT.readyResumed } as const;

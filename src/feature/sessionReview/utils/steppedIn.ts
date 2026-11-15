@@ -33,6 +33,9 @@ export const whereLabel = (questionIndex: number | null): string => (questionInd
 /** One line of the conversation as shown in the report. */
 export function describeLine(m: LiveMessage): string {
   if (m.kind === "pause") return "You paused the questions";
-  if (m.kind === "resume") return m.body?.startsWith("Resumed automatically") ? "Resumed automatically — you closed the live view" : "You resumed the interview";
+  if (m.kind === "resume") {
+    if (m.sender === "patient") return "Resumed automatically — the patient was ready and no reply came within 1 minute";
+    return m.body?.startsWith("Resumed automatically") ? "Resumed automatically — you closed the live view" : "You resumed the interview";
+  }
   return m.body ?? "";
 }

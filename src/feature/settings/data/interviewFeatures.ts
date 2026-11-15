@@ -70,7 +70,7 @@ export const INTERVIEW_FEATURES: FeatureGroup[] = [
     features: [
       {
         name: "Spoken questions and live captions",
-        what: "Amumata reads each question aloud; the patient's words appear as they speak.",
+        what: "Amumata reads each question aloud; the patient's words appear as they speak. Where the browser can't caption (e.g. Brave, some phones), server captions take over by themselves and the words appear after each phrase — Chrome or Edge is fastest.",
       },
       {
         name: "Hands-free",
@@ -150,7 +150,7 @@ export const INTERVIEW_FEATURES: FeatureGroup[] = [
       },
       {
         name: "The therapist steps in",
-        what: "From the live view, the therapist can pause the questions and message the patient. Amumata shows each message and reads it aloud; the patient replies by speaking or typing. The therapist sees when each message was seen. The questions continue when the therapist resumes — or by themselves if the therapist closes the live view.",
+        what: "From the live view, the therapist can pause the questions and message the patient. Amumata shows each message and reads it aloud; the patient replies by speaking or typing. The therapist sees when each message was seen. The patient is never stuck: they can say “I'm ready to continue” (the therapist is told; the questions resume by themselves after 1 minute unless the therapist resumes or replies) or stop for today. The questions also resume if the therapist closes the live view.",
         how: "“Talk to the patient” card on the live view, with quick lines in the patient's language. While paused, nothing is recorded or moved on, and replies aren't part of the analysis. The conversation is shown in the session review.",
       },
       {

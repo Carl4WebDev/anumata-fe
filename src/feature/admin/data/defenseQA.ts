@@ -153,7 +153,7 @@ export const DEFENSE_QA: DefenseQA[] = [
     category: "AI models & accuracy",
     question: "How is the patient's speech turned into text?",
     answer:
-      "Faster-Whisper large-v3 on the GPU (beam size 5, voice-activity filter), with a Tagalog language hint; it handles English, Tagalog and Bisaya. Live captions during the interview can come from the browser or from Whisper; the analysis always uses Whisper.",
+      "Faster-Whisper large-v3 on the GPU (beam size 5, voice-activity filter), with a Tagalog language hint; it handles English, Tagalog and Bisaya. Live captions during the interview can come from the browser (instant, in Chrome and Edge) or from Whisper (after each phrase). Amumata switches to Whisper by itself when the browser's recognition fails, keeps stopping, or hears nothing for 6 seconds of speech (e.g. Brave, some phones). The analysis always uses Whisper.",
     keyNumbers: ["Whisper large-v3"],
     tags: ["whisper", "transcription", "speech to text", "captions"],
   },
@@ -373,10 +373,11 @@ export const DEFENSE_QA: DefenseQA[] = [
       "- The message appears on the patient's screen and is read aloud in the room's voice. Sending one pauses the questions first.\n" +
       "- The patient replies by speaking or typing. Replies go only to the therapist and are not part of the emotion analysis: the answer's recording is paused while they talk.\n" +
       "- Honest status: “Seen” only after the patient's screen confirms it; “paused on the patient's screen” only after the room confirms it.\n" +
+      "- The patient is never stuck: they can say “I'm ready to continue” (by tap or voice). The therapist is told, and if they don't resume or reply within 1 minute the questions resume by themselves. The patient can also stop for today (two taps; answers so far are saved).\n" +
       "- If the therapist closes the live view while paused, the interview resumes by itself, so the patient isn't left waiting.\n" +
       "- Everything is saved (interview_messages) and shown in the session review, with the question it happened at.\n" +
       "Typed messages, not a live call: the therapist's voice would otherwise be picked up by the patient's microphone and mixed into the recording that is analysed, and text gets through on weak mobile data. For a real conversation the therapist can send “I'll call you now” and phone the patient.",
-    keyNumbers: ["500 characters per message", "5 messages / 10 s", "3 languages for quick lines"],
+    keyNumbers: ["500 characters per message", "5 messages / 10 s", "1 min until a ready patient resumes", "3 languages for quick lines"],
     tags: ["intervene", "therapist", "live", "message", "pause", "crisis", "human in the loop"],
   },
   {

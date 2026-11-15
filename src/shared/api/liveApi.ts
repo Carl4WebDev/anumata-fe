@@ -34,8 +34,25 @@ export interface LiveTalkItem {
   at: string;
   /** When the patient's screen showed it (therapist messages). */
   seenAt: string | null;
-  /** Resumed by the server because the therapist closed the live view. */
+  /** Resumed by the server: the therapist closed the live view, or the patient was ready and no one responded. */
   auto?: boolean;
+  /** The patient said they're ready to continue (while paused). */
+  ready?: boolean;
+  /** With `ready`: when the questions resume by themselves unless the therapist responds. */
+  resumeAt?: string;
+}
+
+/**
+ * The patient's "I'm ready to continue" the therapist hasn't responded to yet
+ * (no message, pause or resume from the therapist since, and not resumed), or null.
+ */
+export function pendingReady(talk: readonly LiveTalkItem[]): LiveTalkItem | null {
+  for (let i = talk.length - 1; i >= 0; i -= 1) {
+    const t = talk[i];
+    if (t.ready) return t;
+    if (t.sender === "therapist" || t.kind === "resume") return null;
+  }
+  return null;
 }
 
 /** The conversation with `item` added (or updated, if already there). */
