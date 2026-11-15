@@ -125,7 +125,7 @@ describe("AdminPage — System", () => {
     renderAs("ADMIN");
     await user.click(screen.getByRole("button", { name: "System" }));
     expect(screen.getByText("Every change to Amumata, newest first, with the steps needed on the live server.")).toBeInTheDocument();
-    expect(screen.getByText(/still loads the old model, so rolling back is just swapping the file/)).toBeInTheDocument();
+    expect(screen.getByText(/Search runs in the browser/)).toBeInTheDocument();
     expect(screen.getByText("EfficientNet-B0 (4-class)")).toBeInTheDocument();
     expect(screen.getByText("78.95%")).toBeInTheDocument();
     expect(screen.getByText("77.15%")).toBeInTheDocument();

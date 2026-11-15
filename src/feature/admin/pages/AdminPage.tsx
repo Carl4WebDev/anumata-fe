@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { GraduationCap, Info, LayoutDashboard, LogOut, RefreshCw, Search, ShieldCheck, Users } from "lucide-react";
+import { GraduationCap, Info, LayoutDashboard, LogOut, RefreshCw, Search, ShieldCheck, Sparkles, Users } from "lucide-react";
 import AmumataLogo from "../../../shared/components/AmumataLogo";
 import { adminApi, type AdminFilter, type AdminSummary, type AdminTherapist } from "../../../shared/api/adminApi";
 import { ApiError } from "../../../shared/api/httpClient";
@@ -11,6 +11,7 @@ import TherapistAccountCard from "../components/TherapistAccountCard";
 import AdminOverview from "../components/AdminOverview";
 import AdminSystemInfo from "../components/AdminSystemInfo";
 import DefenseQA from "../components/DefenseQA";
+import AskAmumata from "../components/AskAmumata";
 
 const FILTERS: { value: AdminFilter; label: string; count: (s: AdminSummary) => number }[] = [
   { value: "pending", label: "Pending", count: (s) => s.pending },
@@ -30,7 +31,7 @@ export default function AdminPage() {
   return <AdminConsole />;
 }
 
-type AdminTab = "overview" | "therapists" | "system" | "defense";
+type AdminTab = "overview" | "therapists" | "system" | "defense" | "ask";
 
 function AdminConsole() {
   const { clearUser } = useUser();
@@ -64,6 +65,7 @@ function AdminConsole() {
               ["therapists", "Therapists", Users],
               ["system", "System", Info],
               ["defense", "Defense Q&A", GraduationCap],
+              ["ask", "Ask Amumata", Sparkles],
             ] as const
           ).map(([value, label, Icon]) => (
             <button
@@ -87,8 +89,10 @@ function AdminConsole() {
           <TherapistsTab />
         ) : tab === "system" ? (
           <AdminSystemInfo />
-        ) : (
+        ) : tab === "defense" ? (
           <DefenseQA />
+        ) : (
+          <AskAmumata />
         )}
       </main>
     </div>

@@ -22,6 +22,34 @@ export interface SystemUpdate {
 export const SYSTEM_UPDATES: SystemUpdate[] = [
   {
     date: "2026-11-16",
+    title: "Ask Amumata: questions about the system, by voice or text",
+    groups: [
+      {
+        area: "Ask Amumata (admin)",
+        audience: "admin",
+        changes: [
+          "New “Ask Amumata” tab: ask how Amumata works — the AI models, results, privacy, updates — by typing or with the microphone (English).",
+          "The best-matching entries of Amumata's own info pages appear at once; then the AI writes a short answer from those entries only and shows what it's based on. If the pages don't cover the question, it says so.",
+          "The first question can take 1–3 minutes while the AI wakes up. Questions aren't saved; don't type patient details.",
+        ],
+      },
+      {
+        area: "Ask Amumata (technical)",
+        audience: "admin",
+        changes: [
+          "Search runs in the browser (src/feature/admin/utils/searchKnowledge.ts, BM25) over the info pages' own data (data/assistantKnowledge.ts), so it is always up to date. Up to 5 entries (≤ 5,000 characters) are sent.",
+          "POST /api/admin/assistant/ask (admin only, 20 per 15 min per admin, nothing saved) → AI service POST /api/assistant/answer → Llama 3.2 3B via Ollama (src/ai/assistant/answer.py, num_ctx 3,072), answering only from the entries and citing them as [1], [2].",
+          "Voice: the browser's speech recognition (en-US), or recording + Whisper when it fails or hears nothing for 7 s (src/feature/admin/hooks/useVoiceQuestion.ts).",
+        ],
+      },
+    ],
+    deploySteps: [
+      "Deploy the AI code (modal deploy src/ai/modal_app.py) for the new answer endpoint — done on 2026-11-16.",
+      "Deploy the backend, then the frontend. No SQL and no new settings needed.",
+    ],
+  },
+  {
+    date: "2026-11-16",
     title: "A better voice model for Filipino patients",
     groups: [
       {

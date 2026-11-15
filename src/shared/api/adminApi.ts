@@ -91,4 +91,23 @@ export const adminApi = {
   setActive(id: number, active: boolean, note?: string) {
     return httpClient.patch<AdminTherapist & { actions: AdminAction[] }>(`/api/admin/therapists/${id}/active`, { active, note });
   },
+
+  /** Ask Amumata: the AI answers from the given info-page entries only. Nothing is saved. */
+  askAssistant(question: string, passages: AssistantPassage[]) {
+    return httpClient.post<AssistantAnswer>("/api/admin/assistant/ask", { question, passages });
+  },
 };
+
+export interface AssistantPassage {
+  source: string;
+  title: string;
+  text: string;
+}
+
+export interface AssistantAnswer {
+  answer: string;
+  /** False when the entries didn't cover the question. */
+  found: boolean;
+  /** 1-based numbers of the entries the answer cites. */
+  sources: number[];
+}

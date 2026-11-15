@@ -512,6 +512,18 @@ export const DEFENSE_QA: DefenseQA[] = [
     keyNumbers: ["5 s"],
     tags: ["block", "reactivate"],
   },
+  {
+    id: "ask-amumata",
+    category: "Accounts, PRC & admin",
+    question: "How does the admin assistant (Ask Amumata) work, and is it private?",
+    answer:
+      "The admin asks a question about the system by typing or by voice (English). The browser searches Amumata's own info pages — Defense Q&A, Guide, What's New, Model Evaluation, How emotions work, Interview room — and shows the 5 best matches at once (BM25 keyword ranking). The best matches are sent to Llama 3.2 on Amumata's own AI server, which writes a short answer from those entries only and cites them; if they don't cover the question, it says so instead of guessing.\n" +
+      "- Privacy: only system documentation is used — no patient or session data. Questions and answers are not saved, and the AI runs privately (Ollama), not through a public AI service.\n" +
+      "- Admin only, limited to 20 questions per 15 minutes so the GPU stays free for interviews.\n" +
+      "- Voice: the browser's speech recognition, or Amumata's Whisper where the browser can't (e.g. Brave).",
+    keyNumbers: ["5 matches", "20 per 15 min", "Llama 3.2 3B"],
+    tags: ["assistant", "chatbot", "voice search", "rag", "retrieval", "llama"],
+  },
 
   // ── Security, privacy & ethics ─────────────────────────────────────────
   {
