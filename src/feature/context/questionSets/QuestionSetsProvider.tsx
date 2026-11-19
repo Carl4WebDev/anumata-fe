@@ -106,11 +106,13 @@ export const QuestionSetsProvider = ({ children }: { children: React.ReactNode }
         description: data.description,
         questions: toQuestionPayload(data),
       });
-      const mapped = mapQuestionSet(res.data);
+      // Saved questions replace a bank-built set's items, so the set now has exactly these.
+      const mapped = mapQuestionSet({ ...res.data, item_count: 0 });
       setQuestionSets((prev) => prev.map((qs) => (qs.id === id ? mapped : qs)));
+      return { ok: true as const };
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Failed to update question set";
-      setError(message);
+      return { ok: false as const, message };
     }
   }, []);
 

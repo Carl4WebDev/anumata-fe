@@ -24,7 +24,7 @@ export interface QuestionSetsValue {
   clearError: () => void;
   addQuestionSet: (data: QuestionSetData) => Promise<{ ok: boolean; data?: unknown }>;
   addQuestionSetWithItems: (data: QuestionSetItemsData) => Promise<{ ok: boolean; data?: unknown; message?: string }>;
-  updateQuestionSet: (id: number, data: QuestionSetData) => Promise<void>;
+  updateQuestionSet: (id: number, data: QuestionSetData) => Promise<{ ok: true } | { ok: false; message: string }>;
   /** Resolves false if the server refused (the set is put back). */
   removeQuestionSet: (id: number) => Promise<boolean>;
 }

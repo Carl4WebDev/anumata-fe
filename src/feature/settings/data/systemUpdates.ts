@@ -21,6 +21,30 @@ export interface SystemUpdate {
 
 export const SYSTEM_UPDATES: SystemUpdate[] = [
   {
+    date: "2026-11-19",
+    title: "Edit question sets without losing questions",
+    groups: [
+      {
+        area: "Question Sets",
+        changes: [
+          "Editing a set you built from the Standardized Questions now opens with its questions, so you can change, remove or add to them. Before, the form opened empty.",
+          "New “Add from question bank” in the edit form: search the standardized questions by words or topic and add them to the set. Questions already in the set show as added.",
+          "A set can now have up to 20 questions (was 10), the same as sets built from the question bank.",
+          "The “My Custom Questions” tab was removed. Write your own questions directly in a set (New Template or Edit); sets that already use custom questions keep working.",
+        ],
+      },
+      {
+        area: "Question sets (technical)",
+        audience: "admin",
+        changes: [
+          "Saving a set's questions (PATCH /api/question-sets/:id) now also removes its question_set_items, in one transaction, because interviews use the items whenever a set has any. The questions are then kept in question_sets.questions with their follow-ups and sensitive marks.",
+          "The edit form loads a bank-built set's questions from /api/question-sets/:id/items and can't be saved until they have loaded, so a failed load never empties a set.",
+        ],
+      },
+    ],
+    deploySteps: ["Deploy the backend, then the frontend. No SQL needed."],
+  },
+  {
     date: "2026-11-16",
     title: "Ask Amumata: questions about the system, by voice or text",
     groups: [

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Eye, Trash2, Search, Pencil, Sparkles, BookOpen, User, Layers, AlertCircle, Check, X, Languages } from "lucide-react";
+import { Plus, Eye, Trash2, Search, Pencil, Sparkles, BookOpen, Layers, Check, X, Languages } from "lucide-react";
 import { useQuestionSets } from "../../context/questionSets/useQuestionSets";
 import AddQuestionSetModal from "../modals/AddQuestionSetModal";
 import EditQuestionSetModal from "../modals/EditQuestionSetModal";
@@ -13,16 +13,18 @@ import {
   getStandardizedQuestions,
   type StandardizedQuestion,
 } from "../../../shared/api/standardizedQuestionsApi";
-import {
-  getCustomQuestions,
-  createCustomQuestion,
-  updateCustomQuestion,
-  deactivateCustomQuestion,
-  deleteCustomQuestion,
-  type CustomQuestion,
-} from "../../../shared/api/customQuestionsApi";
+type Tab = "standardized" | "sets";
 
-type Tab = "standardized" | "custom" | "sets";
+/** A question set as listed (sets built from the question bank keep their questions as items). */
+interface SetSummary {
+  id: number;
+  name: string;
+  description: string;
+  questions: string[];
+  followUps?: string[];
+  sensitives?: boolean[];
+  questionCount?: number;
+}
 
 interface SelectedQuestion {
   source_type: "standardized" | "custom";
@@ -43,21 +45,12 @@ export default function QuestionSetsPage() {
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
-  const [editSet, setEditSet] = useState<{ id: number; name: string; description: string; questions: string[] } | null>(null);
-  const [viewSet, setViewSet] = useState<{ id: number; name: string; description: string; questions: string[] } | null>(null);
+  const [editSet, setEditSet] = useState<SetSummary | null>(null);
+  const [viewSet, setViewSet] = useState<SetSummary | null>(null);
   const [translationsSet, setTranslationsSet] = useState<{ id: number; name: string } | null>(null);
 
   // Standardized questions state
-  const [standardizedQuestions, setStandardizedQuestions] = useState<StandardizedQuestion[]>([]);
-  const [sqLoading, setSqLoading] = useState(false);
-
-  // Custom questions state
-  const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([]);
-  const [cqLoading, setCqLoading] = useState(false);
-  const [showCreateCq, setShowCreateCq] = useState(false);
-  const [newCqText, setNewCqText] = useState("");
-  const [newCqCategory, setNewCqCategory] = useState("");
-  const [editingCq, setEditingCq] = useState<CustomQuestion | null>(null);
+  const [standardizedQuestions, setStandardizedQuestions] = useState<StandardizedQuestion[] | null>(null);
 
   // Selection state (cross-tab)
   const [selectedQuestions, setSelectedQuestions] = useState<SelectedQuestion[]>([]);
@@ -66,27 +59,18 @@ export default function QuestionSetsPage() {
   const [newSetDescription, setNewSetDescription] = useState("");
   const [creating, setCreating] = useState(false);
 
-  // Load standardized questions
+  // Load standardized questions (once, the first time the tab is opened)
+  const sqLoading = tab === "standardized" && standardizedQuestions === null;
   useEffect(() => {
-    if (tab === "standardized") {
-      setSqLoading(true);
-      getStandardizedQuestions()
-        .then((data) => setStandardizedQuestions(data || []))
-        .catch(() => setStandardizedQuestions([]))
-        .finally(() => setSqLoading(false));
-    }
-  }, [tab]);
-
-  // Load custom questions
-  useEffect(() => {
-    if (tab === "custom") {
-      setCqLoading(true);
-      getCustomQuestions()
-        .then((data) => setCustomQuestions(data || []))
-        .catch(() => setCustomQuestions([]))
-        .finally(() => setCqLoading(false));
-    }
-  }, [tab]);
+    if (!sqLoading) return;
+    let cancelled = false;
+    getStandardizedQuestions()
+      .then((data) => !cancelled && setStandardizedQuestions(data || []))
+      .catch(() => !cancelled && setStandardizedQuestions([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [sqLoading]);
 
   // Categories from standardized questions
   const categories = useMemo(() => {
@@ -102,15 +86,6 @@ export default function QuestionSetsPage() {
       return matchesSearch && matchesCategory;
     });
   }, [standardizedQuestions, search, categoryFilter]);
-
-  // Filter custom questions
-  const filteredCq = useMemo(() => {
-    return (customQuestions || []).filter((q) => {
-      const matchesSearch = !search || q.text.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory = !categoryFilter || q.category === categoryFilter;
-      return matchesSearch && matchesCategory;
-    });
-  }, [customQuestions, search, categoryFilter]);
 
   // Filter question sets
   const filteredSets = useMemo(() => {
@@ -165,39 +140,6 @@ export default function QuestionSetsPage() {
     setTab("sets");
   };
 
-  // Custom question handlers
-  const handleCreateCq = async () => {
-    if (!newCqText.trim()) return;
-    const created = await createCustomQuestion({ text: newCqText.trim(), category: newCqCategory || undefined });
-    setCustomQuestions((prev) => [created, ...prev]);
-    setNewCqText("");
-    setNewCqCategory("");
-    setShowCreateCq(false);
-    success("Custom question created.");
-  };
-
-  const handleUpdateCq = async () => {
-    if (!editingCq) return;
-    const updated = await updateCustomQuestion(editingCq.id, { text: editingCq.text, category: editingCq.category || undefined });
-    setCustomQuestions((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
-    setEditingCq(null);
-    success("Custom question updated.");
-  };
-
-  const handleDeactivateCq = async (id: number) => {
-    await deactivateCustomQuestion(id);
-    setCustomQuestions((prev) => prev.filter((q) => q.id !== id));
-    setSelectedQuestions((prev) => prev.filter((s) => !(s.source_type === "custom" && s.id === id)));
-    success("Custom question deactivated.");
-  };
-
-  const handleDeleteCq = async (id: number) => {
-    await deleteCustomQuestion(id);
-    setCustomQuestions((prev) => prev.filter((q) => q.id !== id));
-    setSelectedQuestions((prev) => prev.filter((s) => !(s.source_type === "custom" && s.id === id)));
-    success("Custom question deleted.");
-  };
-
   // Question set handlers
   const handleDeleteSet = async (id: number, name: string) => {
     if (await removeQuestionSet(id)) success(`"${name}" deleted.`);
@@ -210,10 +152,14 @@ export default function QuestionSetsPage() {
   };
 
   const handleEditSave = async (data: Parameters<typeof addQuestionSet>[0]) => {
-    if (!editSet) return;
-    await updateQuestionSet(editSet.id, data);
+    if (!editSet) return false;
+    const result = await updateQuestionSet(editSet.id, data);
+    if (!result.ok) {
+      toastError(result.message);
+      return false;
+    }
     success("Template updated.");
-    setEditSet(null);
+    return true;
   };
 
   if (loading) {
@@ -226,7 +172,7 @@ export default function QuestionSetsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Question Sets</h1>
-          <p className="mt-1 text-sm text-slate-500">Select questions from the standardized bank or your custom questions to build interview sets.</p>
+          <p className="mt-1 text-sm text-slate-500">Select questions from the standardized bank, write your own, or let the AI help to build interview sets.</p>
         </div>
         <div className="flex gap-3">
           <button
@@ -250,7 +196,6 @@ export default function QuestionSetsPage() {
       <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
         {([
           { id: "standardized" as Tab, label: "Standardized Questions", icon: BookOpen },
-          { id: "custom" as Tab, label: "My Custom Questions", icon: User },
           { id: "sets" as Tab, label: "My Interview Question Sets", icon: Layers },
         ]).map(({ id, label, icon: Icon }) => (
           <button
@@ -318,12 +263,12 @@ export default function QuestionSetsPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={tab === "standardized" ? "Search standardized questions..." : tab === "custom" ? "Search custom questions..." : "Search templates..."}
+            placeholder={tab === "standardized" ? "Search standardized questions..." : "Search templates..."}
             aria-label="Search"
             className="w-full text-sm outline-none"
           />
         </div>
-        {(tab === "standardized" || tab === "custom") && categories.length > 0 && (
+        {tab === "standardized" && categories.length > 0 && (
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
@@ -366,28 +311,6 @@ export default function QuestionSetsPage() {
         />
       )}
 
-      {tab === "custom" && (
-        <CustomQuestionsTab
-          questions={filteredCq}
-          loading={cqLoading}
-          search={search}
-          selectedQuestions={selectedQuestions}
-          onToggle={toggleQuestion}
-          showCreate={showCreateCq}
-          setShowCreate={setShowCreateCq}
-          newText={newCqText}
-          setNewText={setNewCqText}
-          newCategory={newCqCategory}
-          setNewCategory={setNewCqCategory}
-          onCreate={handleCreateCq}
-          editing={editingCq}
-          setEditing={setEditingCq}
-          onUpdate={handleUpdateCq}
-          onDeactivate={handleDeactivateCq}
-          onDelete={handleDeleteCq}
-        />
-      )}
-
       {tab === "sets" && (
         <InterviewSetsTab
           sets={filteredSets}
@@ -408,6 +331,7 @@ export default function QuestionSetsPage() {
       {/* Saves on its own ("Approve & Save") */}
       <AiQuestionSetBuilderModal isOpen={showAiModal} onClose={() => setShowAiModal(false)} />
       <EditQuestionSetModal
+        key={editSet?.id ?? "closed"}
         isOpen={!!editSet}
         onClose={() => setEditSet(null)}
         onSave={handleEditSave}
@@ -426,7 +350,7 @@ export default function QuestionSetsPage() {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h2 className="mb-1 text-lg font-semibold text-slate-900">Create Interview Set</h2>
             <p className="mb-4 text-sm text-slate-500">
-              {selectedQuestions.length} question{selectedQuestions.length !== 1 ? "s" : ""} selected from standardized and custom sources.
+              {selectedQuestions.length} question{selectedQuestions.length !== 1 ? "s" : ""} selected from the question bank.
             </p>
 
             {/* Selected questions preview */}
@@ -603,174 +527,6 @@ function StandardizedQuestionsTab({
 }
 
 // =============================================================================
-// Custom Questions Tab
-// =============================================================================
-
-function CustomQuestionsTab({
-  questions,
-  loading,
-  search,
-  selectedQuestions,
-  onToggle,
-  showCreate,
-  setShowCreate,
-  newText,
-  setNewText,
-  newCategory,
-  setNewCategory,
-  onCreate,
-  editing,
-  setEditing,
-  onUpdate,
-  onDeactivate,
-  onDelete,
-}: {
-  questions: CustomQuestion[];
-  loading: boolean;
-  search: string;
-  selectedQuestions: SelectedQuestion[];
-  onToggle: (q: SelectedQuestion) => void;
-  showCreate: boolean;
-  setShowCreate: (v: boolean) => void;
-  newText: string;
-  setNewText: (v: string) => void;
-  newCategory: string;
-  setNewCategory: (v: string) => void;
-  onCreate: () => void;
-  editing: CustomQuestion | null;
-  setEditing: (q: CustomQuestion | null) => void;
-  onUpdate: () => void;
-  onDeactivate: (id: number) => void;
-  onDelete: (id: number) => void;
-}) {
-  if (loading) return <RowsSkeleton rows={4} />;
-
-  return (
-    <div className="space-y-4">
-      {/* Create button */}
-      {!showCreate && (
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700"
-        >
-          <Plus size={16} />
-          New Custom Question
-        </button>
-      )}
-
-      {/* Create form */}
-      {showCreate && (
-        <div className="rounded-xl border border-teal-200 bg-teal-50 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">New Custom Question</h3>
-          <textarea
-            value={newText}
-            onChange={(e) => setNewText(e.target.value)}
-            placeholder="Enter your question text..."
-            rows={3}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-400"
-          />
-          <div className="mt-2 flex items-center gap-2">
-            <input
-              type="text"
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
-              placeholder="Category (optional)"
-              className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-400"
-            />
-            <button onClick={onCreate} className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700">
-              <Check size={16} />
-            </button>
-            <button onClick={() => { setShowCreate(false); setNewText(""); setNewCategory(""); }} className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-300">
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      <p className="text-xs text-slate-400">Click a question to select it for an interview set.</p>
-
-      {/* Questions list */}
-      {questions.length === 0 ? (
-        <EmptyState
-          icon={User}
-          title={search ? "No questions match your search" : "No custom questions yet"}
-          description={search ? "Try a different search term." : "Create your first custom question to get started."}
-        />
-      ) : (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="divide-y divide-slate-100">
-            {questions.map((q) => {
-              const selected = selectedQuestions.some((s) => s.source_type === "custom" && s.id === q.id);
-              return (
-                <div key={q.id} className={`group flex items-start gap-4 px-5 py-3 ${selected ? "bg-teal-50" : ""}`}>
-                  {editing?.id === q.id ? (
-                    <div className="flex-1 space-y-2">
-                      <textarea
-                        value={editing.text}
-                        onChange={(e) => setEditing({ ...editing, text: e.target.value })}
-                        rows={2}
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-400"
-                      />
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={editing.category || ""}
-                          onChange={(e) => setEditing({ ...editing, category: e.target.value })}
-                          placeholder="Category"
-                          className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm outline-none focus:border-teal-400"
-                        />
-                        <button onClick={onUpdate} className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm text-white hover:bg-teal-700">Save</button>
-                        <button onClick={() => setEditing(null)} className="rounded-lg bg-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-300">Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => onToggle({
-                          source_type: "custom",
-                          id: q.id,
-                          text: q.text,
-                          category: q.category || undefined,
-                        })}
-                        className="flex items-start gap-3 flex-1 text-left"
-                      >
-                        <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition ${
-                          selected ? "border-teal-500 bg-teal-500" : "border-slate-300"
-                        }`}>
-                          {selected && <Check size={12} className="text-white" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-slate-800">{q.text}</p>
-                          {q.category && (
-                            <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">{q.category}</span>
-                          )}
-                        </div>
-                      </button>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                        <button onClick={() => setEditing(q)} className="rounded-lg p-1.5 text-slate-300 hover:bg-teal-50 hover:text-teal-500" aria-label="Edit">
-                          <Pencil size={14} />
-                        </button>
-                        <button onClick={() => onDeactivate(q.id)} className="rounded-lg p-1.5 text-slate-300 hover:bg-amber-50 hover:text-amber-500" aria-label="Deactivate">
-                          <AlertCircle size={14} />
-                        </button>
-                        <button onClick={() => onDelete(q.id)} className="rounded-lg p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-500" aria-label="Delete">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// =============================================================================
 // Interview Sets Tab
 // =============================================================================
 
@@ -782,11 +538,11 @@ function InterviewSetsTab({
   onView,
   onTranslations,
 }: {
-  sets: { id: number; name: string; description: string; questions: string[]; questionCount?: number; sourceType?: string }[];
+  sets: (SetSummary & { sourceType?: string })[];
   search: string;
   onDelete: (id: number, name: string) => void;
-  onEdit: (set: { id: number; name: string; description: string; questions: string[] }) => void;
-  onView: (set: { id: number; name: string; description: string; questions: string[] }) => void;
+  onEdit: (set: SetSummary) => void;
+  onView: (set: SetSummary) => void;
   onTranslations: (set: { id: number; name: string }) => void;
 }) {
   if (sets.length === 0) {
@@ -794,7 +550,7 @@ function InterviewSetsTab({
       <EmptyState
         icon={Layers}
         title={search ? "No templates match your search" : "No templates yet"}
-        description={search ? "Try a different search term." : "Select questions from the Standardized or Custom tabs to create your first interview set."}
+        description={search ? "Try a different search term." : "Pick questions from the Standardized Questions tab, or use New Template or AI Generate, to create your first interview set."}
       />
     );
   }

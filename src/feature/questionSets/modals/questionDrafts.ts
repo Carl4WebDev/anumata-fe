@@ -7,7 +7,8 @@ export interface DraftQuestion {
 }
 
 export const MIN_QUESTIONS = 3;
-export const MAX_QUESTIONS = 10;
+/** Same limit as the server and as sets built from the question bank. */
+export const MAX_QUESTIONS = 20;
 
 export const emptyQuestion = (): DraftQuestion => ({ text: "", followUp: "", sensitive: false });
 

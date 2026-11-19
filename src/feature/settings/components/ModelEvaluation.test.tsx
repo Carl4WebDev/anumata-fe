@@ -75,6 +75,10 @@ describe("filterUpdates (admin search and filters)", () => {
 describe("SystemUpdates panel", () => {
   test("admin: the latest update is open; older ones open on tap, with the steps needed on the live server", () => {
     render(<SystemUpdates audience="admin" />);
+    expect(screen.getByText("Question sets (technical)")).toBeInTheDocument();
+    expect(screen.queryByText("Ask Amumata (technical)")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Ask Amumata: questions about the system/ }));
     expect(screen.getByText("Ask Amumata (technical)")).toBeInTheDocument();
     expect(screen.queryByText("Voice model (technical)")).not.toBeInTheDocument();
 
@@ -128,6 +132,10 @@ describe("SystemUpdates panel", () => {
 
   test("therapist: only changes to their work — no admin sections, no server steps", () => {
     render(<SystemUpdates audience="therapist" />);
+    expect(screen.getByText(/now opens with its questions/)).toBeInTheDocument();
+    expect(screen.queryByText("Question sets (technical)")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /A better voice model for Filipino patients/ }));
     expect(screen.getByText(/up from 35\.6%/)).toBeInTheDocument();
     expect(screen.queryByText("Voice model (technical)")).not.toBeInTheDocument();
     expect(screen.queryByText(/Ask Amumata/)).not.toBeInTheDocument();
