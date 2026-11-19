@@ -50,6 +50,23 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("useLiveCaptions — phones", () => {
+  test("Android phones use server captions, even when the browser offers speech recognition", () => {
+    const ua = vi
+      .spyOn(navigator, "userAgent", "get")
+      .mockReturnValue("Mozilla/5.0 (Linux; Android 14; SM-A546E) AppleWebKit/537.36 Chrome/131.0 Mobile Safari/537.36");
+    const { result } = renderHook(() => useLiveCaptions(stream));
+    expect(result.current.engine).toBe("whisper");
+    expect(FakeRecognizer.instances).toHaveLength(0);
+    ua.mockRestore();
+  });
+
+  test("diagnostics report the engine and counters", () => {
+    const { result } = renderHook(() => useLiveCaptions(stream));
+    expect(result.current.getDiagnostics()).toMatchObject({ engine: "browser", running: false, phrasesSent: 0, browserResults: 0 });
+  });
+});
+
 describe("useLiveCaptions — browser engine (instant words)", () => {
   test("shows words while speaking and makes them a phrase when final", () => {
     const onPhrase = vi.fn();

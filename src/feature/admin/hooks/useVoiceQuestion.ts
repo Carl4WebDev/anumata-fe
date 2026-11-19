@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { transcribeAudio } from "../../../shared/api/sttApi";
 import {
-  browserCaptionsAllowed,
+  browserCaptionsUsable,
   FATAL_SPEECH_ERRORS,
   getSpeechRecognition,
   type SpeechRecognizer,
@@ -25,7 +25,7 @@ export function useVoiceQuestion(onText: (text: string) => void) {
   const recognizerRef = useRef<SpeechRecognizer | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const useWhisperRef = useRef(!browserCaptionsAllowed() || !getSpeechRecognition());
+  const useWhisperRef = useRef(!browserCaptionsUsable());
   const onTextRef = useRef(onText);
   useEffect(() => {
     onTextRef.current = onText;

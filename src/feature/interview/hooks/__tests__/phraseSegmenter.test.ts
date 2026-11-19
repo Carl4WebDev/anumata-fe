@@ -66,6 +66,26 @@ describe("createPhraseSegmenter", () => {
     expect(cuts).toEqual([]);
   });
 
+  test("a quiet microphone (some phones) is still heard once it has proved quiet", () => {
+    const seg = createPhraseSegmenter();
+    const QUIET_VOICE = 0.008; // below the normal minimum of 0.012
+    const STILL = 0.001;
+    // At first it counts as nothing — the detector starts as for a normal mic…
+    expect(run(seg, QUIET_VOICE, 0, 1500).filter((c) => c.cut === "send")).toEqual([]);
+    // …but after the loudest sounds have stayed quiet for a while, the same voice is a phrase.
+    run(seg, STILL, 1500, 30000);
+    run(seg, QUIET_VOICE, 30000, 31500);
+    expect(run(seg, STILL, 31500, 33000).filter((c) => c.cut === "send")).toHaveLength(1);
+  });
+
+  test("a normal microphone keeps the normal minimum: soft noise after loud speech isn't voice", () => {
+    const seg = createPhraseSegmenter();
+    run(seg, VOICE, 0, 2000);
+    run(seg, QUIET, 2000, 4000);
+    expect(seg.feed(0.008, 4100).threshold).toBeGreaterThanOrEqual(DEFAULT_SEGMENTER_CONFIG.minThreshold);
+    expect(seg.feed(0.008, 4200).voiceActive).toBe(false);
+  });
+
   test("reset clears the last voice time", () => {
     const seg = createPhraseSegmenter();
     seg.feed(VOICE, 0);

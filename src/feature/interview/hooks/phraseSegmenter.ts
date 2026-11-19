@@ -8,8 +8,18 @@
  */
 
 export interface PhraseSegmenterConfig {
-  /** Absolute minimum RMS that counts as voice (0–1). */
+  /** Minimum RMS that counts as voice (0–1) on a normal microphone. */
   minThreshold: number;
+  /**
+   * Lowest that minimum can go for a quiet microphone (some phones deliver much
+   * lower levels): the minimum follows the loudest recent sound, never above
+   * `minThreshold` nor below this.
+   */
+  quietMinThreshold: number;
+  /** The minimum is this share of the loudest recent sound. */
+  peakFraction: number;
+  /** How much of the loudest-sound memory is kept after one second (0–1). */
+  peakDecayPerSecond: number;
   /** Voice must be this many times louder than the noise floor. */
   floorMultiplier: number;
   /** Pause after speech that ends a phrase. */
@@ -24,6 +34,9 @@ export interface PhraseSegmenterConfig {
 
 export const DEFAULT_SEGMENTER_CONFIG: PhraseSegmenterConfig = {
   minThreshold: 0.012,
+  quietMinThreshold: 0.004,
+  peakFraction: 0.3,
+  peakDecayPerSecond: 0.95,
   floorMultiplier: 2.5,
   pauseMs: 700,
   maxSegmentMs: 12000,
@@ -37,10 +50,14 @@ export type SegmentCut = "none" | "send" | "discard";
 export interface SegmenterStep {
   voiceActive: boolean;
   cut: SegmentCut;
+  /** The level that counted as voice for this frame. */
+  threshold: number;
 }
 
 export function createPhraseSegmenter(config: PhraseSegmenterConfig = DEFAULT_SEGMENTER_CONFIG) {
   let noiseFloor = 0;
+  // Starts as if the microphone were normal, so nothing changes until it proves quiet.
+  let loudestRecent = config.minThreshold / config.peakFraction;
   let segmentStart: number | null = null;
   let lastFeed: number | null = null;
   let voicedMs = 0;
@@ -57,7 +74,9 @@ export function createPhraseSegmenter(config: PhraseSegmenterConfig = DEFAULT_SE
       const dt = lastFeed === null ? 0 : Math.max(0, now - lastFeed);
       lastFeed = now;
 
-      const threshold = Math.max(config.minThreshold, noiseFloor * config.floorMultiplier);
+      loudestRecent = Math.max(rms, loudestRecent * config.peakDecayPerSecond ** (dt / 1000));
+      const minimum = Math.min(config.minThreshold, Math.max(config.quietMinThreshold, loudestRecent * config.peakFraction));
+      const threshold = Math.max(minimum, noiseFloor * config.floorMultiplier);
       if (rms >= threshold) {
         voicedMs += dt;
         lastVoiceAt = now;
@@ -77,7 +96,7 @@ export function createPhraseSegmenter(config: PhraseSegmenterConfig = DEFAULT_SE
       }
 
       if (cut !== "none") resetSegment(now);
-      return { voiceActive, cut };
+      return { voiceActive, cut, threshold };
     },
     /** Start a fresh segment (e.g. after the AI finished speaking). */
     reset(now: number) {

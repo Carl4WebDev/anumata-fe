@@ -22,8 +22,25 @@ export interface SystemUpdate {
 export const SYSTEM_UPDATES: SystemUpdate[] = [
   {
     date: "2026-11-19",
-    title: "Edit question sets without losing questions",
+    title: "Captions on phones; edit question sets without losing questions",
     groups: [
+      {
+        area: "Interview room (patient side)",
+        changes: [
+          "Live captions now work on Android phones in Chrome and Brave. Phones always use Amumata's own server for captions: the phone's built-in speech recognition competes with the camera recording for the microphone and heard nothing, so answers weren't registered.",
+          "On phones, words appear after each phrase instead of while speaking. The consent page tells patients on phones that their voice is not sent to Google or Microsoft.",
+          "Quieter microphones (common on phones) are now heard: the room adjusts to how loudly the patient speaks.",
+        ],
+      },
+      {
+        area: "Captions (technical)",
+        audience: "admin",
+        changes: [
+          "Phones (userAgentData.mobile or an Android/iPhone/iPad/Mobile user agent) use the Whisper caption engine from the start (browserCaptionsUsable in browserSpeech.ts).",
+          "Voice detection (phraseSegmenter.ts): the minimum voice level follows the loudest recent sound (30% of it, between 0.004 and 0.012, decaying 5% per second), so laptops keep 0.012 and quiet phone microphones go as low as 0.004.",
+          "Add ?debug=1 to an interview link to show a diagnostics panel under the captions: engine, mic level vs. voice threshold, browser words, server phrases sent / with text / empty / failed, and the last failure.",
+        ],
+      },
       {
         area: "Question Sets",
         changes: [

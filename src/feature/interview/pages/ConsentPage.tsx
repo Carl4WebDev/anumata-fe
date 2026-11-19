@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Shield, Camera, Mic, FileText, AlertTriangle, Captions } from "lucide-react";
-import { browserCaptionsAllowed } from "../hooks/browserSpeech";
+import { browserCaptionsAllowed, isMobileBrowser } from "../hooks/browserSpeech";
 import { interviewLinksApi } from "../../../shared/api/interviewLinksApi";
 import { useKeepAiAwake } from "../../../shared/hooks/useKeepAiAwake";
 import AmumataLogo from "../../../shared/components/AmumataLogo";
@@ -18,7 +18,8 @@ export default function ConsentPage() {
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
   const [questionCount, setQuestionCount] = useState<number | null>(null);
-  const usesBrowserCaptions = browserCaptionsAllowed();
+  // Phones always use Amumata's server for captions (see isMobileBrowser).
+  const usesBrowserCaptions = browserCaptionsAllowed() && !isMobileBrowser();
   // Start waking the AI now, so it's ready by the time the interview ends.
   useKeepAiAwake();
 
@@ -46,7 +47,8 @@ export default function ConsentPage() {
     }
     setError("");
     // Navigate to the interview room (next task in the flow)
-    navigate(`/interview/${token}/room`);
+    // Keep ?debug=1 (diagnostics panel) on the way into the room.
+    navigate(`/interview/${token}/room${window.location.search}`);
   };
 
   return (

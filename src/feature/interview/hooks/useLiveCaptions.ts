@@ -4,7 +4,7 @@ import { createPhraseSegmenter } from "./phraseSegmenter";
 import { readRms } from "./useMicCheck";
 import type { ResponseLanguage } from "./rapportUtils";
 import {
-  browserCaptionsAllowed,
+  browserCaptionsUsable,
   FATAL_SPEECH_ERRORS,
   getSpeechRecognition,
   recognitionLocale,
@@ -41,6 +41,25 @@ export interface CaptionActivity {
  * AI service: works everywhere, but only as fast as the server.
  */
 export type CaptionEngine = "browser" | "whisper";
+
+/** What the captions are doing, for the hidden diagnostics panel (?debug=1). */
+export interface CaptionDiagnostics {
+  engine: CaptionEngine;
+  running: boolean;
+  suspended: boolean;
+  /** Microphone level (RMS 0–1) and the level that counts as voice. */
+  level: number;
+  threshold: number;
+  voiceActive: boolean;
+  audioContext: string;
+  browserResults: number;
+  browserLastError: string;
+  phrasesSent: number;
+  phrasesWithText: number;
+  phrasesEmpty: number;
+  phrasesFailed: number;
+  lastFailure: string;
+}
 
 interface UseLiveCaptionsOptions {
   /** Patient's known language — picks the recognition language. */
@@ -93,9 +112,7 @@ export function useLiveCaptions(stream: MediaStream | null, options: UseLiveCapt
   const [voiceActive, setVoiceActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
-  const [engine, setEngine] = useState<CaptionEngine>(() =>
-    browserCaptionsAllowed() && getSpeechRecognition() ? "browser" : "whisper",
-  );
+  const [engine, setEngine] = useState<CaptionEngine>(() => (browserCaptionsUsable() ? "browser" : "whisper"));
 
   const optionsRef = useRef(options);
   useEffect(() => {
@@ -134,6 +151,18 @@ export function useLiveCaptions(stream: MediaStream | null, options: UseLiveCapt
   const activeRef = useRef<ActiveRecorder | null>(null);
   const pendingRef = useRef(0);
   const heldSpeechRef = useRef(false);
+
+  // Diagnostics (?debug=1).
+  const statsRef = useRef({
+    threshold: 0,
+    browserResults: 0,
+    browserLastError: "",
+    phrasesSent: 0,
+    phrasesWithText: 0,
+    phrasesEmpty: 0,
+    phrasesFailed: 0,
+    lastFailure: "",
+  });
 
   // ─── Shared ───
 
@@ -206,6 +235,7 @@ export function useLiveCaptions(stream: MediaStream | null, options: UseLiveCapt
 
     const startedAt = Date.now();
     recognizer.onresult = (e: SpeechResultEvent) => {
+      statsRef.current.browserResults += 1;
       heardAtRef.current = Date.now();
       quickEndsRef.current = 0;
       unheardSpeechMsRef.current = 0;
@@ -220,6 +250,7 @@ export function useLiveCaptions(stream: MediaStream | null, options: UseLiveCapt
       setInterimText(pendingText);
     };
     recognizer.onerror = (e) => {
+      statsRef.current.browserLastError = e.error;
       if (FATAL_SPEECH_ERRORS.has(e.error)) fallBackToWhisper("Live speech recognition is unavailable here.");
       // "no-speech" / "aborted" are normal — onend restarts it.
     };
@@ -252,6 +283,7 @@ export function useLiveCaptions(stream: MediaStream | null, options: UseLiveCapt
   const transcribe = useCallback((blob: Blob, phraseTurn: number) => {
     const id = nextIdRef.current++;
     pendingRef.current += 1;
+    statsRef.current.phrasesSent += 1;
     setSegments((prev) => [...prev, { id, turn: phraseTurn, status: "pending", text: "", language: "" }]);
 
     transcribeAudio(blob, {
@@ -262,14 +294,18 @@ export function useLiveCaptions(stream: MediaStream | null, options: UseLiveCapt
       .then((result) => {
         const text = (result.text || "").trim();
         if (EMPTY_RESULTS.has(text)) {
+          statsRef.current.phrasesEmpty += 1;
           setSegments((prev) => prev.filter((s) => s.id !== id));
           return;
         }
+        statsRef.current.phrasesWithText += 1;
         const language = result.language || "";
         setSegments((prev) => prev.map((s) => (s.id === id ? { ...s, status: "done", text, language } : s)));
         optionsRef.current.onPhrase?.({ turn: phraseTurn, text, language });
       })
-      .catch(() => {
+      .catch((err: unknown) => {
+        statsRef.current.phrasesFailed += 1;
+        statsRef.current.lastFailure = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
         setSegments((prev) => prev.map((s) => (s.id === id ? { ...s, status: "failed" } : s)));
         setError("Captions couldn't reach the AI service — the interview continues, and you can use the buttons.");
       })
@@ -344,6 +380,7 @@ export function useLiveCaptions(stream: MediaStream | null, options: UseLiveCapt
     const level = readLevel();
     levelRef.current = level;
     const step = segmenterRef.current.feed(level, now);
+    statsRef.current.threshold = step.threshold;
     const heardRecently = heardAtRef.current !== null && now - heardAtRef.current < 600;
     const active = step.voiceActive || (engineRef.current === "browser" && heardRecently && !!interimRef.current);
     if (active !== voiceActiveRef.current) {
@@ -466,6 +503,18 @@ export function useLiveCaptions(stream: MediaStream | null, options: UseLiveCapt
   }, []);
 
   const getLevel = useCallback(() => levelRef.current, []);
+  const getDiagnostics = useCallback(
+    (): CaptionDiagnostics => ({
+      ...statsRef.current,
+      engine: engineRef.current,
+      running: runningRef.current,
+      suspended: suspendedRef.current,
+      level: levelRef.current,
+      voiceActive: voiceActiveRef.current,
+      audioContext: ctxRef.current?.state ?? "none",
+    }),
+    [],
+  );
   /** Current turn id, without waiting for a re-render. */
   const getTurn = useCallback(() => turnRef.current, []);
 
@@ -509,6 +558,7 @@ export function useLiveCaptions(stream: MediaStream | null, options: UseLiveCapt
     newTurn,
     getActivity,
     getLevel,
+    getDiagnostics,
     getTurn,
   };
 }

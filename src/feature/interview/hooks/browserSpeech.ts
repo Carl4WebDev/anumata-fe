@@ -48,6 +48,23 @@ export function browserCaptionsAllowed(): boolean {
   return import.meta.env.VITE_CAPTION_ENGINE !== "whisper";
 }
 
+/**
+ * Phones and tablets. Their browsers' speech recognition competes with the
+ * camera recording for the microphone (Android Chrome and Brave then hear
+ * nothing, without reporting an error), so phones use server captions.
+ */
+export function isMobileBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const hinted = (navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData?.mobile;
+  if (hinted) return true;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
+/** Use the browser's own speech recognition for live captions here? */
+export function browserCaptionsUsable(): boolean {
+  return browserCaptionsAllowed() && !isMobileBrowser() && getSpeechRecognition() !== null;
+}
+
 export function getSpeechRecognition(): RecognizerConstructor | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as {

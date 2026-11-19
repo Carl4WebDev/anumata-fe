@@ -52,6 +52,13 @@ describe("ConsentPage — live captions notice", () => {
     expect(screen.getByText(/sends your voice to Google or Microsoft/i)).toBeInTheDocument();
   });
 
+  test("on a phone, says the voice stays on Amumata's own server (phones use server captions)", () => {
+    const ua = vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (Linux; Android 14; SM-A546E) Chrome/131.0 Mobile Safari/537.36");
+    renderPage();
+    expect(screen.getByText(/not sent to Google or Microsoft/i)).toBeInTheDocument();
+    ua.mockRestore();
+  });
+
   test("with browser captions turned off, says the voice stays on Amumata's own server", () => {
     vi.stubEnv("VITE_CAPTION_ENGINE", "whisper");
     renderPage();

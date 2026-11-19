@@ -57,6 +57,10 @@ import {
   type ConversationLine,
 } from "../hooks/conversationLines";
 import CaptionPanel from "../components/CaptionPanel";
+import CaptionDiagnosticsPanel from "../components/CaptionDiagnosticsPanel";
+
+/** ?debug=1 in the interview link shows what the microphone and captions are doing. */
+const SHOW_DIAGNOSTICS = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug");
 import AmumataLogo from "../../../shared/components/AmumataLogo";
 import { useLeaveWarning, useScreenWakeLock } from "../hooks/interviewGuards";
 import { useMicCheck } from "../hooks/useMicCheck";
@@ -2049,6 +2053,7 @@ export default function InterviewRoom() {
             largeText={comfort.largeText}
           />
         )}
+        {SHOW_DIAGNOSTICS && <CaptionDiagnosticsPanel getDiagnostics={captions.getDiagnostics} />}
         {isFormal && !onBreak && !questionsHeld && (
           <FeelingWords
             lang={detectedLang}
